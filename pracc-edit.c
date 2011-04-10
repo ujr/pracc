@@ -1,8 +1,6 @@
 /* pracc-edit.c - part of pracc sources
- * $Id: pracc-edit.c,v 1.7 2008/02/06 21:48:10 ujr Exp ujr $
  * Copyright (c) 2005-2008 by Urs Jakob Ruetschi
  */
-static char id[] = "This is pracc-edit by ujr\n$Revision: 1.7 $\n";
 
 #include <errno.h>
 #include <pwd.h>
@@ -43,9 +41,10 @@ int main(int argc, char **argv)
    if (!me) return 127; // no arg0
 
    opterr = 0; // prevent stupid getopt output
-   while ((c = getopt(argc, argv, "V")) > 0) switch (c) {
-      case 'V': return (putln(stdout, id) == 0) ? 0 : 127;
-      default: usage("invalid option");
+   while ((c = getopt(argc, argv, "hV")) > 0) switch (c) {
+      case 'h': usage(0); // show help
+      case 'V': return praccIdentify("pracc-edit");
+      default:  usage("invalid option");
    }
    argc -= optind;
    argv += optind;
@@ -170,10 +169,12 @@ void setlimit(const char *s)
    else usage("invalid limit");
 }
 
-void usage(const char *s)
+void usage(const char *err)
 {
-   if (s) putfmt(stderr, "%s: %s\n", me, s);
-   putfmt(stderr, "Usage: %s [-V] account action {argument}\n", me);
-   putfmt(stderr, " action: debit, credit, reset, limit, error, note\n");
-   exit(127); // FAILURE
+   FILE *fp = (err) ? stderr : stdout;
+   if (err) putfmt(stderr, "%s: %s\n", me, err);
+   putfmt(fp, "Usage: %s [-V] account action {argument}\n", me);
+   putfmt(fp, "Append a record to the named account.\n");
+   putfmt(fp, " action: debit, credit, reset, limit, error, note\n");
+   exit((err) ? 127 : 0); // FAILURE or OK
 }

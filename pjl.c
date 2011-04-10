@@ -2,8 +2,7 @@
 /* Copyright (c) 2005-2007 by Urs-Jakob Rueetschi */
 /* Published under the GNU General Public License */
 
-static char \
-rcsid[] = "$Id: pjl.c,v 1.3 2009/10/06 19:25:08 ujr Exp ujr $";
+//static char rcsid[] = "$Id: pjl.c,v 1.3 2009/10/06 19:25:08 ujr Exp ujr $";
 
 #include <ctype.h>
 #include <stdio.h>
@@ -77,15 +76,6 @@ void pjlinit(void)
  */
 int pjluel(int fd)
 {
-#if 0
-   char *s;
-   char buf[20]; // XXX
-   int n;
-
-   s = "%s@PJL \r\n";
-   n = snprintf(buf, sizeof buf, s, UEL);
-#endif
-
    return pjlwrite(fd, UEL, strlen(UEL));
 }
 

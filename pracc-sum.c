@@ -1,8 +1,6 @@
 /* pracc-sum.c - a utility in the pracc package
- * $Id: pracc-sum.c,v 1.8 2008/03/24 15:47:55 ujr Exp ujr $
  * Copyright (c) 2005-2008 by Urs Jakob Ruetschi
  */
-static char id[] = "This is pracc-sum by ujr\n$Revision: 1.8 $\n";
 
 /* TODO: get TZ in mktime and localtime right! */
 
@@ -41,14 +39,15 @@ int main(int argc, char **argv)
    if (!me) return 127; // no arg0
 
    opterr = 0; // prevent stupid getopt output
-   while ((c = getopt(argc, argv, "f:u:V")) > 0) switch (c) {
+   while ((c = getopt(argc, argv, "f:u:hV")) > 0) switch (c) {
       case 'f': setdate(optarg, &tmin);
                 break;
       case 'u': setdate(optarg, &tmax);
                 tmax += 86399; // 23:59:59
                 break;
-      case 'V': return (putln(stdout, id) == 0) ? 0 : 127;
-      default: usage("invalid option");
+      case 'h': usage(0); // show help
+      case 'V': return praccIdentify("pracc-sum");
+      default:  usage("invalid option");
    }
    argc -= optind;
    argv += optind;
@@ -105,10 +104,12 @@ void setdate(const char *s, time_t *tp)
    if (tp) *tp = t;
 }
 
-void usage(const char *s)
+void usage(const char *err)
 {
-   if (s) putfmt(stderr, "%s: %s\n", me, s);
-   putfmt(stderr, "Usage: %s [-V] [-f date] [-u date] account\n", me);
-   putfmt(stderr, " date in ISO 8601 format, eg, 2005-07-15\n");
-   exit(127); // FAILURE
+   FILE *fp = (err) ? stderr : stdout;
+   if (err) putfmt(stderr, "%s: %s\n", me, err);
+   putfmt(fp, "Usage: %s [-V] [-f date] [-u date] account\n", me);
+   putfmt(fp, "Compute the balance of the named account.\n");
+   putfmt(fp, " date: in yyyy-mm-dd format, eg, 2005-07-15\n");
+   exit((err) ? 127 : 0); // FAILURE or OK
 }

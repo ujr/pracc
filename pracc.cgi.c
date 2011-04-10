@@ -1,4 +1,4 @@
-/* Pracc Web GUI, $Revision: 1.4 $ */
+/* Pracc Web GUI */
 /* Copyright (c) 2008 by Urs Jakob Ruetschi */
 
 #include "cgi.h"

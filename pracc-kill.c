@@ -1,8 +1,6 @@
 /* pracc-view.c - a utility in the pracc package
- * $Id: pracc-kill.c,v 1.1 2008/04/05 18:03:51 ujr Exp ujr $
  * Copyright (c) 2005-2008 by Urs Jakob Ruetschi
  */
-static char id[] = "This is pracc-kill by ujr\n$Revision: 1.1 $\n";
 
 #include <pwd.h>
 #include <stdio.h>
@@ -14,6 +12,7 @@ static char id[] = "This is pracc-kill by ujr\n$Revision: 1.1 $\n";
 #include "pracc.h"
 #include "print.h"
 
+int identify(const char *version);
 void usage(const char *s);
 
 char *me;
@@ -37,10 +36,11 @@ int main(int argc, char **argv)
    if (!me) return 127; // no arg0
 
    opterr = 0; // prevent stupid getopt output
-   while ((c = getopt(argc, argv, "fV")) > 0) switch (c) {
+   while ((c = getopt(argc, argv, "fhV")) > 0) switch (c) {
       case 'f': serious = 1; break;
-      case 'V': return (putln(stdout, id) == 0) ? 0 : 127;
-      default: usage("invalid option");
+      case 'h': usage(0); // show help
+      case 'V': return praccIdentify("pracc-kill");
+      default:  usage("invalid option");
    }
    argc -= optind;
    argv += optind;
@@ -95,11 +95,12 @@ int main(int argc, char **argv)
    return 0; // SUCCESS
 }
 
-void usage(const char *s)
+void usage(const char *err)
 {
-   if (s) putfmt(stderr, "%s: %s\n", me, s);
-   putfmt(stderr, "Usage: %s [-V] [-f] account [comment]\n",me);
-   putfmt(stderr, "Delete given account (if -f, otherwise just pretend).\n");
-   putfmt(stderr, "Include the comment, if any, in the pracc log entry.\n");
-   exit(127); // FAILURE
+   FILE *fp = (err) ? stderr : stdout;
+   if (err) putfmt(stderr, "%s: %s\n", me, err);
+   putfmt(fp, "Usage: %s [-V] [-f] account [comment]\n",me);
+   putfmt(fp, "Delete named account (if -f, otherwise just pretend).\n");
+   putfmt(fp, "Include the comment, if any, in the pracc log entry.\n");
+   exit((err) ? 127 : 0); // FAILURE or OK
 }

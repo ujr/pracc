@@ -2,8 +2,7 @@
 /* Copyright (c) 2004-2007 by Urs-Jakob Rueetschi */
 /* Published under the GNU General Public License */
 
-static char \
-rcsid[] = "$Id: ps.c,v 1.4 2008/01/04 09:37:18 ujr Exp ujr $";
+//static char rcsid[] = "$Id: ps.c,v 1.4 2008/01/04 09:37:18 ujr Exp ujr $";
 
 #include <assert.h>
 #include <ctype.h>

@@ -10,8 +10,6 @@
 // 2010-12-22  2200-2300  coding
 // 2011-01-01  1500-..    testing mit dem brother HL-2150N
 
-static char id[] = "This is pracc-print by ujr\n$Revision$\n";
-
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -135,8 +133,7 @@ main(int argc, char *argv[], char *envp[])
          else usage("invalid argument to -s option");
          break;
       case 'V':
-         printf("%s\n", id);
-         return 0;
+         return praccIdentify("pracc-print");
       default:
          usage("invalid option");
          return 127;

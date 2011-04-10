@@ -1,8 +1,6 @@
 /* pracc-purge.c - a utility in the pracc package
- * $Id: pracc-purge.c,v 1.3 2008/02/06 21:48:36 ujr Exp ujr $
  * Copyright (c) 2006-2008 by Urs Jakob Ruetschi
  */
-static char id[] = "This is pracc-purge by ujr\n$Revision: 1.3 $\n";
 
 #include <errno.h>
 #include <pwd.h>
@@ -42,13 +40,14 @@ int main(int argc, char **argv)
 
    opterr = 0; // prevent stupid getopt output
    rflag = lflag = nflag = simul = 0; // defaults
-   while ((c = getopt(argc, argv, "lrnDV")) > 0) switch (c) {
+   while ((c = getopt(argc, argv, "lrnDhV")) > 0) switch (c) {
       case 'l': lflag = 1; break;
       case 'r': rflag = 1; break;
       case 'n': nflag = 1; break;
       case 'D': simul = 1; break;
-      case 'V': return (putln(stdout, id) == 0) ? 0 : 127;
-      default: usage("invalid option");
+      case 'h': usage(0); // show help
+      case 'V': return praccIdentify("pracc-purge");
+      default:  usage("invalid option");
    }
    argc -= optind;
    argv += optind;
@@ -134,11 +133,12 @@ void setdate(const char *s, time_t *tp)
    if (tp) *tp = t;
 }
 
-void usage(const char *s)
+void usage(const char *err)
 {
-   if (s) putfmt(stderr, "%s: %s\n", me, s);
-   putfmt(stderr, "Usage: %s [-lrnDV] account date\n", me);
-   putfmt(stderr, "Purge records older than <date> from <account>\n");
-   putfmt(stderr, "Specify the date as yyyy-mm-dd, e.g., 2005-12-31\n");
-   exit(127); // FAILURE
+   FILE *fp = (err) ? stderr : stdout;
+   if (err) putfmt(stderr, "%s: %s\n", me, err);
+   putfmt(fp, "Usage: %s [-lrnDV] account date\n", me);
+   putfmt(fp, "Purge records older than <date> from <account>.\n");
+   putfmt(fp, "Specify the date as yyyy-mm-dd, e.g., 2005-12-31\n");
+   exit((err) ? 127 : 0); // FAILURE or OK
 }

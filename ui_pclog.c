@@ -290,7 +290,7 @@ int main(int argc, char **argv)
       case 'f': setdate(optarg, &tmin); break;
       case 'u': setdate(optarg, &tmax); break;
       case 'V':
-         printf("This is pracc-pclog by ujr\n$Revision$\n");
+         printf("This is pracc-pclog, version %s\n", VERSION);
          return 0;
       default: usage("invalid option");
    }

@@ -1,4 +1,4 @@
-/* Substitution, $Revision: 1.3 $ */
+/* Variable substitution in text files */
 /* Syntax motivated by CUPS cgi_copy() */
 /* Urs-Jakob Rueetschi, March 2008 */
 /* ujr/20080902 include files now relative to current file */
@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Subst MUST NOT depend on pracc.h !! (It's used for bootstrapping pracc!)
 #include "scan.h"
 #include "symtab.h"
 
@@ -354,7 +355,7 @@ static void copy(FILE *in, FILE *out)
 #include <time.h>
 #include <unistd.h>
 
-static char id[] = "$Id: subst.c,v 1.3 2008/09/03 20:52:32 ujr Exp ujr $";
+//static char id[] = "$Id: subst.c,v 1.3 2008/09/03 20:52:32 ujr Exp ujr $";
 
 struct symtab syms;
 
@@ -464,8 +465,11 @@ int main(int argc, char **argv)
 
    opterr = 0; // prevent stupid getopt output
    while ((c = getopt(argc, argv, "V")) > 0) switch (c) {
-      case 'V': printf("%s\n", id); return 0;
-      default: fprintf(stderr, "Usage: %s [-V] {name=value} {files}\n", me);
+      case 'V':
+         printf("This is subst (part of pracc), version %s\n", VERSION);
+         return 0;
+      default:
+         fprintf(stderr, "Usage: %s [-V] {name=value} {files}\n", me);
    }
    argc -= optind;
    argv += optind;

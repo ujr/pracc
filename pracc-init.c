@@ -1,8 +1,6 @@
 /* pracc-init.c - a utility in the pracc package
- * $Id: pracc-init.c,v 1.9 2008/02/06 21:47:51 ujr Exp ujr $
  * Copyright (c) 2005-2008 by Urs Jakob Ruetschi
  */
-static char id[] = "This is pracc-init by ujr\n$Revision: 1.9 $\n";
 
 #include <errno.h>
 #include <pwd.h>
@@ -46,11 +44,12 @@ int main(int argc, char **argv)
 
    opterr = 0; // prevent stupid getopt output
    overwrite = nevermind = 0; // defaults
-   while ((c = getopt(argc, argv, "fFV")) > 0) switch (c) {
+   while ((c = getopt(argc, argv, "fFhV")) > 0) switch (c) {
       case 'f': overwrite = 1; break;
       case 'F': nevermind = 1; break;
-      case 'V': return (putln(stdout, id) == 0) ? 0 : 127;
-      default: usage("invalid option");
+      case 'h': usage(0); // show help
+      case 'V': return praccIdentify("pracc-init");
+      default:  usage("invalid option");
    }
    argc -= optind;
    argv += optind;
@@ -123,10 +122,11 @@ void setlimit(const char *s)
    else usage("invalid limit");
 }
 
-void usage(const char *s)
+void usage(const char *err)
 {
-   if (s) putfmt(stderr, "%s: %s\n", me, s);
-   putfmt(stderr, "Usage: %s [-fFV] account balance limit {info}\n", me);
-   putfmt(stderr, "Create initial pracc file with given balance and limit\n");
-   exit(127); // FAILURE
+   FILE *fp = (err) ? stderr : stdout;
+   if (err) putfmt(stderr, "%s: %s\n", me, err);
+   putfmt(fp, "Usage: %s [-fFV] account balance limit {info}\n", me);
+   putfmt(fp, "Create initial pracc file with given balance and limit\n");
+   exit((err) ? 127 : 0); // FAILURE or OK
 }

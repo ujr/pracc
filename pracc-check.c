@@ -1,8 +1,6 @@
 /* pracc-check.c - a utility in the pracc package
- * $Id: pracc-check.c,v 1.2 2008/02/06 21:48:46 ujr Exp ujr $
  * Copyright (c) 2007-2008 by Urs Jakob Ruetschi
  */
-static char id[] = "This is pracc-check by ujr\n$Revision: 1.2 $\n";
 
 /***
  d 2770 PRACCOWNER:PRACCGROUP PRACCDIR/             required
@@ -68,9 +66,10 @@ int main(int argc, char **argv)
    if (!me) return 127;
 
    opterr = 0; // prevent stupid getopt output
-   while ((c = getopt(argc, argv, "V")) > 0) switch (c) {
-      case 'V': return (putln(stdout, id) == 0) ? 0 : 127;
-      default: usage("invalid option");
+   while ((c = getopt(argc, argv, "hV")) > 0) switch (c) {
+      case 'h': usage(0); // show help
+      case 'V': return praccIdentify("pracc-check");
+      default:  usage("invalid option");
    }
    argc -= optind;
    argv += optind;
@@ -289,9 +288,12 @@ int checkfile(const char *fn)
    return 127;
 }
 
-void usage(const char *s)
+void usage(const char *err)
 {
-   if (s) putfmt(stderr, "%s: %s\n", me, s);
-   putfmt(stderr, "Usage: %s [account]\n", me);
-   exit(127); // FAILURE
+   FILE *fp = (err) ? stderr : stdout;
+   if (err) putfmt(stderr, "%s: %s\n", me, err);
+   putfmt(fp, "Usage: %s [account]\n", me);
+   putfmt(fp, "Check the basic pracc installation.\n");
+   putfmt(fp, " account: check this account\n");
+   exit((err) ? 127 : 0); // FAILURE or OK
 }

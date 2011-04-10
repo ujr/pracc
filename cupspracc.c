@@ -1,19 +1,9 @@
 /* Pracc as a CUPS backend
  *
- * Copyright (c) 2007 by Urs-Jakob Ruetschi.
+ * Copyright (c) 2007-2011 by Urs-Jakob Ruetschi.
  * Use at your own exclusive risk and under the terms of the GNU
  * General Public License.  See AUTHORS, COPYRIGHT, and COPYING.
  */
-
-/* TODO
- * 1. Logik in estimate(): jobscan mehr gewichten.
- * 2. Make private_log() NOT truncate the log file.
- * 3. RCS ci -l to get a new (correct) version number.
- * 4. Check doc/tmpl/main.tmpl: at PHZ, link to cupspracc.html is missing?
- */
-
-static char rcsid[] = \
-"$Id: cupspracc.c,v 1.16 2009/10/06 19:39:13 ujr Exp ujr $";
 
 #include <assert.h>
 #include <errno.h>
@@ -74,7 +64,6 @@ int wait0 = -1, wait1 = -1;    // delays waiting for page ejects
 const char *jobscan = 0;       // optional job page scanner
 
 const char *acctname;          // name of account to charge
-//const char *jobuser;           // an alias for main's argv[2]
 char jobuser[MAXNAME];         // job user taken from argv[2]
 char jobtitle[48];             // job title taken from argv[3]
 const char *printer;           // printer name (not hostname)
@@ -197,7 +186,6 @@ int main(int argc, char *argv[], char *envp[])
    }
 
    jobid = atoi(argv[1]);
-   //jobuser = argv[2]; // 2009-08-22 copyuser(): lower case
    copyuser(jobuser, sizeof(jobuser), argv[2]);
    copytitle(jobtitle, sizeof(jobtitle), argv[3]);
 
@@ -225,11 +213,12 @@ int main(int argc, char *argv[], char *envp[])
     * check credits, send the print job, and do accounting.
     */
 
-   log_debug("This is cupspracc, $Revision: 1.16 $");
+   log_debug("This is cupspracc, version %s", VERSION);
    log_debug("Job %d user=%s title=%s", jobid, jobuser, jobtitle);
    log_debug("DeviceURI: %s", devuri);
    log_debug("Parameter: acctmode=%d pagecost=%d wait0=%d wait1=%d",
       acctmode, pagecost, wait0, wait1);
+   log_debug("Jobscan: %s", jobscan ? jobscan : "(null)");
    log_debug("Running as: uid=%d euid=%d gid=%d egid=%d pid=%d",
       getuid(), geteuid(), getgid(), getegid(), getpid());
 
@@ -869,23 +858,28 @@ void pjlinput(const char *buf, unsigned len)
 }
 
 /*
- * Estimate the number of pages printed, based on the
- * number m of pages in the printjob (-1 if unknown)
- * and the number n of pages printed as reported by
- * the printer (-1 if unknown).
+ * Estimate the number of pages printed, based on the number
+ * of pages in the printjob (-1 if unknown) and the number of
+ * pages printed as reported by the printer (-1 if unknown).
  *
- * PJL is much more robust than the PostScript method:
- * if acctmode == PJL trust n and don't average with m.
+ * In theory, counting with PJL is much more robust than counting
+ * with PostScript, therefore, if acctmode is PJL, it's reasonable
+ * to trust n and to not average it with m. In practice, however,
+ * there are drivers that emit invalid PJL code and the count is
+ * completely wrong!
  */
-long estimate(long m, long n)
+long estimate(long jobcount, long devcount)
 {
-   if ((m < 0) && (n < 0)) return -1; // unknown
+   if (jobcount < 0 && devcount < 0) return -1; // both unknown
 
-   if (m < 0) return n;
-   if (n < 0) return m;
+   if (jobcount < 0) return devcount;
+   if (devcount < 0) return jobcount;
 
-   if (acctmode == PJL) return n;
-   return (m < n) ? n : (m+n)/2;
+   //if (acctmode == PJL) return devcount; TODO DROP (see comment above)
+
+   if (jobcount < devcount) return devcount;
+
+   return (jobcount+devcount)/2;
 }
 
 /*
@@ -1272,10 +1266,12 @@ static void private_log(const char *fmt, ...)
       logfp = fdopen(logfd, "a");
       if (!logfp) return; // silently give up
 
+#if 0 // Version 1.2.0 and later: don't truncate
       /* Truncate to zero if too long */
       if (fstat(fileno(logfp), &stbuf) == 0)
          if (stbuf.st_size > 1000000)
             ftruncate(fileno(logfp), 0);
+#endif
    }
 
    if (logfp) {

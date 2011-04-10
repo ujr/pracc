@@ -258,7 +258,7 @@ void debug(const char *fmt, ...)
    va_list ap;
    va_start(ap, fmt);
    if (!verbose) return;
-   fprintf(stderr, "Line %d: ", lineno);
+   fprintf(stderr, "Line %ld: ", lineno);
    vfprintf(stderr, fmt, ap);
    fprintf(stderr, "\n");
    va_end(ap);

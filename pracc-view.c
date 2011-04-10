@@ -1,8 +1,6 @@
 /* pracc-view.c - a utility in the pracc package
- * $Id: pracc-view.c,v 1.4 2008/02/06 21:48:19 ujr Exp ujr $
  * Copyright (c) 2005-2008 by Urs Jakob Ruetschi
  */
-static char id[] = "This is pracc-view by ujr\n$Revision: 1.4 $\n";
 
 /* TODO: get TZ in mktime and localtime right! */
 
@@ -40,12 +38,13 @@ int main(int argc, char **argv)
    if (!me) return 127; // no arg0
 
    opterr = 0; // prevent stupid getopt output
-   while ((c = getopt(argc, argv, "f:t:u:V")) > 0) switch (c) {
+   while ((c = getopt(argc, argv, "f:t:u:hV")) > 0) switch (c) {
       case 't': addtype(optarg); break;
       case 'f': setdate(optarg, &datemin); break;
       case 'u': setdate(optarg, &datemax); datemax += 86400; break;
-      case 'V': return (putln(stdout, id) == 0) ? 0 : 127;
-      default: usage("invalid option");
+      case 'h': usage(0); // show help
+      case 'V': return praccIdentify("pracc-view");
+      default:  usage("invalid option");
    }
    argc -= optind;
    argv += optind;
@@ -83,8 +82,7 @@ int main(int argc, char **argv)
    }
    (void) praccClose(&pracc);
 
-   if (n < 0) return 111;
-   return 0; // SUCCESS
+   return (n < 0) ? 111 : 0;
 }
 
 void addtype(const char *s)
@@ -118,11 +116,13 @@ void setdate(const char *s, time_t *tp)
    if (tp) *tp = t;
 }
 
-void usage(const char *s)
+void usage(const char *err)
 {
-   if (s) putfmt(stderr, "%s: %s\n", me, s);
-   putfmt(stderr, "Usage: %s [-V] [-f from] [-u until] {-t type} account\n",me);
-   putfmt(stderr, " known types: debit, credit, reset, limit, error, note\n");
-   putfmt(stderr, " from, until: date in yyyy-mm-dd format, eg, 2005-07-15\n");
-   exit(127); // FAILURE
+   FILE *fp = (err) ? stderr : stdout;
+   if (err) putfmt(stderr, "%s: %s\n", me, err);
+   putfmt(fp, "Usage: %s [-V] [-f from] [-u until] {-t type} account\n",me);
+   putfmt(fp, "List named account to standard output.\n");
+   putfmt(fp, " known types: debit, credit, reset, limit, error, note\n");
+   putfmt(fp, " from, until: date in yyyy-mm-dd format, eg, 2005-07-15\n");
+   exit((err) ? 127 : 0); // FAILURE or OK
 }

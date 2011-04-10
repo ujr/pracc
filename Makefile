@@ -1,6 +1,9 @@
 # Makefile for pracc project
 # $Id: Makefile,v 1.6 2008/04/14 19:16:38 ujr Exp ujr $
 
+# The release version of pracc. Do not modify!
+VERSION = 1.2.0
+
 # ** Start Configuration:
 
 # Use these variables to adjust pracc to your system.
@@ -43,7 +46,7 @@ PRACCPEEK = pracc-watch
 CFLAGS = -s
 
 TOOLS = pracc-init pracc-edit pracc-view pracc-kill \
- pracc-sum pracc-purge pracc-check pracc-log pracc-ok
+ pracc-sum pracc-purge pracc-check pracc-log
 
 all: backend tools gui
 backend: cupspracc
@@ -59,7 +62,6 @@ install: cupspracc pracc.cgi tools
 	install -o root -g root -m 755 pracc-sum $(PRACCBIN)
 	install -o root -g root -m 755 pracc-check $(PRACCBIN)
 	install -o root -g root -m 755 pracc-log $(PRACCBIN)
-	install -o root -g root -m 755 pracc-ok $(PRACCBIN)
 	install -o root -g $(PRACCGROUP) -m 700 cupspracc $(BACKDIR)/pracc
 	install -o root -g root -m 755 pracc.cgi $(PRACCCGI)/pracc.cgi
 	cp -a doc/* $(PRACCDOC)
@@ -68,7 +70,8 @@ install: cupspracc pracc.cgi tools
 # Generate the pracc.h header:
 
 pracc.h: Makefile subst
-	./subst "PRACCOWNER=$(PRACCOWNER)" \
+	./subst "VERSION=$(VERSION)" \
+	 "PRACCOWNER=$(PRACCOWNER)" \
 	 "PRACCGROUP=$(PRACCGROUP)" \
 	 "PRACCDEFLT=$(PRACCDEFLT)" \
 	 "PRACCLOG=$(PRACCLOG)" \
@@ -124,9 +127,6 @@ pracc-check.o: pracc-check.c common.h pracc.h print.h streq.h
 pracc-log: pracc-log.o printstm.o tailocal.o common.a pracclib.a
 pracc-log.o: pracc-log.c common.h pracc.h scan.h streq.h tai.h
 
-pracc-ok: pracc-ok.o common.a pracclib.a
-pracc-ok.o: pracc-ok.c common.h pracc.h
-
 # Pracc Web GUI
 
 pracc.cgi.o: pracc.cgi.c pracc.h symtab.h cgi.h datetools.h \
@@ -135,9 +135,10 @@ pracc.cgi: pracc.cgi.o subst.o symtab.o cgi.o datetools.c common.a \
         ui_acct.o ui_accts.o ui_pclog.o ui_pracclog.o ui_report.o \
         tailocal.o pracclib.a
 
-# Subst must not depend on pracc.h, not even transitively!
+# Subst MUST NOT depend on pracc.h, not even transitively!
 subst: subst.c symtab.h scan.h
-	cc -D STANDALONE -o $@ subst.c symtab.c progname.c scani.c scanu.c
+	cc -D STANDALONE -D VERSION='"$(VERSION)"' -o $@ \
+	subst.c symtab.c progname.c scani.c scanu.c
 
 pclog: ui_pclog.c symtab.h symtab.c pracc.h common.h getln.h tai.h
 	cc -D TESTING -o $@ ui_pclog.c symtab.c getln.c scani.c scanu.c \
@@ -162,9 +163,10 @@ symtab.o: symtab.c symtab.h
 pracclib: pracclib.a
 pracclib.a: praccAppend.o praccAssemble.o praccCheckName.o praccCreate.o \
 	praccFormatInfo.o praccFormatName.o praccGrant.o praccLogRead.o \
-	praccLogup.o praccPath.o praccPurge.o praccRead.o praccSum.o \
+	praccLogup.o praccIdentify.o \
+	praccPath.o praccPurge.o praccRead.o praccSum.o \
 	praccTypeString.o praccAccountInfo.o praccDelete.o \
-	hasgroup.o getln.o \
+	hasgroup.o getln.o putln.o \
 	taifmt.o tainow.o taiscan.o taistore.o \
 	scandate.o scani.o scanpat.o scanu.o \
 	prints.o printu.o printi.o
@@ -182,6 +184,7 @@ praccFormatName.o: praccFormatName.c pracc.h
 praccGrant.o: praccGrant.c pracc.h hasgroup.h
 praccLogRead.o: praccLogRead.c pracc.h getln.h scan.h tai.h
 praccLogup.o: praccLogup.c pracc.h print.h
+praccIdentify.o: praccIdentify.c pracc.h
 praccPath.o: praccPath.c pracc.h
 praccPurge.o: praccPurge.c pracc.h print.h
 praccRead.o: praccRead.c pracc.h getln.h tai.h
@@ -234,13 +237,15 @@ tgz: clean
 	(cd ..; tar chzvf pracc-`date +%Y%m%d`.tgz pracc)
 
 dist: clean
-	(V=`head -1 VERSION`; cd ..; tar chzvf pracc-v$$V.tgz \
-	 --exclude RCS --exclude legacy --exclude test pracc)
+	(cd ..; tar chzvf pracc-$(VERSION).tgz \
+	 --exclude .git --exclude RCS --exclude legacy --exclude test pracc)
+#	(V=`head -1 VERSION`; cd ..; tar chzvf pracc-v$$V.tgz \
+#	 --exclude RCS --exclude legacy --exclude test pracc)
 
-# Conversion from old pracc files to the current (2008) format
-
-conv:	conv.c pracc.h getln.h tai.h
-	cc -o conv conv.c oldscan.c getln.c scani.c scanu.c scans.c \
-	scanpat.c scantime.c scandate.c taiscan.c taifmt.c taistore.c \
-	praccAssemble.c praccFormatName.c praccFormatInfo.c printu.c printi.c
+## Conversion from old pracc files to the current (2008) format
+#
+#conv:	conv.c pracc.h getln.h tai.h
+#	cc -o conv conv.c oldscan.c getln.c scani.c scanu.c scans.c \
+#	scanpat.c scantime.c scandate.c taiscan.c taifmt.c taistore.c \
+#	praccAssemble.c praccFormatName.c praccFormatInfo.c printu.c printi.c
 

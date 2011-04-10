@@ -94,10 +94,10 @@ next: p = line;
       p += scanpat(p, " ");
       if (n = taiscan(p, &tai)) p += n;
       else
-#if OLDSTAMP
-         if (n = oldscan(p, &tai)) p += n;
-         else
-#endif
+//#if OLDSTAMP
+//         if (n = oldscan(p, &tai)) p += n;
+//         else
+//#endif
          return 1; // ok but incomplete
       pracc->tstamp = taiunix(&tai);
 
