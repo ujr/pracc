@@ -1,0 +1,132 @@
+head	1.1;
+access;
+symbols;
+locks
+	ujr:1.1; strict;
+comment	@ * @;
+
+
+1.1
+date	2008.02.01.12.05.40;	author ujr;	state Exp;
+branches;
+next	;
+
+
+desc
+@Scan print job data trying to figure out how many pages it contains.
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@/* 
+ * Scan print job data and use a heuristic to tell
+ * how many pages the job would produce when printed.
+ *
+ * This version only handles DSC conformant PostScript.
+ * It uses the value of the first %%Pages comment or,
+ * if it is (atend), the one of the last such comment.
+ */
+
+#define JOBDEBUG // copy job to /tmp/job.data (overwrite)
+
+#include <ctype.h>
+#include <string.h>
+#ifdef JOBDEBUG
+#include <stdio.h>
+#endif
+
+#ifdef TESTING
+#include <stdio.h>
+#define log_debug printf
+#endif
+
+#include "scan.h"
+
+long jobpages = -1; // initially unknown
+void jobscan(const char *buf, unsigned len);
+
+static void scan_ps_line(const char *line, unsigned len)
+{
+   static int gotit = 0;
+   static int atend = 0;
+   const char *p = line;
+   unsigned long num;
+   int n;
+
+   if (!line) { gotit = atend = 0; return; }
+
+   if ((n = scans(p, "%%Pages:"))) p += n;
+   if (gotit || n == 0) return;
+
+   while ((*p == ' ') || (*p == '\t')) ++p;
+   //log_debug("{%%%%Pages:%s}\n", p);
+   if ((n = scans(p, "(atend)"))) atend = 1;
+   else if ((n = scanu(p, &num))) {
+      //log_debug("scan_ps_line: saw %%%%Pages: %ld", num);
+      if (jobpages < (signed long) num) jobpages = num;
+      if (!atend) gotit = 1;
+   }
+}
+
+void jobscan(const char *buf, unsigned len)
+{
+   static char line[256];
+   char *lp = line; // pointer into target line
+   const char *linend = line + sizeof(line) - 1;
+   const char *sp = buf; // pointer into source buf
+   const char *bufend = buf + len; // sp < bufend
+   char c;
+
+#ifdef JOBDEBUG
+   {static FILE *fp = 0;
+   if (!fp) fp = fopen("/tmp/job.data", "w");
+   fwrite(buf, len, 1, fp); fflush(fp);}
+#endif // JOBDEBUG
+
+   while (sp < bufend) {
+      switch (c = *sp++) {
+         case '\n':
+         case '\r':
+	 case '\0':
+            *lp++ = '\0'; // terminate!
+            scan_ps_line(line, lp-line);
+            lp = line; // reset
+            break;
+         default:
+            if (lp < linend) *lp++ = c;
+            else /* drop silently */ ;
+            break;
+      }
+   }
+}
+
+#ifdef TESTING
+#include <fcntl.h>
+#include <stdio.h>
+#include <unistd.h>
+int main(int argc, char **argv)
+{
+   char buf[1024];
+   int fd, n;
+
+   if (argv && *argv) ++argv;
+   else return 127; // no arg0?
+
+   if (*argv) fd = open(*argv++, O_RDONLY);
+   else fd = 0; // stdin by default
+   if (fd < 0) return 111;
+
+   while ((n = read(fd, buf, sizeof(buf))) > 0)
+      jobscan(buf, n);
+   if (n < 0) return 112;
+
+   printf("Pages: %d\n", jobpages);
+
+   return 0; // SUCCESS
+}
+#endif // TESTING
+@

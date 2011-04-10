@@ -1,0 +1,682 @@
+head	1.8;
+access;
+symbols;
+locks
+	ujr:1.8; strict;
+comment	@ * @;
+
+
+1.8
+date	2008.03.24.15.47.55;	author ujr;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2008.03.24.15.47.32;	author ujr;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2008.02.06.21.48.27;	author ujr;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.12.18.15.48.49;	author ujr;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.12.18.14.35.53;	author ujr;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.12.18.12.10.57;	author ujr;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.12.14.00.48.52;	author ujr;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.07.15.20.59.35;	author ujr;	state Exp;
+branches;
+next	;
+
+
+desc
+@Initial RCS version.
+@
+
+
+1.8
+log
+@Changed to use new praccSum() API function.
+Output now includes date of latest record.
+@
+text
+@/* pracc-sum.c - a utility in the pracc package
+ * $Id: pracc-sum.c,v 1.6 2008/02/06 21:48:27 ujr Exp ujr $
+ * Copyright (c) 2005-2008 by Urs Jakob Ruetschi
+ */
+static char id[] = "This is pracc-sum by ujr\n$Revision: 1.6 $\n";
+
+/* TODO: get TZ in mktime and localtime right! */
+
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#include "common.h"
+#include "pracc.h"
+#include "print.h"
+#include "scan.h"
+#include "tai.h"
+
+void setdate(const char *s, time_t *t);
+void usage(const char *s);
+
+char *me;
+char *acctname;
+time_t datemin = 0;
+time_t datemax = 0;
+
+int main(int argc, char **argv)
+{
+   struct praccbuf pracc;
+   long balance, limit;
+   long credits, debits;
+   struct tai lastused;
+   struct tai mint, *mintp = 0;
+   struct tai maxt, *maxtp = 0;
+   char limitstr[16];
+   char laststr[32];
+   int c, n, status;
+
+   extern int optind;
+   extern char *optarg;
+   extern int opterr;
+
+   me = progname(argv);
+   if (!me) return 127; // no arg0
+
+   opterr = 0; // prevent stupid getopt output
+   while ((c = getopt(argc, argv, "f:u:V")) > 0) switch (c) {
+      case 'f': setdate(optarg, &datemin);
+                unixtai(mintp = &mint, datemin);
+                break;
+      case 'u': setdate(optarg, &datemax);
+                datemax += 86400;
+                unixtai(maxtp = &maxt, datemax);
+                break;
+      case 'V': return (putln(stdout, id) == 0) ? 0 : 127;
+      default: usage("invalid option");
+   }
+   argc -= optind;
+   argv += optind;
+
+   if (*argv) acctname = *argv++;
+   else usage("account not specified");
+   if (praccCheckName(acctname))
+      usage("invalid account name");
+
+   if (*argv) usage("too many arguments");
+
+   balance = 0;
+   limit = UNLIMITED;
+   credits = debits = 0;
+
+   if (praccSum(acctname, mintp, maxtp, &balance, &limit,
+                &credits, &debits, &lastused) == 0) {
+      struct tm tm;
+      time_t t = tailocal(&lastused, &tm);
+      sprintf(laststr, "%d-%02d-%02d %02d:%02d:%02d",
+              tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday,
+              tm.tm_hour, tm.tm_min, tm.tm_sec);
+
+      if (limit <= UNLIMITED) strcpy(limitstr, "none");
+      else limitstr[printi(limitstr, limit)] = '\0';
+
+      putfmt(stdout,
+             "acct %s balance %d limit %s credits %d debits %d last %s\n",
+             acctname, balance, limitstr, credits, debits, laststr);
+      status = (balance <= limit) && (limit > UNLIMITED) ? 1 : 0;
+   }
+   else {
+      putfmt(stderr, "acct %s: %s\n", acctname, strerror(errno));
+      status = 111;
+   }
+
+   return status;
+}
+
+void setdate(const char *s, time_t *tp)
+{
+   struct tm tm;
+   time_t t;
+   int n;
+
+   if ((n = scandate(s, &tm)) == 0)
+      usage("invalid date argument");
+
+   tm.tm_sec = tm.tm_min = tm.tm_hour = 0;
+   if ((t = mktime(&tm)) < 0)
+      usage("invalid date argument");
+
+   if (tp) *tp = t;
+}
+
+void usage(const char *s)
+{
+   if (s) putfmt(stderr, "%s: %s\n", me, s);
+   putfmt(stderr, "Usage: %s [-V] [-f date] [-u date] account\n", me);
+   putfmt(stderr, " date in ISO 8601 format, eg, 2005-07-15\n");
+   exit(127); // FAILURE
+}
+@
+
+
+1.7
+log
+@*** empty log message ***
+@
+text
+@a7 1
+// TODO: Drop most code here and use new praccSum() */
+d9 1
+d33 3
+a35 1
+   long ccount, dcount;
+d37 2
+a38 1
+   int c, n, nocredit;
+d49 7
+a55 2
+      case 'f': setdate(optarg, &datemin); break;
+      case 'u': setdate(optarg, &datemax); datemax += 86400; break;
+d71 1
+a71 2
+   credits = debits = 0; // init totals
+   ccount = dcount = 0; // init counters
+d73 2
+a74 4
+   if (praccOpen(acctname, &pracc) < 0)
+      die(111, "cannot open %s", pracc.fn ? pracc.fn : acctname);
+
+   while ((n = praccRead(&pracc)) > 0) {
+d76 16
+a91 26
+      time_t t = tailocal(&pracc.taistamp, &tm);
+
+      // Maintain balance and limit:
+      switch (pracc.type) {
+         case '-': // debit
+            balance -= pracc.value;
+            break;
+         case '+': //credit
+            balance += pracc.value;
+            break;
+         case '=': // reset
+            balance = pracc.value;
+            break;
+         case '$': // limit
+            limit = pracc.value;
+            break;
+      }
+
+      // Stop processing beyond end date (if set):
+      if (t >= datemax && datemax > datemin) break;
+
+      // Update totals for given period:
+      if (datemin <= t) switch (pracc.type) {
+         case '-': ++dcount; debits += pracc.value; break;
+         case '+': ++ccount; credits += pracc.value; break;
+      }
+d94 1
+a94 12
+   // Complain and stop if there was an I/O error:
+   if (n < 0) die(111, "error reading account %s", acctname);
+
+   // Output results:
+   nocredit = (balance <= limit) && (limit > UNLIMITED);
+
+   if (limit <= UNLIMITED) strcpy(limitstr, "none");
+   else limitstr[printi(limitstr, limit)] = '\0';
+   putfmt(stdout, "acct %s balance %d limit %s credits %d %d debits %d %d\n",
+      acctname, balance, limitstr, ccount, credits, dcount, debits);
+
+   return nocredit; // SUCCESS or 1 if no credit
+@
+
+
+1.6
+log
+@Using new pracc API functions
+@
+text
+@d2 1
+a2 1
+ * $Id: pracc-sum.c,v 1.5 2007/12/18 15:48:49 ujr Exp ujr $
+d5 1
+a5 1
+static char id[] = "This is pracc-sum by ujr\n$Revision: 1.5 $\n";
+d8 1
+@
+
+
+1.5
+log
+@Changed output format again; print dummy line if no pracc file.
+@
+text
+@d2 2
+a3 2
+ * $Id: pracc-sum.c,v 1.4 2007/12/18 14:35:53 ujr Exp ujr $
+ * Copyright (c) 2005-2007 by Urs Jakob Ruetschi
+d5 3
+a7 1
+static char id[] = "This is pracc-sum by ujr\n$Revision: 1.4 $\n";
+a8 5
+/* TODO:
+ * Get the TZ in mktime and localtime right!
+ */
+#include <errno.h>
+#include <stdarg.h>
+d13 1
+d17 1
+a17 4
+#include "scf.h"
+#include "simpleio.h"
+#include "skipline.h"
+#include "timestamp.h"
+a19 1
+void putfmt(const char *fmt, ...);
+d23 1
+a23 1
+char *account;
+a26 5
+long balance, limit;
+long credits, debits;
+long ccount, dcount;
+int overdrawn = 0;
+
+d29 6
+a34 2
+   extern int scfidx;
+   extern char *scfarg;
+d36 3
+a38 9
+   const char *path;
+   char line[MAXLINE];
+   int c, n, partial;
+   register char *p;
+   struct tm tm;
+   struct tai tai;
+   time_t t;
+   int inside = 0;
+   char limitstr[16];
+d40 1
+a40 1
+   me = scfbase(argv);
+d43 5
+a47 4
+   while ((c = scfnext(argc, argv, "f:u:V")) > 0) switch (c) {
+      case 'f': setdate(scfarg, &datemin); break;
+      case 'u': setdate(scfarg, &datemax); datemax += 86400; break;
+      case 'V': return (putstr(id) == 0) ? 0 : 127;
+d50 2
+a51 2
+   argc -= scfidx;
+   argv += scfidx;
+d53 1
+a53 1
+   if (*argv) account = *argv++;
+d55 1
+a55 1
+   if (praccname(account))
+a59 14
+   /*if (utcinit() < 0)
+      die(111, "cannot setenv TZ=\"\"");*/
+   if ((path = praccpath(account)) == 0)
+      die(111, "praccpath(%s) failed", account);
+   if (setin(path) < 0) { // stdin from pracc file
+      if (errno == ENOENT) { // no accounting
+         putfmt("acct %s* balance 0 limit none credits 0 0 debits 0 0\n",
+            account);
+         logfmt("%s: No pracc file for %s\n", me, account);
+         return 2; // NO PRACC FILE
+      }
+      die(111, "cannot open %s", path);
+   }
+
+d65 21
+a85 28
+   while ((n = getline(p=line, sizeof(line), '\n', &partial)) > 0) {
+      long sval;
+      unsigned long uval;
+      int type = *p++; // record type
+      switch (type) {
+      case '-': // debit
+         n = scanu(p, &uval);
+         if (n > 0) balance -= uval;
+         else goto endline; // syntax error - skip record
+         break;
+      case '+': // credit
+         n = scanu(p, &uval);
+         if (n > 0) balance += uval;
+         else goto endline; // syntax error - skip record
+         break;
+      case '=': // reset
+         n = scani(p, &sval);
+         if (n > 0) balance = sval;
+         else goto endline; // syntax error - skip record
+         break;
+      case '$': // limit
+         n = scani(p, &sval);
+         if (n > 0) limit = sval;
+         else if (*p == '*') limit = UNLIMITED;
+         else goto endline; // syntax error - skip record
+         break;
+      default: // ignore
+         goto endline;
+a86 1
+      if (n > 0) p += n;
+d88 7
+a94 13
+      while (isspace(*p)) ++p;
+      if (((n = taiscan(p, &tai)) && ((t = tailocal(&tai, &tm)) > 0))
+       || ((n = utcscan(p, &tm)) && (t = mktime(&tm)))) {
+         p += n;
+
+         /* Stop processing beyond end date (if set) */
+         if (t >= datemax && datemax > datemin) break;
+
+         /* Update totals for given period */
+         if (datemin <= t) switch (type) {
+            case '-': ++dcount; debits += uval; break;
+            case '+': ++ccount; credits += uval; break;
+         }
+a95 3
+
+endline: /* Skip remainder of long lines */
+      if (partial) skipline('\n');
+d98 2
+a99 2
+   /* Complain and stop if there was an I/O error */
+   if (n < 0) die(111, "error reading from %s", path);
+d101 2
+a102 2
+   /* Output results */
+   overdrawn = (balance <= limit) && (limit > UNLIMITED);
+d106 2
+a107 2
+   putfmt("acct %s balance %d limit %s credits %d %d debits %d %d\n",
+      account, balance, limitstr, ccount, credits, dcount, debits);
+d109 1
+a109 1
+   return overdrawn; // SUCCESS or 1 if overdrawn
+a127 12
+void putfmt(const char *fmt, ...)
+{ // formatted output to stdout
+   char buf[256];
+
+   va_list ap;
+   va_start(ap, fmt);
+
+   putbuf(buf, formatv(buf, sizeof buf, fmt, ap));
+
+   va_end(ap);
+}
+
+d130 3
+a132 3
+   if (s) logline((char *) s);
+   logfmt("Usage: %s [-V] [-f date] [-u date] account\n", me);
+   logline(" date in ISO 8601 format, eg, 2005-07-15");
+@
+
+
+1.4
+log
+@Added from/until arguments, changed output format.
+@
+text
+@d2 1
+a2 1
+ * $Id$
+d5 1
+a5 1
+static char id[] = "This is pracc-sum by ujr\n$Revision$\n";
+d77 6
+a82 2
+      if (errno == ENOENT) errno = 0,
+         die(2, "no accounting for %s", account);
+d149 2
+a150 2
+   putfmt("acct %s  %d %s  %d %d+  %d %d-\n", account,
+      balance, limitstr, ccount, credits, dcount, debits);
+@
+
+
+1.3
+log
+@Removed errmsg stuff.
+@
+text
+@d7 3
+d13 2
+d17 1
+d21 2
+d24 1
+d30 7
+a36 2
+long balance = 0;
+long limit = UNLIMITED;
+d41 11
+a51 1
+   int c, overdrawn;
+d56 3
+a58 1
+   while ((c = scfnext(argc, argv, "V")) > 0) switch (c) {
+d72 63
+a134 4
+   switch (praccread(account, &balance, &limit)) {
+      case 0: /* ok */ break;
+      case 1: errno = 0; die(2, "no such account");
+      default: die(111, "error reading account %s", account);
+d137 4
+d143 20
+a162 4
+   putfmt("acct %s balance %d limit ", account, balance);
+   if (limit <= UNLIMITED) putstr("none"); // unlimited
+   else putfmt("%d", limit);
+   putfmt(" %s\n", overdrawn ? "bad" : "ok");
+d164 1
+a164 1
+   return overdrawn; // 1 if overdrawn
+d182 2
+a183 1
+   logfmt("Usage: %s [-V] account\n", me);
+@
+
+
+1.2
+log
+@*** empty log message ***
+@
+text
+@d1 5
+a5 5
+/* pracc-sum.c - a utility in the pracc package */
+/* Copyright (c) 2005, 2006 by Urs-Jakob Rueetschi */
+
+static char id[] = "pracc-sum by ujr/2005-07-08\n";
+static char RCSID[] = "$Id: pracc-sum.c,v 1.1 2005/07/15 20:59:35 ujr Exp ujr $\n";
+a20 1
+char *errmsg = 0;
+d26 2
+a27 2
+  extern int scfidx;
+  int c, overdrawn;
+d29 2
+a30 2
+  me = scfbase(argv);
+  if (!me) return 127; /* no arg0 */
+d32 26
+a57 29
+  while ((c = scfnext(argc, argv, "V")) > 0) switch (c) {
+  	case 'V': return (putline(id) == 0) ? 0 : 127;
+  	default: usage("invalid option");
+  }
+  argc -= scfidx;
+  argv += scfidx;
+
+  if (*argv) account = *argv++;
+  else usage("account not specified");
+  if (praccname(account))
+  	usage("invalid account name");
+
+  if (*argv) errmsg = *argv++;
+  else errmsg = (char *) 0;
+
+  if (*argv) usage("too many arguments");
+
+  switch (praccread(account, &balance, &limit)) {
+  	case 0: /* ok */ break;
+  	case 1: errno = 0; die(2, "no such account");
+  	default: die(111, "error reading account %s", account);
+  }
+
+  overdrawn = (balance <= limit) && (limit > UNLIMITED);
+  if (overdrawn && errmsg) logline(errmsg);
+
+  putfmt("acct %s balance %d limit ", account, balance);
+  if (limit <= UNLIMITED) putstr("none\n"); // unlimited
+  else putfmt("%d\n", limit);
+d59 1
+a59 1
+  return overdrawn; // 1 if overdrawn
+d64 1
+a64 1
+  char buf[256];
+d66 2
+a67 2
+  va_list ap;
+  va_start(ap, fmt);
+d69 1
+a69 1
+  putbuf(buf, formatv(buf, sizeof buf, fmt, ap));
+d71 1
+a71 1
+  va_end(ap);
+d76 3
+a78 3
+  if (s) logline((char *) s);
+  logfmt("Usage: %s [-V] account [errmsg]\n", me);
+  exit(127);
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d1 2
+a2 2
+/* pracc-sum.c */
+/* Copyright (c) 2005 by Urs-Jakob Rueetschi */
+d5 1
+a5 1
+static char RCSID[] = "$Id$\n";
+d8 2
+a9 1
+#include <string.h>
+d16 1
+a16 5
+void syntax(void);
+void die(int code, char *s1, char *s2, char *s3);
+#define die1(code, s1) die(code, s1, (char *) 0, (char *) 0)
+#define die2(code, s1, s2) die(code, s1, s2, (char *) 0)
+#define die3(code, s1, s2, s3) die(code, s1, s2, s3)
+a23 2
+long lineno = 0;
+char buf[MAXLINE];
+d28 1
+a28 4
+  int c, n, partial;
+  int overdrawn;
+  long value;
+  char *p;
+d42 3
+d47 1
+d50 4
+a53 31
+  if (chdir(PRACCDIR) != 0)
+  	die2(111, "cannot chdir to ", PRACCDIR);
+
+  setin(account, (int *) 0); /* input from pracc file */
+  while (getline(p=buf, sizeof(buf), '\n', &partial) > 0) {
+  	if (partial) continue; /* skip remainder of line */
+  	lineno += 1;
+  	switch (c = *p++) {
+  		case '-': /* debit line */
+  			n = scanu(p, &value);
+  			if (n == 0) syntax();
+  			else balance -= value;
+  			break;
+  		case '+': /* credit line */
+  			n = scanu(p, &value);
+  			if (n == 0) syntax();
+  			else balance += value;
+  			break;
+  		case '=': /* reset line */
+  			n = scani(p, &value);
+  			if (n == 0) syntax();
+  			else balance = value;
+  			break;
+  		case '$': /* limit line */
+  			n = scani(p, &value);
+  			if (n == 0) limit = UNLIMITED;
+  			else limit = value;
+  			break;
+  		default: /* skip */
+  			break;
+  	}
+d56 1
+a56 1
+  overdrawn = (balance < limit && limit < UNLIMITED);
+d60 2
+a61 2
+  if (limit < UNLIMITED) putfmt("%d\n", limit);
+  else putstr("none\n"); /* unlimited */
+d63 1
+a63 1
+  return overdrawn;
+d66 8
+a73 4
+void syntax(void)
+{
+  logfmt("%s line %d: syntax error - skipping line\n", account, lineno);
+}
+d75 1
+a75 12
+void die(int code, char *s1, char *s2, char *s3)
+{
+  logfmt("%s: ", me);
+  if (s1) logstr(s1);
+  if (s2) logstr(s2);
+  if (s3) logstr(s3);
+  if (errno) {
+  	logstr(": ");
+  	logstr(strerror(errno));
+  }
+  logchar('\n');
+  exit(code);
+a80 1
+  else logfmt("This is %s", id);
+@

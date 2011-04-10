@@ -1,0 +1,682 @@
+head	1.5;
+access;
+symbols;
+locks
+	ujr:1.5; strict;
+comment	@# @;
+
+
+1.5
+date	2008.04.05.17.07.36;	author ujr;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2008.04.03.17.32.30;	author ujr;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2008.01.21.13.17.54;	author ujr;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2008.01.17.16.27.13;	author ujr;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.12.13.23.23.08;	author ujr;	state Exp;
+branches;
+next	;
+
+
+desc
+@Documentation and specification of pracc files.
+@
+
+
+1.5
+log
+@*** empty log message ***
+@
+text
+@<html>
+<head>
+<title>pracc Files</title>
+<style type="text/css">
+ body { margin:2pc }
+ pre { margin:10px; padding:5px;
+       border:1px solid black; background-color:#ccc }
+ h1,h2,h3 { font-family:sans-serif }
+</style>
+<!--$Id: pracc-files.html,v 1.4 2008/04/03 17:32:30 ujr Exp $-->
+</head><body>
+
+<p><i>Written by Urs-Jakob R&uuml;etschi<br/>
+as part of the <b>pracc</b> project.</i></p>
+
+<h1>Pracc Files, v2</h1>
+
+<p>Printer Accounting Files (or <b>pracc files</b> for short)
+record printing credits and debits. Usually, there is one pracc
+file per user that is subjected to printer accounting.
+one pracc file for each user with printer accounting enabled.
+Printer accounting with pracc files works like that:</p>
+
+<ul>
+<li>The printing software appends <i>debit lines</i> for printed jobs;</li>
+<li>the credit update software appends <i>credit lines</i>;</li>
+<li>reporting software translates pracc files to HTML;</li>
+<li>an optional &quot;purge&quot; process compacts pracc files
+ by removing old credit and debit lines in such a way that the
+ account's essential properties such as balance and limit are
+ not changed.</li>
+</ul>
+
+<p>There is a number of <a href="pracc-tools.html">command
+line tools</a> to manipulate pracc files and there is
+a <a href="praccapi.html">C language API</a> for using pracc
+files in your own software. Direct manipulation of pracc
+files is not recommended.</p>
+
+<h2>Location and permissions</h2>
+
+<p>Pracc files live in <i>/var/print/pracc/</i>, are owned
+ by root, have a special group <i>pracc</i>, and permissions
+ 660. Therefore, pracc files cannot be modified by users other
+ than through tools with appropriate rights. Such tools must
+ make sure that users do not tamper with pracc files.</p>
+<pre>
+/var/print/pracc/      2770 root:<i>pracc</i>
+/var/print/pracc/<i>user</i>   660 root:<i>pracc</i>
+/var/print/pracc.log    660 root:<i>pracc</i>
+</pre>
+<p>The location of pracc files and the special group for
+ pracc files can be determined at compile-time in the
+ <i>pracc.h</i> header file.</p>
+
+<h2>Format of pracc files</h2>
+
+<p>Line by line, each terminated with <tt>LF</tt> (ASCII 10).
+ Lines must not be longer than MAXLINE,
+ defined in the <i>pracc.h</i> header file.</p>
+
+<p>The first line in a pracc file is the <b>header line</b>:</p>
+
+<pre>#pracc-v2-<i>offset</i>-<i>username</i> [<i>comments</i>]</pre>
+
+<p>The <tt>#pracc-v2</tt> part identifies the file as a version 2
+pracc file; <i>offset</i> is either zero or a byte offset into
+the pracc file, pointing to the most recent reset line (to speed
+up account summation, currently unused); and <i>username</i> tells
+whose pracc file this is (useful for tools that get a pracc file
+on standard input). Optional comments may follow.</p>
+
+<p>All lines start with a special character that identifies
+the <b>line type</b>. What follows depends on the line type
+but usually includes a <i>timestamp</i> and a <i>user</i>
+name, telling when the entry was created and by whom.</p>
+
+<dl>
+<dt><tt><b>#</b><i>blabla</i></tt></dt>
+<dd><b>Comment line,</b> ignored.<br>&nbsp;</dd>
+
+<dt><tt><b>$</b><i>k</i> <i>timestamp</i> <i>user</i> {<i>info</i>}</tt></dt>
+<dd><b>Limit line,</b> defining the minimum balance required for
+    printing: printing is allowed if <i>balance</i>&gt;<i>k</i>.
+    The limit can be set to minus infinity with <i>k</i>=* (an
+    asterisk). This is also the default if there is no limit
+    line in the file. It means unlimited printing. Typically,
+    there is no limit for teachers and a limit of zero for students.
+    Limit lines later in the file override earlier ones.
+    <br>&nbsp;</dd>
+
+<dt><tt><b>+</b><i>n</i> <i>timestamp</i> <i>user</i> {<i>info</i>}</tt></dt>
+<dd><b>Credit line,</b> the account's balance is increased by <i>n</i>.
+    <br>&nbsp;</dd>
+
+<dt><tt><b>-</b><i>n</i> <i>timestamp</i> <i>user</i> {<i>info</i>}</tt></dt>
+<dd><b>Debit line,</b> the account's balance is decreased by <i>n</i>.
+    The <i>info</i> part should give information about the print job.
+    <br>&nbsp;</dd>
+
+<dt><tt><b>=</b><i>n</i> <i>timestamp</i> <i>user</i> {<i>info</i>}</tt></dt>
+<dd><b>Reset line,</b> <i>n</i> is new credit, all prior credit
+    and debit lines are ignored (and should occassionally be deleted).
+    The <i>info</i> part should contain some descriptive text;
+    see the examples below.<br>&nbsp;</dd>
+
+<dt><tt><b>!</b> <i>timestamp</i> <i>user</i> {<i>info</i>}</tt></dt>
+<dd><b>Error:</b> Something went wrong. Typically, the user tried
+    to access an invalid account or the number of pages printed
+    could not be determined.
+    The <i>info</i> part should describe the error.</dd>
+</dl>
+<p>All other lines should be ignored.</p>
+
+<p>The <b>timestamp</b> is an at (@@) sign followed by 16 hexadecimal
+digits; for example:</p>
+<pre>@@4000000042cda28c</pre>
+<p>The hex digits represent a 64-bit integer that counts the number of
+seconds that elapsed since the beginning of 1970 plus 4611686018427387914
+(which is 10+2^62 or 400000000000000a hex). This is based on the current
+real time standard, <i>Temps Atomic International</i>, or TAI.
+The example timestamp above refers to 2005-07-07 21:45:38 TAI.
+See <a href="http://cr.yp.to/time.html">http://cr.yp.to/time.html</a>
+for more information on TAI.</p>
+
+<h2>Examples</h2>
+
+<p>An initial pracc file is created:</p>
+<pre>#pracc-v2-0-wimmer Waldemar Immerfroh
+$9 @@4000000042cda28c root minimum balance <!--2005-07-07 23:45:38Z-->
+=500 @@4000000042cda28c root initial credit <!--2005-07-07 23:45:38Z-->
+</pre>
+
+<p>After user wimmer has printed three jobs:</p>
+<pre>#pracc-v2-0-wimmer Waldemar Immerfroh
+$9 @@4000000042cda28c root minimum balance <!--2005-07-07 23:45:38Z-->
+=500 @@4000000042cda28c root initial credit <!--2005-07-07 23:45:38Z-->
+-10 @@4000000042ce54a7 wimmer printer walze pages 1 job myfile.ps <!--2005-07-08 12:25:33Z-->
+-50 @@4000000042ce6403 wimmer printer walze pages 5 job report.ps <!--2005-07-08 13:31:05Z-->
+-20 @@4000000042ce9522 wimmer printer walze pages 2 job other.doc <!--2005-07-08 17:00:40Z-->
+</pre>
+
+<p>User wimmer got more credit:</p>
+<pre>#pracc-v2-0-wimmer Waldemar Immerfroh
+$9 @@4000000042cda28c root minimum balance <!--2005-07-07 23:45:38Z-->
+=500 @@4000000042cda28c root initial credit <!--2005-07-07 23:45:38Z-->
+-10 @@4000000042ce54a7 wimmer printer walze pages 1 job myfile.ps <!--2005-07-08 12:25:33Z-->
+-50 @@4000000042ce6403 wimmer printer walze pages 5 job report.ps <!--2005-07-08 13:31:05Z-->
+-20 @@4000000042ce9522 wimmer printer walze pages 2 job other.doc <!--2005-07-08 17:00:40Z-->
++500 @@4000000042cf0665 root an early Xmas present ;-) <!--2005-07-09 01:03:55Z-->
+</pre>
+
+<p>Use a tool to check the current balance:</p>
+<pre># <b>pracc-sum wimmer</b>
+acct <i>wimmer</i> balance <i>920</i> limit <i>9</i> ok
+</pre>
+
+<p>After printing many more jobs, user wimmer runs out of credits:</p>
+<pre># <b>pracc-sum wimmer</b>
+acct wimmer balance -20 limit 9 bad
+</pre>
+
+<p>User wimmer buys new credits.
+Then the purging operation is performed.
+The resulting pracc file looks like this:</p>
+<pre>#pracc-v2-0-wimmer Waldemar Immerfroh
+$9 @@4000000042cda28c root minimum balance <!--2005-07-07 23:45:38Z-->
+=500 @@4000000042cda28c root initial credit <!--2005-07-07 23:45:38Z-->
+=30 @@4000000043341ac2 root balance <!--2005-09-23 17:09:44Z-->
++1000 @@4000000043341ac2 root new credits bought <!--2005-09-23 17:09:44Z-->
+</pre>
+<p>The sequence of debits and credits was accumulated and the
+ resulting balance written to the new pracc file in place of
+ the individual debit and credit lines. All comment lines were
+ preserved. Finally, the credit software appended a credit line
+ according to the amount of credits bought.</p>
+
+<hr>
+
+<a name="v1"></a>
+<h2>Changes wrt pracc v1</h2>
+<p>V1 pracc files had group ownership <tt>lp</tt>
+ so that LPRng could directly append a debit line.</p>
+<p>The limit line in pracc files is new with v2.</p>
+<p>Timestamp format changed with v2.</p>
+<p>Note that most pracc tools work with both versions
+ because they only evaluate the first field on every line
+ and ignore unknown line types.</p>
+
+<div align="right"><i>v1, ujr/2003-11-13</i></div>
+<div align="right"><i>v2, ujr/2005-06-18</i></div>
+<div align="right"><i>latest: 2006-01-07</i></div>
+</body></html><!-- started 2003-08-12 -->
+@
+
+
+1.4
+log
+@Removed pracc API section (now in proper file praccapi.html)
+@
+text
+@d10 1
+a10 1
+<!--$Id: pracc-files.html,v 1.3 2008/01/21 13:17:54 ujr Exp ujr $-->
+d16 1
+a16 1
+<h1>pracc Files, v2</h1>
+d19 2
+a20 1
+record printing credit and debit per user, that is, there is
+d25 7
+a31 4
+<li>The printing software appends debit lines for printed jobs;</li>
+<li>the credit update software appends credit lines;</li>
+<li>the cleaning process recreates pracc files; and</li>
+<li>the reporting software translates pracc files to HTML.</li>
+d34 13
+a46 8
+<p>There is a <a href="pracc-tools.html">bunch of tools</a> to
+manipulate pracc files and there is a <a href="praccapi.html">C
+language API</a> for use in your own programs. Use these tools
+or the API to ensure consistency.</p>
+
+<h3>Location and permissions</h3>
+<p>There is one pracc file per user.<br>
+Pracc files live in <tt>/var/print/pracc</tt>.</p>
+d48 7
+a54 8
+/var/print/pracc       2770 root:pracc
+/var/print/pracc/<i>user</i>   660 root:pracc
+/var/print/pracc.log    660 root:pracc
+</pre>
+<p>Use a <i>set-gid pracc</i> tool to write to pracc files.<br>
+Only root (and group pracc) can create pracc files.</p>
+
+<hr>
+d58 3
+a60 1
+<p>Line by line, each terminated with <tt>LF</tt> (ASCII 10).</p>
+d68 4
+a71 4
+the pracc file, pointing to the most recent reset line (this will
+speed up <a href="pracc-tools.html#sum">pracc-sum</a>); and
+<i>username</i> tells whose pracc file this is (useful for tools
+that get a pracc file on stdin). Optional comments may follow.</p>
+a106 4
+<!--<dt><tt><b>?</b> <i>timestamp</i> {<i>info</i>}</tt></dt>
+<dd><b>Unknown:</b> Probably, something got printed, but we don't
+    know how much and therefore cannot properly charge the account.</dd>-->
+    
+a114 10
+<!--
+<p>The <b>timestamp</b> codes the UTC time of the entry in
+ <nobr>ISO 8601</nobr> format:
+<pre>@@2005-07-07T21:45:38Z</pre>
+ Note that an @@ starts the timestamp (it is not part of
+ <nobr>ISO 8601</nobr>), a capital T connects date and time,
+ and a capital Z (indicating UTC) terminates the timestamp.
+ There is no white space in the timestamp.</p>
+-->
+
+a125 44
+<hr>
+
+<h2>Interfacing pracc files</h2>
+<p>These actions are typically performed with pracc files:</p>
+<ul>
+<li>create, typically with some initial credit</li>
+<li>debit: charge costs for print job</li>
+<li>credit: add new credits to pracc file</li>
+<li>purge: remove old debit and credit lines</li>
+<li>enumerate: for creating reports</li>
+<li>delete: just remove the pracc file</li>
+</ul>
+
+<p>To maintain consistency, records must be appended
+<strong>atomically</strong>. This is especially important
+for the debit and credit operations. On Unix systems, be
+sure to append each record with a single write(2) system
+call. This should be simple because records are short.</p>
+
+<p>Pracc files should be purged every once in a while
+to save space and to improve performance. The <b>purge</b>
+operation replaces a sequence of (old) debit and credit
+records with a single reset record such that the balance
+of the pracc file does not change. Here is how to perform
+the purge operation:</p>
+<p>1. Create temporary pracc file /var/print/pracc/<i>dude</i>.tmp</p>
+<p>2. Parse current pracc file /var/print/pracc/<i>dude</i>:</p>
+<ul>
+<li>write header line with an offset of zero</li>
+<li>copy all comment and trouble lines to the temporary file</li>
+<li>evaluate the sequence of credit, debit, and reset lines</li>
+<li>append a reset line with this balance</li>
+<li>append a limit line with the last limit</li>
+</ul>
+<p>3. Move /var/print/pracc/<i>dude</i>.tmp over
+/var/print/pracc/<i>dude</i></p>
+<p>Note that there is a race condition, namely when someone appends to
+the pracc file (prints or adds credit) just before the temporary file
+is moved over the original. We could block printing during purges or
+add to the unlikelyness of the race by purging only at night when the
+pracc files should remain unchanged...</p>
+
+<hr>
+
+d130 2
+a131 2
+$9 @@4000000042cda28c minimum balance <!--2005-07-07 23:45:38Z-->
+=500 @@4000000042cda28c initial credit <!--2005-07-07 23:45:38Z-->
+d136 5
+a140 5
+$9 @@4000000042cda28c minimum balance <!--2005-07-07 23:45:38Z-->
+=500 @@4000000042cda28c initial credit <!--2005-07-07 23:45:38Z-->
+-10 @@4000000042ce54a7 printer walze pages 1 job myfile.ps <!--2005-07-08 12:25:33Z-->
+-50 @@4000000042ce6403 printer walze pages 5 job report.ps <!--2005-07-08 13:31:05Z-->
+-20 @@4000000042ce9522 printer walze pages 2 job other.doc <!--2005-07-08 17:00:40Z-->
+d145 6
+a150 6
+$9 @@4000000042cda28c minimum balance <!--2005-07-07 23:45:38Z-->
+=500 @@4000000042cda28c initial credit <!--2005-07-07 23:45:38Z-->
+-10 @@4000000042ce54a7 printer walze pages 1 job myfile.ps <!--2005-07-08 12:25:33Z-->
+-50 @@4000000042ce6403 printer walze pages 5 job report.ps <!--2005-07-08 13:31:05Z-->
+-20 @@4000000042ce9522 printer walze pages 2 job other.doc <!--2005-07-08 17:00:40Z-->
++500 @@4000000042cf0665 an early Xmas present ;-) <!--2005-07-09 01:03:55Z-->
+d167 4
+a170 4
+$9 @@4000000042cda28c minimum balance <!--2005-07-07 23:45:38Z-->
+=500 @@4000000042cda28c initial credit <!--2005-07-07 23:45:38Z-->
+=30 @@4000000043341ac2 balance <!--2005-09-23 17:09:44Z-->
++1000 @@4000000043341ac2 new credits bought <!--2005-09-23 17:09:44Z-->
+d181 1
+a181 1
+<h2>Changes to pracc v1</h2>
+@
+
+
+1.3
+log
+@*** empty log message ***
+@
+text
+@d10 1
+a10 1
+<!--$Id: pracc-files.html,v 1.2 2008/01/17 16:27:13 ujr Exp ujr $-->
+d31 3
+a33 3
+manipulate pracc files. Use these tools to ensure consistency.
+To manipulate pracc files from within your programs, use the
+<a href="#api">pracc file API</a>.</p>
+d63 4
+a66 3
+<p>All other lines start with a special character that identifies
+the <b>line type</b>, that is, what follows on that line and
+what it means:</p>
+d72 1
+a72 1
+<dt><tt><b>$</b><i>k</i> <i>timestamp</i> {<i>info</i>}</tt></dt>
+d82 1
+a82 1
+<dt><tt><b>+</b><i>n</i> <i>timestamp</i> {<i>info</i>}</tt></dt>
+d86 1
+a86 1
+<dt><tt><b>-</b><i>n</i> <i>timestamp</i> {<i>info</i>}</tt></dt>
+d91 1
+a91 1
+<dt><tt><b>=</b><i>n</i> <i>timestamp</i> {<i>info</i>}</tt></dt>
+d101 1
+a101 1
+<dt><tt><b>!</b> <i>timestamp</i> {<i>info</i>}</tt></dt>
+a173 55
+<a name="api"></a>
+<h2>The pracc API</h2>
+
+<p>Use these routines for accessing pracc files from within
+your own software. There are no routines for enumerating
+pracc file contents. Given the simple file format, this is
+straightforward to do, even with scripting languages.</p>
+
+<pre>int <b>praccread</b>(const char *<i>acctname</i>, long *<i>bp</i>, long *<i>lp</i>);</pre>
+<p>Read a pracc file for <i>acctname</i>, sum up all records and store
+ the balance in the location pointed to by <i>bp</i> and the limit in
+ the location pointed to by <i>lp</i>. Return <b>0</b> if successful,
+ <b>1</b> if no pracc file for <i>acctname</i> exists, and <b>-1</b>
+ on any other error, usually an I/O or permission problem.</p>
+
+<pre>int <b>praccwrite</b>(const char *<i>acctname</i>, int <i>type</i>, long <i>number</i>, const char *<i>info</i>);</pre>
+<p>Append a record of the given <i>type</i> (- for debit, + for credit,
+ = for reset, $ for limit, ? for accounting error, ! for printing error,
+ and # for comment) with the given <i>amount</i> (ignored if <i>type</i> is
+ ? or ! or #) and the given additional <i>info</i> string to the pracc file
+ for <i>acctname</i>.
+ Return <b>0</b> if successful and <b>-1</b> on error, typically if
+ there is a permission problem, an I/O error, or there is no pracc file
+ for <i>acctname</i>.</p>
+
+<pre>int <b>praccaccess</b>(const char *<i>username</i>, const char *<i>acctname</i>);</pre>
+<p>Check if user <i>username</i> should be granted access to
+ account <i>acctname</i>. Access is granted if <i>acctname</i>
+ is <i>username</i>'s personal account or a group account and
+ <i>username</i> is a member in that group.
+ Normally, the praccaccess function assumes that <i>username</i>
+ was authenticated by the calling instance. If, however, this
+ function is called from a set-uid or set-gid program, then it
+ will test if <i>username</i> and the real user ID correspond.
+ Returns <b>0</b> if access should be granted, <b>1</b> if access
+ should be denied, and <b>-1</b> if there was a system error (in
+ which case <i>errno</i> gives details about the error and access
+ should be denied).<p>
+
+<pre>int <b>praccname</b>(const char *<i>acctname</i>)</pre>
+<p>Check if the given <i>acctname</i> is a valid account name.
+ Valid account names consist of at most MAXNAME (see <i>pracc.h</i>)
+ printable (see <i>isprint(3)</i>) characters except blanks, forward
+ slashes (/), and backslashes (\). Return <b>0</b> if the name is
+ valid, <b>-1</b> if the name contains invalid characters, and
+ <b>-2</b> if the name is too long.</p>
+
+<pre>char *<b>praccpath</b>(const char *<i>acctname</i>);</pre>
+<p>Return a string with the full path to the pracc file for the
+ given <i>acctname</i>. The string is in a chunk of memory allocated
+ with calloc(3); the function returns null if calloc fails (and errno
+ will be ENOMEM). Both praccread and praccwrite use praccpath.</p>
+ 
+<hr>
+
+@
+
+
+1.2
+log
+@*** empty log message ***
+@
+text
+@d10 1
+a10 1
+<!--$Id: pracc-files.html,v 1.1 2008/01/17 16:25:24 ujr Exp ujr $-->
+d71 1
+a71 1
+<dt><tt><b>$</b><i>k</i> <i>timestamp</i> [<i>info</i>]</tt></dt>
+d74 1
+a74 1
+    The limit can be set to minus infinity by <i>k</i>=* (an
+d81 1
+a81 1
+<dt><tt><b>+</b><i>n</i> <i>timestamp</i> [<i>info</i>]</tt></dt>
+d85 1
+a85 2
+<dt><tt><b>-</b><i>n</i> <i>timestamp</i> printer <i>name</i>
+    pages <i>number</i> [job <i>name</i>]</tt></dt>
+d87 1
+a87 3
+    The <i>info</i> part appears verbatim in account reports and
+    therefore should include at least the printer name and the number
+    of pages printed, if possible also the print job name.
+d90 1
+a90 1
+<dt><tt><b>=</b><i>n</i> <i>timestamp</i> [<i>info</i>]</tt></dt>
+d96 9
+a104 13
+<dt><tt><b>?</b> <i>timestamp</i> [<i>info</i>]</tt></dt>
+<dd><b>Accounting failed:</b> Probably, something got printed,
+    but accounting was not possible, most likely because the
+    printer driver could not determine the final page count.
+    Here, <i>info</i> should provide the information that is
+    necessary to perform a later <i>delta accounting</i>.
+    Typically, this includes the printer name and the value
+    of its pagecount prior to the print job.<br>&nbsp;</dd>
+
+<dt><tt><b>!</b> <i>timestamp</i> [<i>info</i>]</tt></dt>
+<dd><b>Printing failed:</b> No pages were printed.
+    Here, <i>info</i> should state the printer name and
+    an error message.
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d1 11
+a11 4
+<html><head><title>pracc Files</title>
+<link rel="stylesheet" type="text/css" href="pracc.css">
+<meta name="author" content="Urs-Jakob Rueetschi">
+</head><body><!-- hand-crafted html ;-) -->
+d13 2
+a14 2
+Urs-Jakob R&uuml;etschi<br>
+<a href="mailto:ujr@@ict.pzm-luzern.ch">ujr@@ict.pzm-luzern.ch</a>
+d19 4
+a22 3
+ record printing credit and debit per user, that is, there is
+ one pracc file for each user with printer accounting enabled.
+ Printer accounting with pracc files works like that:</p>
+d26 1
+a26 1
+<li>the cleaning process recreates the pracc files; and</li>
+d29 1
+d31 3
+a33 3
+ manipulate pracc files. Use these tools to ensure consistency.
+ To manipulate pracc files from within your programs, use the
+ <a href="#api">pracc file API</a>.</p>
+d37 1
+a37 1
+ Pracc files live in <tt>/var/print/pracc</tt>.</p>
+d44 5
+a48 1
+ Only root (and group pracc) can create pracc files.</p>
+a49 1
+<h3>Format of pracc files</h3>
+d51 1
+d53 1
+d55 1
+d57 6
+a62 5
+ pracc file; <i>offset</i> is either zero or a byte offset into
+ the pracc file, pointing to the most recent reset line (this will
+ speed up <a href="pracc-tools.html#sum">pracc-sum</a>); and
+ <i>username</i> tells whose pracc file this is (useful for tools
+ that get a pracc file on stdin). Optional comments may follow.</p>
+d64 3
+a66 2
+ the <b>line type</b>, that is, what follows on that line and
+ what it means:</p>
+d124 1
+d126 1
+a126 1
+ digits; for example:</p>
+d129 6
+a134 6
+ seconds that elapsed since the beginning of 1970 plus 4611686018427387914
+ (which is 10+2^62 or 400000000000000a hex). This is based on the current
+ real time standard, <i>Temps Atomic International</i>, or TAI.
+ The example timestamp above refers to 2005-07-07 21:45:38 TAI.
+ See <a href="http://cr.yp.to/time.html">http://cr.yp.to/time.html</a>
+ for more information on TAI.</p>
+d138 2
+a139 2
+<h3>Interfacing pracc files</h3>
+<p>Three actions may be performed upon pracc files:</p>
+d141 6
+a146 3
+<li><a href="#debit">debit</a>: charge costs for print job</li>
+<li><a href="#credit">credit</a>: add new credits to pracc file</li>
+<li><a href="#purge">purge</a>: remove old debit and credit lines</li>
+d148 15
+a162 27
+<p>Besides, new pracc files can be created with some initial
+ content and existing pracc files can be deleted using the
+ usual tools. Reports can be generated by parsing the file.</p>
+
+<a name="debit"></a>
+<h4>Debit procedure</h4>
+<p>Printing software appends one debit line per job.</p>
+<p>This must be done atomically to prevent file corruption.
+ On Unix systems, make sure that this (relatively short)
+ line is appended in one write(2) system call.</p>
+
+<a name="credit"></a>
+<h4>Credit procedure</h4>
+<p>Input parameters: user's login, new credits.</p>
+<p>Append a credit line, which adds the desired credits.</p>
+<p>As for the debit procedure, this must be done atomically.</p>
+
+<a name="purge"></a>
+<h4>Purging a pracc file</h4>
+<p>Purging replaces a series of debit and credit lines
+ with a single reset line. This saves space and improves
+ performance.</p>
+<p>The purging procedure can be invoked periodically,
+ when the pracc file reaches some critical size, after
+ a credit procedure, or at any other event.</p>
+<p>Create temporary pracc file /var/print/pracc/<i>dude</i>.tmp</p>
+<p>Parse current pracc file /var/print/pracc/<i>dude</i>:</p>
+d164 5
+a168 5
+  <li>write header line with an offset of zero</li>
+  <li>copy all comment and trouble lines to the temporary file</li>
+  <li>evaluate the sequence of credit, debit, and reset lines</li>
+  <li>append a reset line with this balance</li>
+  <li>append a limit line with the last limit</li>
+d170 2
+a171 1
+<p>Move /var/print/pracc/<i>dude</i>.tmp over /var/print/pracc/<i>dude</i></p>
+d173 4
+a176 4
+ the pracc file (prints or adds credit) just before the temporary file
+ is moved over the original. We could block printing during purges or
+ add to the unlikelyness of the race by purging only at night when the
+ pracc files should remain unchanged...</p>
+d181 1
+a181 1
+<h3>The pracc API</h3>
+d183 4
+a186 3
+<p>Usually, pracc files are accessed using
+ the <a href="pracc-tools.html">tools provided</a>.
+ Alternatively, there is a simple API for that purpose:</p>
+d224 2
+a225 2
+ valid and <b>1</b> if the name contains invalid characters, and
+ <b>2</b> if the name is too long.</p>
+d235 1
+a235 1
+<h3>Examples</h3>
+d237 1
+a237 3
+<p>An initial pracc file is created (with
+ <tt><a href="pracc-tools.html#init">pracc-init</a> wimmer 500 9
+ Waldemar Immerfroh</tt>):</p>
+d243 1
+a243 1
+<p>User wimmer has printed three jobs:</p>
+d252 1
+a252 1
+<p>For some reason, user wimmer got more credit:</p>
+d262 3
+a264 4
+<p>Use <a href="pracc-tools.html#sum">pracc-sum</a> to see what
+ his current balance now is:</p>
+<pre># <b>pracc-sum wimmer "insufficient funds"</b>
+acct wimmer balance 920 limit 9
+d268 2
+a269 3
+<pre># <b>pracc-sum wimmer "insufficient funds"</b>
+insufficient funds
+acct wimmer balance -20 limit 9
+d272 3
+a274 2
+<p>He buys new credits; at the same time, the pracc cleaning procedure
+ is performed. The resulting pracc file looks like this:</p>
+d290 1
+a290 1
+<h3>Changes to pracc v1</h3>
+@

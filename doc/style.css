@@ -1,0 +1,44 @@
+/* Style file for pracc */
+
+body { margin:3pc; background-color:#efc; font-family:sans-serif }
+h1,h2,h3,h4,h5,h6 { color:#432 }
+img { border:0pt }
+th { text-align:left }
+pre { background-color:#cba; padding:4px;
+      border-bottom:1px solid #786; border-right:1px solid #786 }
+
+/* Header and footer */
+.hdrtbl { margin-bottom:0px }
+.tab { background-color:#cd9; padding:4px; color:#432; font-weight:bold }
+.btn { background-color:#a9c; font-weight:bold; padding:3px; color:#432 }
+.btn { border-bottom:1px solid #546; border-right:1px solid #456 }
+.main { background-color:#cd9; margin:0pc; padding:1pc }
+.footer { padding-left:1pc; padding-right:1pc }
+
+/* List tables */
+.listtbl { empty-cells:show; border-collapse:separate }
+.listtbl th { background-color:#ab7; padding:2px }
+.listtbl th { border-bottom:1px solid #783; border-right:1px solid #783 }
+.listtbl td { background-color:#cba; padding:2px }
+.listtbl td { border-bottom:1px solid #786; border-right:1px solid #786 }
+
+/* Gestalt */
+.failure { background-color:#f54; border:2px solid #c23; padding:6px }
+.success { background-color:#5f8; border:2px solid #2c5; padding:6px }
+.bad { background-color:#f54; border:2px solid #c23; padding:1px }
+.box { background-color:#cba; padding:6px;
+       border-right:1px solid #786; border-bottom:1px solid #786 }
+.oplnk { font-weight:bold; color:#432 }
+.lead { font-weight:bold; color:#432 }
+
+/* Floating boxes */
+.fltbox { float: right; width: 15pc;
+  margin-left: 1ex; margin-right: 0;
+  padding: 1ex;
+  border: 1px solid #888;
+  background-color: #eee;
+  font-size: 0.8em;
+  line-height: 1.5; /* 1.2/0.8=1.5 */
+  border-bottom: 1px solid #786;
+  border-right: 1px solid #786;
+}

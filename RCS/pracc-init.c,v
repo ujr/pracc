@@ -1,0 +1,753 @@
+head	1.9;
+access;
+symbols;
+locks
+	ujr:1.9; strict;
+comment	@ * @;
+
+
+1.9
+date	2008.02.06.21.47.51;	author ujr;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2008.01.30.15.03.12;	author ujr;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2008.01.14.15.10.58;	author ujr;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2007.12.27.13.40.16;	author ujr;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2007.12.27.13.38.11;	author ujr;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2007.12.14.08.53.27;	author ujr;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2007.08.05.17.19.24;	author ujr;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2005.11.17.18.30.42;	author ujr;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.07.15.20.59.22;	author ujr;	state Exp;
+branches;
+next	;
+
+
+desc
+@Initial RCS version.
+@
+
+
+1.9
+log
+@Using new pracc API functions
+@
+text
+@/* pracc-init.c - a utility in the pracc package
+ * $Id: pracc-init.c,v 1.8 2008/01/30 15:03:12 ujr Exp ujr $
+ * Copyright (c) 2005-2008 by Urs Jakob Ruetschi
+ */
+static char id[] = "This is pracc-init by ujr\n$Revision: 1.8 $\n";
+
+#include <errno.h>
+#include <pwd.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#include "common.h"
+#include "pracc.h"
+#include "print.h"
+#include "scan.h"
+#include "streq.h"
+
+void setbalance(const char *s);
+void setlimit(const char *s);
+void usage(const char *s);
+
+char *me;
+int overwrite;
+int nevermind;
+char *acctname;
+long balance;
+long limit;
+
+/* Flags for open(2) when creating pracc files.
+ * We cannot use fopen(3) because we need O_EXCL,
+ * which cannot be specified using stdio. Instead,
+ * we create the file using open(2) and then wrap
+ * the fd into a fp using fdopen(3) (POSIX, not ANSI).
+ */
+#define OPEN_TRUNC (O_WRONLY | O_CREAT | O_TRUNC)
+#define OPEN_EXCL  (O_WRONLY | O_CREAT | O_EXCL)
+
+int main(int argc, char **argv)
+{
+   struct passwd *pw;
+   char comment[MAXLINE];
+   const char *endp;
+   char *p;
+   int c;
+
+   extern int optind;
+   extern int opterr;
+
+   me = progname(argv);
+   if (!me) return 127; // no arg0
+
+   opterr = 0; // prevent stupid getopt output
+   overwrite = nevermind = 0; // defaults
+   while ((c = getopt(argc, argv, "fFV")) > 0) switch (c) {
+      case 'f': overwrite = 1; break;
+      case 'F': nevermind = 1; break;
+      case 'V': return (putln(stdout, id) == 0) ? 0 : 127;
+      default: usage("invalid option");
+   }
+   argc -= optind;
+   argv += optind;
+
+   if (*argv) acctname = *argv++;
+   else usage("account not specified");
+   if (praccCheckName(acctname))
+      usage("invalid account name");
+
+   if (*argv) setbalance(*argv++);
+   else usage("balance not specified");
+
+   if (*argv) setlimit(*argv++);
+   else usage("limit not specified");
+
+   if ((pw = getpwuid(getuid())) == 0)
+      die(111, "getpwuid failed");
+
+   p = comment;
+   endp = comment + sizeof(comment) - 1;
+   while (*argv) { // remaining args
+      unsigned len = strlen(*argv);
+      if (p+1+len > endp) break;
+      if (p > comment) p += printc(p, ' ');
+      p += prints(p, *argv++);
+   }
+   p += printc(p, '\0');
+
+   umask(0007); // no rights for world
+   if (praccCreate(acctname, balance, limit, comment, overwrite) < 0) {
+      if (nevermind && errno == EEXIST) return 0;
+      die(111, "cannot create account %s", acctname);
+   }
+
+/*
+ * Build and append a line to pracc.log
+ */
+
+   p = comment;
+   p += prints(p, "init ");
+   p += printi(p, balance);
+   p += prints(p, " limit ");
+   if (limit <= UNLIMITED)
+      p += printc(p, '*');
+   else p += printi(p, limit);
+   if (overwrite)
+      p += prints(p, " overwrite");
+   p += printc(p, '\0');
+
+   if (praccLogup(acctname, comment) < 0)
+      putfmt(stderr, "%s: cannot append to %s: %s\n",
+             me, PRACCLOG, strerror(errno));
+
+   return 0; // SUCCESS
+}
+
+void setbalance(const char *s)
+{
+   int n = scanu(s, (unsigned long *) &balance); // non-negative
+   if (n == 0) usage("invalid balance");
+}
+
+void setlimit(const char *s)
+{
+   long value;
+   int n = scani(s, &value);
+   if (n > 0) limit = value;
+   else if (streq(s, "none")) limit = UNLIMITED;
+   else usage("invalid limit");
+}
+
+void usage(const char *s)
+{
+   if (s) putfmt(stderr, "%s: %s\n", me, s);
+   putfmt(stderr, "Usage: %s [-fFV] account balance limit {info}\n", me);
+   exit(127); // FAILURE
+}
+@
+
+
+1.8
+log
+@Rewrote to use the new pracc API functions
+@
+text
+@d2 1
+a2 1
+ * $Id: pracc-init.c,v 1.7 2008/01/14 15:10:58 ujr Exp ujr $
+d5 1
+a5 1
+static char id[] = "This is pracc-init by ujr\n$Revision: 1.7 $\n";
+d15 1
+a15 1
+#include "inout.h"
+a17 1
+#include "progname.h"
+d26 2
+a27 2
+int overwrite = 0;
+int nevermind = 0;
+d56 1
+d97 1
+a97 1
+ * Build and append log line
+d111 1
+a111 1
+   if (praccLog(acctname, comment) < 0)
+@
+
+
+1.7
+log
+@Bugfix: erroneously used 'account' instead of 'fn' in various functions.
+@
+text
+@d2 2
+a3 2
+ * $Id: pracc-init.c,v 1.6 2007/12/27 13:40:16 ujr Exp $
+ * Copyright (c) 2005-2007 by Urs Jakob Ruetschi
+d5 1
+a5 1
+static char id[] = "This is pracc-init by ujr\n$Revision: 1.6 $\n";
+d8 3
+d15 2
+a16 1
+#include "open.h"
+d18 1
+a19 2
+#include "scf.h"
+#include "simpleio.h"
+a20 3
+#include "taistamp.h"
+
+#include "pracc.h"
+a21 1
+int addlog(void);
+a23 1
+void out(char *buf, unsigned len);
+d29 1
+a29 1
+char *account;
+d33 8
+a40 4
+int fd;
+const char *fn;
+char buf[MAXLINE];
+char *bufptr, *bufend;
+d44 4
+a47 1
+   extern int scfidx;
+d50 5
+a54 2
+   me = scfbase(argv);
+   if (!me) return 127; /* no arg0 */
+d56 2
+a57 1
+   while ((c = scfnext(argc, argv, "fFV")) > 0) switch (c) {
+d60 1
+a60 1
+      case 'V': return (putstr(id) == 0) ? 0 : 127;
+d63 2
+a64 2
+   argc -= scfidx;
+   argv += scfidx;
+d66 1
+a66 1
+   if (*argv) account = *argv++;
+d68 1
+a68 1
+   if (praccname(account))
+d77 2
+a78 10
+   umask(0077); // owner only
+   if ((fn = praccpath(account)) == 0)
+      die(111, "praccpath(%s) failed", account);
+   if (overwrite) fd = open_trunc(fn);
+   else if (((fd = open_excl(fn)) < 0) && (errno == EEXIST)) {
+      if (nevermind) return 0; // it exists - never mind
+      errno = 0; // complain that file exists
+      die(111, "%s already exists", fn);
+   }
+   if (fd < 0) die(111, "cannot create %s", fn);
+d80 2
+a81 5
+   /* header line */
+   bufptr = buf;
+   bufend = buf + sizeof(buf) - 1;
+   bufptr += prints(bufptr, "#pracc-v2-0-");
+   bufptr += printsn(bufptr, account, MAXNAME);
+d84 3
+a86 3
+      if (bufptr+1+len > bufend) break;
+      bufptr += printc(bufptr, ' ');
+      bufptr += prints(bufptr, *argv++);
+d88 1
+a88 2
+   bufptr += printc(bufptr, '\n');
+   out(buf, bufptr-buf);
+d90 5
+a94 31
+   /* limit line */
+   bufptr = buf;
+   bufptr += printc(bufptr, '$');
+   if (limit <= UNLIMITED)
+      bufptr += printc(bufptr, '*');
+   else bufptr += printi(bufptr, limit);
+   bufptr += printc(bufptr, ' ');
+   bufptr += taistamp(bufptr);
+   bufptr += printc(bufptr, '\n');
+   out(buf, bufptr-buf);
+
+   /* balance line */
+   bufptr = buf;
+   bufptr += printc(bufptr, '=');
+   bufptr += printu(bufptr, balance);
+   bufptr += printc(bufptr, ' ');
+   bufptr += taistamp(bufptr);
+   bufptr += prints(bufptr, " initial credit\n");
+   out(buf, bufptr-buf);
+
+   if (close(fd) < 0) // require proper close
+      die(111, "cannot close %s", fn);
+
+   /* Make account accessible to group pracc */
+   if (chmod(fn, 0660) < 0)
+      die(111, "cannot chmod on %s", fn);
+
+   /* Build and append log line */
+   if (addlog() < 0)
+      logfmt("%s: cannot append to %s: %s\n",
+         me, PRACCLOG, strerror(errno));
+d96 3
+a98 2
+   return 0; // SUCCESS
+}
+d100 2
+a101 16
+int addlog(void)
+{
+   char buf[MAXLINE];
+   register char *p;
+   int fd, len;
+
+   fd = open_append(PRACCLOG);
+   if (fd < 0) return -1;
+
+   p = buf;
+   p += taistamp(p);
+   p += prints(p, " by uid ");
+   p += printu(p, getuid());
+   p += prints(p, " acct ");
+   p += printsn(p, account, MAXNAME);
+   p += prints(p, ": init ");
+d109 5
+a113 1
+   p += printc(p, '\n');
+a114 3
+   len = p - buf;
+   if (write(fd, buf, len) != len) return -1;
+   if (close(fd) < 0) return -1;
+a132 11
+void out(char *buf, unsigned len)
+{
+   while (len) { int w;
+      do w = write(fd, buf, len);
+      while ((w < 0) && (errno == EINTR));
+      if (w < 0) die(111, "cannot write %s/%s", PRACCDIR, account);
+      buf += w;
+      len -= w;
+   }
+}
+
+d135 2
+a136 2
+   if (s) logfmt("%s: %s\n", me, s);
+   logfmt("Usage: %s [-fFV] account balance limit {info}\n", me);
+@
+
+
+1.6
+log
+@*** empty log message ***
+@
+text
+@d2 1
+a2 1
+ * $Id: pracc-init.c,v 1.5 2007/12/27 13:38:11 ujr Exp ujr $
+d5 1
+a5 1
+static char id[] = "This is pracc-init by ujr\n$Revision: 1.5 $\n";
+d18 1
+a18 1
+#include "timestamp.h"
+d71 2
+a72 2
+   if (overwrite) fd = open_trunc(account);
+   else if ((fd = open_excl(account)) < 0 && errno == EEXIST) {
+d100 1
+a100 1
+   bufptr += timestamp(bufptr);
+d109 1
+a109 1
+   bufptr += timestamp(bufptr);
+d114 1
+a114 1
+      die(111, "cannot close %s/%s", PRACCDIR, account);
+d117 2
+a118 2
+   if (chmod(account, 0660) < 0)
+      die(111, "cannot chmod on %s/%s", PRACCDIR, account);
+d138 1
+a138 1
+   p += timestamp(p);
+@
+
+
+1.5
+log
+@Moved common log append code to addlog() routine.
+@
+text
+@d2 1
+a2 1
+ * $Id: pracc-init.c,v 1.4 2007/12/14 08:53:27 ujr Exp ujr $
+d5 1
+a5 1
+static char id[] = "This is pracc-init by ujr\n$Revision: 1.4 $\n";
+d22 1
+d36 1
+a36 1
+char *path;
+d69 1
+a69 1
+   if ((path = praccpath(account)) == 0)
+d75 1
+a75 1
+      die(111, "%s already exists", path);
+d77 1
+a77 1
+   if (fd < 0) die(111, "cannot create %s", path);
+@
+
+
+1.4
+log
+@*** empty log message ***
+@
+text
+@d2 1
+a2 1
+ * $Id$
+d5 1
+a5 2
+
+static char id[] = "This is pracc-init by ujr\n$Revision$\n";
+d50 1
+a50 1
+      case 'V': return (putline(id) == 0) ? 0 : 127;
+d73 1
+a73 1
+      errno = 0;
+d120 6
+a125 22
+   if ((fd = open_append(PRACCLOG)) < 0)
+      logfmt("%s: cannot open %s: %s\n", me, PRACCLOG, strerror(errno));
+   else {
+      bufptr = buf;
+      bufptr += timestamp(bufptr);
+      bufptr += prints(bufptr, " by uid ");
+      bufptr += printu(bufptr, getuid());
+      bufptr += prints(bufptr, " acct ");
+      bufptr += printsn(bufptr, account, MAXNAME);
+      bufptr += prints(bufptr, ": init ");
+      bufptr += printu(bufptr, balance);
+      bufptr += prints(bufptr, " limit ");
+      if (limit <= UNLIMITED)
+         bufptr += printc(bufptr, '*');
+      else bufptr += printi(bufptr, limit);
+      if (overwrite)
+         bufptr += prints(bufptr, " overwrite");
+      bufptr += printc(bufptr, '\n');
+      if (write(fd, buf, bufptr-buf) != bufptr-buf)
+         logfmt("%s: cannot append to %s: %s\n",
+                me, PRACCLOG, strerror(errno));
+   }
+d127 28
+d186 1
+a186 1
+   if (s) logline((char *) s);
+d188 1
+a188 1
+   exit(127);
+@
+
+
+1.3
+log
+@Adapted to new pracc API
+@
+text
+@d1 4
+a4 2
+/* pracc-init.c - a utility in the pracc package */
+/* Copyright (c) 2005, 2006 by Urs-Jakob Rueetschi */
+d6 1
+a6 2
+static char id[] = "pracc-init by ujr/2005-07-08\n";
+static char RCSID[] = "$Id: pracc-init.c,v 1.2 2005/11/17 18:30:42 ujr Exp ujr $\n";
+d141 1
+a141 1
+         		me, PRACCLOG, strerror(errno));
+d144 1
+a144 1
+   return SUCCESS;
+@
+
+
+1.2
+log
+@*** empty log message ***
+@
+text
+@d1 2
+a2 2
+/* pracc-init.c */
+/* Copyright (c) 2005 by Urs-Jakob Rueetschi */
+d5 1
+a5 1
+static char RCSID[] = "$Id: pracc-init.c,v 1.1 2005/07/15 20:59:22 ujr Exp ujr $\n";
+d8 1
+d18 1
+a18 1
+#include "utcstamp.h"
+d35 1
+a35 1
+char stamp[UTCSTAMP];
+d41 2
+a42 2
+  extern int scfidx;
+  int c;
+d44 2
+a45 2
+  me = scfbase(argv);
+  if (!me) return 127; /* no arg0 */
+d47 95
+a141 102
+  while ((c = scfnext(argc, argv, "fFV")) > 0) switch (c) {
+  	case 'f': overwrite = 1; break;
+  	case 'F': nevermind = 1; break;
+  	case 'V': return (putline(id) == 0) ? 0 : 127;
+  	default: usage("invalid option");
+  }
+  argc -= scfidx;
+  argv += scfidx;
+
+  if (*argv) account = *argv++;
+  else usage("account not specified");
+  checkname(account); /* valid account name? */
+
+  if (*argv) setbalance(*argv++);
+  else usage("balance not specified");
+  if (*argv) setlimit(*argv++);
+  else usage("limit not specified");
+
+  umask(0077); /* owner only */
+  if (chdir(PRACCDIR) != 0)
+  	die2(111, "cannot chdir to ", PRACCDIR);
+  if (overwrite) fd = open_trunc(account);
+  else if ((fd = open_excl(account)) < 0 && errno == EEXIST) {
+  	if (nevermind) return 0; /* it exists - never mind */
+  	errno = 0;
+  	die3(111, PRACCDIR, account, " already exists");
+  }
+  if (fd < 0) die3(111, "cannot create ", PRACCDIR, account);
+
+  utcstamp(stamp);
+
+  bufptr = buf;
+  bufptr += prints(bufptr, "#pracc-v2-0-");
+  bufptr += printsn(bufptr, account, MAXNAME);
+  bufptr += printc(bufptr, '\n');
+  out(buf, bufptr-buf);
+
+  if (*argv) { /* optional initial comments */
+  	bufptr = buf;
+  	bufend = buf + sizeof(buf) - 1;
+  	bufptr += printc(bufptr, '#');
+  	while (*argv) { /* remaining args */
+  		unsigned len = strlen(*argv);
+  		if (bufptr+len > bufend) break;
+  		bufptr += printc(bufptr, ' ');
+  		bufptr += prints(bufptr, *argv++);
+  	}
+  	bufptr += printc(bufptr, '\n');
+  	out(buf, bufptr-buf);
+  }
+
+  bufptr = buf;
+  bufptr += printc(bufptr, '$');
+  if (limit < UNLIMITED)
+  	bufptr += printi(bufptr, limit);
+  else bufptr += printc(bufptr, '*');
+  bufptr += printc(bufptr, ' ');
+  bufptr += prints(bufptr, stamp);
+  if (limit < UNLIMITED)
+  	bufptr += prints(bufptr, " minimum balance\n");
+  else bufptr += prints(bufptr, " unlimited\n");
+  out(buf, bufptr-buf);
+
+  bufptr = buf;
+  bufptr += printc(bufptr, '=');
+  bufptr += printu(bufptr, balance);
+  bufptr += printc(bufptr, ' ');
+  bufptr += printsn(bufptr, stamp, UTCSTAMP);
+  bufptr += prints(bufptr, " initial credits\n");
+  out(buf, bufptr-buf);
+
+  if (close(fd) < 0) /* require proper close */
+  	die3(111, "cannot close ", PRACCDIR, account);
+
+  /* make account accessible to group pracc */
+  if (chmod(account, 0660) < 0)
+  	die3(111, "cannot chmod 660 ", PRACCDIR, account);
+
+  /* append log line */
+  if ((fd = open_append(PRACCLOG)) < 0)
+  	logfmt("%s: cannot open %s: %s\n", me, PRACCLOG, strerror(errno));
+  else {
+  	bufptr = buf;
+  	bufptr += printsn(bufptr, stamp, UTCSTAMP);
+  	bufptr += prints(bufptr, " acct ");
+  	bufptr += printsn(bufptr, account, MAXNAME);
+  	bufptr += prints(bufptr, ": init ");
+  	bufptr += printu(bufptr, balance);
+  	bufptr += prints(bufptr, " limit ");
+  	if (limit < UNLIMITED)
+  		bufptr += printi(bufptr, limit);
+  	else
+  		bufptr += printc(bufptr, '*');
+  	if (overwrite)
+  		bufptr += prints(bufptr, " overwrite");
+  	bufptr += prints(bufptr, " by uid ");
+  	bufptr += printu(bufptr, getuid());
+  	bufptr += printc(bufptr, '\n');
+  	if (write(fd, buf, bufptr-buf) != bufptr-buf)
+  		logfmt("%s: cannot append to %s: %s\n",
+  			me, PRACCLOG, strerror(errno));
+  }
+d143 1
+a143 1
+  return 0; /* ok */
+d148 2
+a149 2
+  int n = scanu(s, &balance); /* non-negative */
+  if (n == 0) usage("invalid balance");
+d154 5
+a158 5
+  long value;
+  int n = scani(s, &value);
+  if (n > 0) limit = value;
+  else if (streq(s, "none")) limit = UNLIMITED;
+  else usage("invalid limit");
+d163 7
+a169 21
+  while (len) { int w;
+  	do w = write(fd, buf, len);
+  	while ((w < 0) && (errno == EINTR));
+  	if (w < 0) die3(111, "cannot write ", PRACCDIR, account);
+  	buf += w;
+  	len -= w;
+  }
+}
+
+void die(int code, char *s1, char *s2, char *s3)
+{
+  logfmt("%s: ", me);
+  if (s1) logstr(s1);
+  if (s2) logstr(s2);
+  if (s3) logstr(s3);
+  if (errno) {
+  	logstr(": ");
+  	logstr(strerror(errno));
+  }
+  logchar('\n');
+  exit(code);
+d174 3
+a176 4
+  if (s) logline((char *) s);
+  else logfmt("This is %s", id);
+  logfmt("Usage: %s [-fFV] account balance limit {info}\n", me);
+  exit(127);
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d5 1
+a5 1
+static char RCSID[] = "$Id$\n";
+a22 1
+void checkname(const char *s);
+a23 5
+
+void die(int code, char *s1, char *s2, char *s3);
+#define die1(code, s1) die(code, s1, (char *) 0, (char *) 0)
+#define die2(code, s1, s2) die(code, s1, s2, (char *) 0)
+#define die3(code, s1, s2, s3) die(code, s1, s2, s3)
+d57 2
+a63 2
+  checkname(account);
+
+d71 1
+a71 1
+	die3(111, PRACCDIR, account, " already exists");
+a166 9
+void checkname(const char *s)
+{
+  register const char *p = s;
+  while (*p) if (!isgraph(*p++))
+  	usage("invalid account name");
+  if (p - s > MAXNAME)
+  	usage("account name too long");
+}
+
+@

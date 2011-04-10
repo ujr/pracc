@@ -1,0 +1,67 @@
+head	1.2;
+access;
+symbols;
+locks
+	ujr:1.2; strict;
+comment	@ * @;
+
+
+1.2
+date	2007.11.04.12.04.52;	author ujr;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.10.31.15.02.10;	author ujr;	state Exp;
+branches;
+next	;
+
+
+desc
+@Header file for PostScript lowlevel code.
+@
+
+
+1.2
+log
+@pscount now takes a cookie argument
+@
+text
+@#ifndef _PS_H_
+#define _PS_H_
+
+#include "cupspracc.h"
+
+#define PS_MSG_COOKIE     MSG_COOKIE
+#define PS_MSG_PAGECOUNT  MSG_PAGECOUNT
+#define PS_MSG_PRERROR    MSG_PRERROR
+#define PS_MSG_FLUSHING   MSG_FLUSHING
+#define PS_MSG_OTHER      MSG_OTHER
+#define PS_MSG_MALFORMED  MSG_MALFORMED
+
+extern long ps_cookie;
+extern long ps_pagecount;
+extern int ps_flushing;
+extern char ps_error[];
+
+void psinit(void);
+int psecho(int fd, int cookie);
+int pscount(int fd, int cookie);
+int psparse(const char *msg);
+int pschar(char c);
+
+#endif // _PS_H_
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@a18 1
+int pshead(int fd);
+d20 1
+a20 1
+int pscount(int fd);
+@

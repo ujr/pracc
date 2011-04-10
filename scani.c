@@ -1,0 +1,1 @@
+../myclib/scani.c

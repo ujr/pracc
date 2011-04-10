@@ -1,0 +1,35 @@
+%!PS
+%%BoundingBox: 0 0 842 595
+%%EndComments
+save
+/leftmargin 72 def
+/curline 300 def
+/lineheight 16 def
+%
+/newline { leftmargin /curline curline lineheight sub def curline moveto } def
+/skip { curline exch sub /curline exch def leftmargin curline moveto } def
+/showint { 20 string cvs show } def  % show an integer
+%
+/getpc { statusdict begin pagecount end } def  % get pagecount
+/getrevision { systemdict /revision known dup { revision exch } if } def
+/getserial { systemdict /serialnumber known dup { serialnumber exch } if } def
+/getlevel { systemdict /languagelevel known dup { languagelevel exch } if } def
+%
+/Courier-Bold findfont 24 scalefont setfont
+leftmargin curline moveto (PostScript test page) show
+/Courier-Italic findfont 10 scalefont setfont
+18 skip (test.ps by ujr/2004-10-23) show
+%
+50 skip
+/Courier findfont 12 scalefont setfont
+(Printer: ) show product show newline
+ getrevision { (  revision: ) show showint newline } if
+ getserial { (  serial: ) show showint newline } if
+(Interpreter: level ) show getlevel { showint } { (1) show } ifelse newline
+ (  version: ) show version show newline
+ vmstatus exch
+ (  memory: used ) show showint ( total ) show showint ( bytes) show newline
+ (  nesting level: ) show showint newline
+(Pagecount: ) show getpc showint
+showpage
+restore

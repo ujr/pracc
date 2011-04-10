@@ -1,0 +1,72 @@
+head	1.1;
+access;
+symbols;
+locks
+	ujr:1.1; strict;
+comment	@# @;
+
+
+1.1
+date	2007.10.31.15.03.13;	author ujr;	state Exp;
+branches;
+next	;
+
+
+desc
+@Some notes about PJL and page counting.
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@About PJL
+
+The Printer Job Language was developed by HP. Some non-HP printers
+also understand PJL. Other than page description languages (like PCL
+and PostScript), PJL does not produce any marks on the paper, but it
+can be used to configure print jobs and printers.
+
+Page counting:
+
+Using PJL, reliable page counting can be implemented by wrapping
+a print job in JOB / EOJ commands and requesting USTATUS JOB.
+The printer should then include the number of pages printed for
+this job in an unsolicited message after the EOJ command was
+sent. A typical print job then looks like that:
+
+  UEL@@PJL
+  @@PJL ECHO cookie
+  <don't process anything before our cookie arrives>
+  @@PJL USTATUS JOB = ON
+  @@PJL JOB NAME = "cookie" DISPLAY = "pracc by ujr"
+  <wait for USTATUS JOB / START with our cookie>
+  @@PJL ENTER LANGUAGE = POSTSCRIPT # or another UEL
+  %!PS
+  showpage
+  UEL@@PJL
+  @@PJL EOJ NAME = "cookie"
+  <wait for USTATUS JOB / END with our cookie and number of pages>
+  @@PJL USTATUSOFF
+  UEL
+
+The software that communicates with the printer should then
+look for messages from the printer and handle them as follows:
+1. Don't process anything before our "cookie" arrives.
+2. After receiving @@PJL USTATUS JOB / START / ..., our job
+   has started printing.
+3. After receiving a @@PJL USTATUS JOB / END / ..., our job
+   has finished printing. The message also inclues the number
+   of pages printed.
+The format of the messages sent by the printer may vary.
+HP documentation, after showing an example, always states
+that "for other printers, the response may be different".
+
+Details:
+
+Check the "Printer Job Language Technical Reference Manual" by HP,
+available online in PDF format (use a web search to locate it).
+
+@

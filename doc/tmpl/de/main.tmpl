@@ -1,0 +1,40 @@
+<!-- Template for pracc.cgi/ -->
+<!-- Variables: standard, see pracc.cgi/vars -->
+
+<h2>Willkommen</h2>
+
+<p>Pracc ist das Druckabrechnungssystem der PHZ Luzern.<br>
+ &Uuml;ber diese Webseiten wird Pracc administriert.</p>
+
+<table border="0" cellspacing="0"><tbody><tr>
+<td class="box" valign="top"><h3>Administration</h3>
+<p>Wichtigste Funktionen:</p>
+<ul>
+<li><a class="oplnk" href="{SCRIPT}/admin?op=credits">Gutschriften</a></li>
+<li><a class="oplnk" href="{SCRIPT}/accounts">Konten verwalten</a></li>
+<li><a class="oplnk" href="{SCRIPT}/reports">Berichte</a> (&quot;Jahres-&quot;)</li>
+</ul>
+<p>Alle Funktionen sind &uuml;ber<br/>
+ die &quot;Tabs&quot; oben erreichbar.</p>
+</td>
+<td width="5%"></td>
+<td class="box" valign="top"><h3>Dokumentation</h3>
+<p><a href="{SCRIPT}/pracc-about.html">pracc-about.html</a><br>
+<a href="{SCRIPT}/pracc-files.html">pracc-files.html</a><br>
+<a href="{SCRIPT}/pracc-tools.html">pracc-tools.html</a><br>
+<a href="{SCRIPT}/cupspracc.html">cupspracc.html</a><br>
+<a href="{SCRIPT}/counting.html">counting.html</a><br>
+<a href="{SCRIPT}/praccapi.html">praccapi.html</a><br>
+<a href="{SCRIPT}/lowlevel.html">lowlevel.html</a><br>
+<a href="{SCRIPT}/security.html">security.html</a></p>
+</td>
+<td width="5%"></td>
+<td valign="top"><h3>Systeminfo</h3>
+<p>Host: <b>{HOSTNAME}</b><br>
+Datum: <b>{YEAR}-{MONTH>9?:0}{MONTH}-{DAY>9?:0}{DAY}</b><br>
+Zeit: <b>{TIME}</b></p>
+<p>You: <b>{REMOTE_USER?<a href="{SCRIPT}/user">{REMOTE_USER}</a>:n/a}</b><br>
+Me: <b>{USER?{USER}:n/a}</b> #{UID}</p>
+<p><a href="{SCRIPT}/vars">Variablen zeigen</a></p>
+</td>
+</tr></tbody></table>

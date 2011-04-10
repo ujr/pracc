@@ -1,0 +1,73 @@
+head	1.2;
+access;
+symbols;
+locks
+	ujr:1.2; strict;
+comment	@ * @;
+
+
+1.2
+date	2008.01.14.15.22.37;	author ujr;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2008.01.14.15.20.43;	author ujr;	state Exp;
+branches;
+next	;
+
+
+desc
+@Pracc API: check if given account name is valid.
+@
+
+
+1.2
+log
+@Also catch null and empty pracc names as an error.
+@
+text
+@/* This file is part of the "pracc" printer accounting software. */
+/* Copyright (c) 2005-2007 by Urs-Jakob Ruetschi. All rights reserved */
+
+#include <ctype.h>
+#include <errno.h>
+
+#include "pracc.h"
+
+/*
+ * Check if a given string is a valid pracc account name.
+ * Pracc accounts names consist of at most MAXNAME printable
+ * characters, excluding blanks, slashes,and backslashes.
+ *
+ * Return 0 if valid, -1 if invalid chars, -2 if too long.
+ */
+
+int praccname(const char *acctname)
+{
+   register const char *p;
+
+   errno = EINVAL;
+   if (!acctname || !acctname[0]) return -1; // invalid name
+   for (p = acctname; *p; p++) {
+      if (!isprint(*p)) return -1; // invalid name
+      if (isblank(*p)) return -1;
+      if (*p == '/') return -1;
+      if (*p == '\\') return -1;
+   }
+
+   if (p - acctname > MAXNAME) return -2; // name too long
+
+   errno = 0;
+   return 0; // acctname is valid
+}
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d22 1
+@

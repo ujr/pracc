@@ -1,0 +1,45 @@
+<!-- Template for pracc.cgi/credits -->
+<!-- Variables besides standard ones:
+  acct, value, comment: credit parameters (in/out);
+  badacct, badvalue: defined if bad field values (out);
+  confirm: defined if conf needed (out); set to "yes" to confirm (in);
+  status: "ok" or "fail" or undef (before praccEdit() call) (out);
+  error: error message or undef (if no error);
+  balance: new balance after editing the account (out).
+-->
+<h2>Gutschriften</h2>
+
+<form method="POST" action="{SCRIPT}/admin">
+<input type="hidden" name="op" value="{op}">
+<table border="0" cellspacing="3"><tbody>
+<tr><td align="right">Konto:</td>
+ <td><input type="text" name="acct" value="{status?:{acct}}" size=15 id="main"></td>
+ {badacct?<td class="bad">Falsches Konto</td>:<td>{gecos?{gecos}:}</td>}</tr>
+<tr><td align="right">Betrag in Fr.:</td>
+ <td><input type="text" name="value" value="{value}" size=15></td>
+ {badvalue?<td class="bad">Ung&uuml;ltiger Betrag</td>:<td>in CHF</td>}</tr>
+<tr><td align="right">Kommentar:</td>
+ <td><input type="text" name="comment" value="{comment}" size=15></td>
+ <td>(Optional)</td></tr>
+{confirm?<tr><td></td>
+ <td colspan="2"><input type="checkbox" name="confirm" value="yes">
+  Ja, Gutschrift ausf&uuml;hren</td></tr>:}
+<tr><td></td><td><input type="submit" value="gutschreiben"></td></tr>
+</tbody></table></form>
+
+{status?\
+{status=ok?<p class="success">Gutschrift erfolgreich\
+{balance?, Kontostand
+ <a href="{SCRIPT}/accounts/{acct}"><b>{acct}</b></a>
+ neu <b>{$balance}</b>:}</p>:\
+<p class="failure">Gutschrift fehlgeschlagen: {error}</p>}:}
+
+<hr><p>Der Kontoname entspricht dem Benutzernamen der Person,
+ f&uuml;r welche eine Gutschrift gemacht werden soll. Gutschriften
+ werden &uuml;blicherweise f&uuml;r den Betrag von 5 oder 10 Franken
+ gemacht.</p>
+
+<script language="JavaScript" type="text/javascript">
+ document.getElementById("main").focus();
+</script>
+

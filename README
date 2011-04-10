@@ -1,0 +1,22 @@
+This is pracc.
+
+Pracc complements CUPS to do printing with accounting.
+The pracc package consists of a backend for CUPS and
+a few tools to manage user's printer accounts.
+
+Be sure to read all documentation that comes with pracc.
+Pracc is not plug-and-play but easy once you understand
+how it works.
+
+Compilation and installation instructions:
+
+ 1. Download the package.
+ 2. tar xzf pracc-version.tgz
+ 3. cd pracc
+ 5. Adjust the Makefile!
+ 4. make
+ 5. sudo make install
+
+Once pracc is installed, you can use the pracc-check
+tool to check if the installation is (still) fine.
+

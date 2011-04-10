@@ -1,0 +1,339 @@
+head	1.2;
+access;
+symbols;
+locks
+	ujr:1.2; strict;
+comment	@ * @;
+
+
+1.2
+date	2007.12.14.20.30.24;	author ujr;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2005.07.15.20.58.51;	author ujr;	state Exp;
+branches;
+next	;
+
+
+desc
+@Initial RCS version.
+@
+
+
+1.2
+log
+@Using praccaccess() instead of checkuser() for authorisation.
+@
+text
+@/* pracc-debit.c - a utility in the pracc package
+ * $Id$
+ * Copyright (c) 2005-2007 by Urs Jakob Ruetschi
+ */
+static char id[] = "This is pracc-debit by ujr\n$Revision$\n";
+
+#include <errno.h>
+#include <pwd.h>
+#include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+#include "pracc.h"
+#include "print.h"
+#include "scan.h"
+#include "scf.h"
+#include "simpleio.h"
+
+char *me;
+char *account;
+long amount;
+int verbosity = 1;
+struct passwd *pw;
+
+static void setamount(const char *s);
+static void usage(const char *s);
+
+int main(int argc, char **argv)
+{
+   char *path;
+   char buf[MAXLINE];
+   char *bufptr, *bufend;
+   int c, praccfd;
+
+   extern int scfidx;
+
+   me = scfbase(argv);
+   if (!me) return 127; // no arg0
+
+   while ((c = scfnext(argc, argv, "V")) > 0) switch (c) {
+      case 'V': return (putstr(id) == 0) ? 0 : 127;
+      default: usage("invalid option");
+   }
+   argc -= scfidx;
+   argv += scfidx;
+
+   if (*argv) account = *argv++;
+   else usage("account not specified");
+
+   if (*argv) setamount(*argv++);
+   else usage("amount not specified");
+
+   /* Validate account name */
+   if (praccname(account))
+      usage("invalid account name");
+
+   /* Check access permission */
+   if (!(pw = getpwuid(getuid()))) {
+      logfmt("%s: getpwuid: %s\n", me, strerror(errno));
+      return 127; // FAILURE
+   }
+   switch (praccaccess(pw->pw_name, account)) {
+      case 0: /* granted */ break;
+      case 1: /* denied */
+         logfmt("%s: account %s: access denied\n", me, account);
+         return 127; // FAILURE
+      default: /* see errno */
+         logfmt("%s: account %s: %s\n", me, account, strerror(errno));
+         return 127; // FAILURE
+   }
+
+   /* Gather remaining arguments for the info field */
+   bufptr = buf;
+   bufend = buf + sizeof(buf) - 1; // reserve one byte for \0
+   while (*argv) { // remaining args
+      unsigned len = strlen(*argv);
+      if (bufptr+len > bufend) break;
+      if (bufptr > buf)
+         bufptr += printc(bufptr, ' ');
+      bufptr += prints(bufptr, *argv++);
+   }
+   bufptr += print0(bufptr);
+
+   /* Append the debit record in just one write */
+   if (praccwrite(account, '-', amount, buf) < 0)
+      die(111, "cannot debit account %s", path);
+
+   return SUCCESS;
+}
+
+void setamount(const char *s)
+{
+   int n = scanu(s, (unsigned long *) &amount); // non-negative
+   if (n == 0) usage("invalid amount");
+}
+
+#if 0
+void logup(int level, const char *fmt, ...)
+{
+   char buf[256];
+
+   va_list ap;
+   va_start(ap, fmt);
+
+   if (verbosity < level) return;
+   logbuf(buf, formatv(buf, sizeof buf, fmt, ap));
+
+   va_end(ap);
+}
+#endif
+  
+void usage(const char *s)
+{
+   if (s) logline((char *) s);
+   logfmt("Usage: %s [-V] account amount {info}\n", me);
+   exit(127); // FAILURE
+}
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d1 5
+a5 7
+/* pracc-debit.c */
+/* Copyright (c) 2005 by Urs-Jakob Rueetschi */
+
+static char id[] = "pracc-debit by ujr/2005-07-08\n";
+static char RCSID[] = "$Id$\n";
+
+#define DEBUG
+d8 3
+a13 5
+#include <sys/types.h>
+#include <grp.h>
+#include <pwd.h>
+
+#include "open.h"
+a18 12
+#include "utcstamp.h"
+
+void setamount(const char *s);
+void checkuser(const char *s);
+short name2uid(char *username);
+short name2gid(char *groupname);
+
+void die(int code, char *s1, char *s2, char *s3);
+#define die1(code, s1) die(code, s1, (char *) 0, (char *) 0)
+#define die2(code, s1, s2) die(code, s1, s2, (char *) 0)
+#define die3(code, s1, s2, s3) die(code, s1, s2, s3)
+void usage(const char *s);
+d23 2
+d26 2
+a27 3
+int praccfd;
+char buf[MAXLINE];
+char *bufptr, *bufend;
+d31 57
+a87 2
+  extern int scfidx;
+  int c;
+d89 1
+a89 43
+  me = scfbase(argv);
+  if (!me) return 127; /* no arg0 */
+
+  while ((c = scfnext(argc, argv, "V")) > 0) switch (c) {
+  	case 'V': return (putline(id) == 0) ? 0 : 127;
+  	default: usage("invalid option");
+  }
+  argc -= scfidx;
+  argv += scfidx;
+
+  if (*argv) account = *argv++;
+  else usage("account not specified");
+  if (*argv) setamount(*argv++);
+  else usage("amount not specified");
+
+  checkuser(account); /* only root may charge foreign accounts */
+
+  if (chdir(PRACCDIR) != 0) die2(111, "cannot chdir to ", PRACCDIR);
+  praccfd = open_pracc(account);
+  if (praccfd < 0) die3(111, "cannot open ", PRACCDIR, account);
+
+  bufptr = buf;
+  bufend = buf + sizeof(buf) - 1; /* reserve one byte for \n */
+  bufptr += printc(bufptr, '-');
+  bufptr += printu(bufptr, amount);
+  bufptr += printc(bufptr, ' ');
+  utcstamp(bufptr); bufptr += UTCSTAMP;
+
+  while (*argv) {
+  	unsigned len = strlen(*argv);
+  	if (bufptr+len > bufend) break;
+  	bufptr += printc(bufptr, ' ');
+  	bufptr += prints(bufptr, *argv++);
+  }
+  bufptr += printc(bufptr, '\n');
+
+  /* append atomically: in just one write! */
+  if (write(praccfd, buf, bufptr-buf) != bufptr-buf)
+  	die3(111, "cannot write ", PRACCDIR, account);
+  if (close(praccfd) < 0)
+  	die3(111, "cannot close ", PRACCDIR, account);
+
+  return 0;
+d94 2
+a95 2
+  int n = scanu(s, &amount); /* non-negative */
+  if (n == 0) usage("invalid amount");
+d98 4
+a101 5
+void checkuser(const char *s)
+{ /* only root, grp pracc, and account owner may debit the account */
+  uid_t uid, acctuid;
+  gid_t gid, praccgid, aux[16];
+  int n;
+d103 2
+a104 17
+  uid = getuid();
+  acctuid = name2uid((char *) s);
+  
+  gid = getgid();
+  praccgid = name2gid(PRACCGROUP);
+  n = getgroups(16, aux);
+  if (n < 0) die1(111, "getgroups failed");
+
+#ifdef DEBUG
+  { int i;
+  	logfmt("caller: uid=%d, gid=%d, aux=", uid, gid);
+  	if (n > 0 && aux[0] != gid) logfmt("%d", aux[0]);
+  	for (i = 1; i < n; i++) if (aux[i] != gid) logfmt(",%d", aux[i]);
+  	logfmt("\n%s: uid=%d\n", s, acctuid);
+  	logfmt("%s: gid=%d\n", PRACCGROUP, praccgid);
+  }
+#endif
+d106 2
+a107 4
+  if (uid == 0) return; /* root is allowed */
+  if (uid == acctuid) return; /* account owner is allowed */
+  if (gid == praccgid) return; /* group pracc is allowed */
+  while (--n >= 0) if (aux[n] == praccgid) return; /* ditto */
+d109 1
+a109 1
+  die3(127, "debit to ", (char *) s, " denied");
+d111 1
+a111 4
+
+short name2uid(char *username)
+{
+  struct passwd *pw;
+a112 47
+  errno = 0;
+  pw = getpwnam(username);
+  if (!pw) switch (errno) {
+  	case 0:
+  	case ENOENT:
+  	case ESRCH:
+  		die3(127, "user ", username, " does not exist");
+  		break;
+  	default:
+  		die3(111, "getpwnam(", username, ") failed");
+  		break;
+  }
+  return pw->pw_uid;
+}
+
+short name2gid(char *groupname)
+{
+  struct group *gr;
+
+  errno = 0;
+  gr = getgrnam(groupname);
+  if (!gr) switch (errno) {
+  	case 0:
+  	case ENOENT:
+  	case ESRCH:
+  		die3(127, "group ", groupname, " does not exist");
+  		break;
+  	default:
+  		die3(111, "getgrnam(", groupname, ") failed");
+  }
+  return gr->gr_gid;
+}
+
+void die(int code, char *s1, char *s2, char *s3)
+{
+  logfmt("%s: ", me);
+  if (s1) logstr(s1);
+  if (s2) logstr(s2);
+  if (s3) logstr(s3);
+  if (errno) {
+  	logstr(": ");
+  	logstr(strerror(errno));
+  }
+  logchar('\n');
+  exit(code);
+}
+
+d115 3
+a117 4
+  if (s) logline((char *) s);
+  else logfmt("This is %s", id);
+  logfmt("Usage: %s [-V] account amount {info}\n", me);
+  exit(127);
+@

@@ -1,0 +1,97 @@
+<!-- Template for pracc.cgi/reports -->
+<!-- Variables besides the standard ones: 
+ tmin, tmax, period: time period for the report (in/out);
+ acctlist: list of accounts (and @groups) for which to create report (in/out);
+ format: "html" (default) or "csv" (in only);
+ report#: report entry iterator, sets these variables for each entry:
+  class, acct, balance, limit, debits, credits, lastused, gecos;
+ report.totcredits, report.totdebits: totals, available only after {report#};
+ first, count, nr: paging (not fully implemented).
+-->
+
+{undefined?:\
+<script language="JavaScript" type="text/javascript">
+{;periodChanged.js}
+function updateAcctList() \{
+  var presets = document.getElementById("presets");
+  var acctlist = document.getElementById("acctlist");
+  acctlist.value = presets.options[presets.selectedIndex].value;
+\}
+</script>}
+
+<div class="fltbox"><strong>Anleitung:</strong><br>
+<b>1.</b> Zeitspanne festlegen und<br>
+<b>2.</b> Druck-Konten bestimmen:<br>
+Komma-separierte Liste von Konten<br>
+und/oder Gruppen (z.B. user,@group).<br>
+<!--beides geht am bequemsten mit den Auswahlmenus.<br>-->
+<b>3.</b> Bericht als HTML anzeigen oder
+ als CSV herunterladen (und mit Excel &ouml;ffnen)
+</div>
+
+<h2>Berichterstattung</h2>
+
+<form method="POST" action="{SCRIPT}/reports">
+<table border="0" cellspacing="2" cellpadding="2"><tbody>
+<tr><td align="right">Zeitspanne:</td>{period?:{period=lastmonth}}
+ <td><input type="text" name="tmin" value="{tmin}" id="tmin" size="10">
+  - <input type="text" name="tmax" value="{tmax}" id="tmax" size="10"></td>
+ <td><select name="period" size="1" id="period" onchange="periodChanged()">
+  <option value="" {period=?selected:}>Speziell</option>
+  <option value="today" {period=today?selected:}>Heute</option>
+  <option value="thisweek" {period=thisweek?selected:}>diese Woche</option>
+  <option value="thismonth" {period=thismonth?selected:}>dieser Monat</option>
+  <option value="thisyear" {period=thisyear?selected:}>dieses Jahr</option>
+  <option value="lastmonth" {period=lastmonth?selected:}>Vormonat</option>
+  <option value="lastyear" {period=lastyear?selected:}>letztes Jahr</option>
+  <option value="all" {period=all?selected:}>Alles</option>
+ </select></td></tr>
+<tr><td align="right">Druck-Konten:</td>
+ <td><input type="text" name="acctlist" value="{acctlist}"
+            id="acctlist" size="25"></td>
+ <td><select name="presets" size="1" id="presets" onchange="updateAcctList()">
+  <option value="">Choose:</option>
+  <!-- Add group choice presets here: -->
+  <option value="@plu-stud">Studenten PHZ</option>
+  <option value="@plu-ma">Mitarbeiter PHZ</option>
+  <option value="@ksm-stud">Sch&uuml;ler KSM</option>
+  <option value="@ksm-ma">Mitarbeiter KSM</option>
+ </select></td></tr>
+<tr><td align="right"></td>
+ <td colspan="2"><input type="submit" value="Report">
+  <input type="radio" name="format" value="html" checked>als HTML
+  <input type="radio" name="format" value="csv">als CSV (Excel)</td></tr>
+</tbody></table></form>
+
+{undefined?:\
+<script language="JavaScript" type="text/javascript">
+ periodChanged();
+</script>}
+
+<hr>
+
+<p>Bericht f&uuml;r die Zeitspanne
+ von <b>{tmin?{tmin}:?}</b> bis <b>{tmax?{tmax}:?}</b></p>
+
+{count=9999}
+<table border="0" cellpadding="3" cellspacing="2" class="listtbl"><tbody>
+<tr><th>#</th><th>Class</th><th>Account</th><th>Balance</th><th>Limit</th>
+ <th>Credits</th><th>Debits</th><th>Last used</th><th>Owner</th></tr>
+{report#<tr><td align="right">{#}</td>
+ <td align="center">{class}</td>
+ <td><a class="oplnk"
+  href="{SCRIPT}/accounts/{acct}?tmin={tmin}&tmax={tmax}">{acct}</a></td>
+ <td align="right">{$balance}</td>
+ <td align="right">{limit=none?<b>none</b>:{$limit}}</td>
+ <td align="right">{credits=0?{$credits}:<b>{$credits}</b>}</td>
+ <td align="right">{$debits}</td>
+ <td>{year}-{month}-{day} {time}</td>
+ <td>{gecos?{gecos}:&nbsp;}</td></tr>}
+</tbody></table>
+<p>Total credits <b>{report.totcredits?{$report.totcredits}:?}</b>,
+total debits <b>{report.totdebits?{$report.totdebits}:?}</b><br>
+ for selected accounts and selected time period.</p>
+
+<!--<p class="failure"><b>WORK IN PROGRESS</b><br>
+ Reporting is not yet implemented, but coming soon. Stay tuned...</p>-->
+

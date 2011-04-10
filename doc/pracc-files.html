@@ -1,0 +1,193 @@
+<html>
+<head>
+<title>pracc Files</title>
+<style type="text/css">
+ body { margin:2pc }
+ pre { margin:10px; padding:5px;
+       border:1px solid black; background-color:#ccc }
+ h1,h2,h3 { font-family:sans-serif }
+</style>
+<!--$Id: pracc-files.html,v 1.5 2008/04/05 17:07:36 ujr Exp $-->
+</head><body>
+
+<p><i>Written by Urs-Jakob R&uuml;etschi<br/>
+as part of the <b>pracc</b> project.</i></p>
+
+<h1>Pracc Files, v2</h1>
+
+<p>Printer Accounting Files (or <b>pracc files</b> for short)
+record printing credits and debits. Usually, there is one pracc
+file per user that is subjected to printer accounting.
+one pracc file for each user with printer accounting enabled.
+Printer accounting with pracc files works like that:</p>
+
+<ul>
+<li>The printing software appends <i>debit lines</i> for printed jobs;</li>
+<li>the credit update software appends <i>credit lines</i>;</li>
+<li>reporting software translates pracc files to HTML;</li>
+<li>an optional &quot;purge&quot; process compacts pracc files
+ by removing old credit and debit lines in such a way that the
+ account's essential properties such as balance and limit are
+ not changed.</li>
+</ul>
+
+<p>There is a number of <a href="pracc-tools.html">command
+line tools</a> to manipulate pracc files and there is
+a <a href="praccapi.html">C language API</a> for using pracc
+files in your own software. Direct manipulation of pracc
+files is not recommended.</p>
+
+<h2>Location and permissions</h2>
+
+<p>Pracc files live in <i>/var/print/pracc/</i>, are owned
+ by root, have a special group <i>pracc</i>, and permissions
+ 660. Therefore, pracc files cannot be modified by users other
+ than through tools with appropriate rights. Such tools must
+ make sure that users do not tamper with pracc files.</p>
+<pre>
+/var/print/pracc/      2770 root:<i>pracc</i>
+/var/print/pracc/<i>user</i>   660 root:<i>pracc</i>
+/var/print/pracc.log    660 root:<i>pracc</i>
+</pre>
+<p>The location of pracc files and the special group for
+ pracc files can be determined at compile-time in the
+ <i>pracc.h</i> header file.</p>
+
+<h2>Format of pracc files</h2>
+
+<p>Line by line, each terminated with <tt>LF</tt> (ASCII 10).
+ Lines must not be longer than MAXLINE,
+ defined in the <i>pracc.h</i> header file.</p>
+
+<p>The first line in a pracc file is the <b>header line</b>:</p>
+
+<pre>#pracc-v2-<i>offset</i>-<i>username</i> [<i>comments</i>]</pre>
+
+<p>The <tt>#pracc-v2</tt> part identifies the file as a version 2
+pracc file; <i>offset</i> is either zero or a byte offset into
+the pracc file, pointing to the most recent reset line (to speed
+up account summation, currently unused); and <i>username</i> tells
+whose pracc file this is (useful for tools that get a pracc file
+on standard input). Optional comments may follow.</p>
+
+<p>All lines start with a special character that identifies
+the <b>line type</b>. What follows depends on the line type
+but usually includes a <i>timestamp</i> and a <i>user</i>
+name, telling when the entry was created and by whom.</p>
+
+<dl>
+<dt><tt><b>#</b><i>blabla</i></tt></dt>
+<dd><b>Comment line,</b> ignored.<br>&nbsp;</dd>
+
+<dt><tt><b>$</b><i>k</i> <i>timestamp</i> <i>user</i> {<i>info</i>}</tt></dt>
+<dd><b>Limit line,</b> defining the minimum balance required for
+    printing: printing is allowed if <i>balance</i>&gt;<i>k</i>.
+    The limit can be set to minus infinity with <i>k</i>=* (an
+    asterisk). This is also the default if there is no limit
+    line in the file. It means unlimited printing. Typically,
+    there is no limit for teachers and a limit of zero for students.
+    Limit lines later in the file override earlier ones.
+    <br>&nbsp;</dd>
+
+<dt><tt><b>+</b><i>n</i> <i>timestamp</i> <i>user</i> {<i>info</i>}</tt></dt>
+<dd><b>Credit line,</b> the account's balance is increased by <i>n</i>.
+    <br>&nbsp;</dd>
+
+<dt><tt><b>-</b><i>n</i> <i>timestamp</i> <i>user</i> {<i>info</i>}</tt></dt>
+<dd><b>Debit line,</b> the account's balance is decreased by <i>n</i>.
+    The <i>info</i> part should give information about the print job.
+    <br>&nbsp;</dd>
+
+<dt><tt><b>=</b><i>n</i> <i>timestamp</i> <i>user</i> {<i>info</i>}</tt></dt>
+<dd><b>Reset line,</b> <i>n</i> is new credit, all prior credit
+    and debit lines are ignored (and should occassionally be deleted).
+    The <i>info</i> part should contain some descriptive text;
+    see the examples below.<br>&nbsp;</dd>
+
+<dt><tt><b>!</b> <i>timestamp</i> <i>user</i> {<i>info</i>}</tt></dt>
+<dd><b>Error:</b> Something went wrong. Typically, the user tried
+    to access an invalid account or the number of pages printed
+    could not be determined.
+    The <i>info</i> part should describe the error.</dd>
+</dl>
+<p>All other lines should be ignored.</p>
+
+<p>The <b>timestamp</b> is an at (@) sign followed by 16 hexadecimal
+digits; for example:</p>
+<pre>@4000000042cda28c</pre>
+<p>The hex digits represent a 64-bit integer that counts the number of
+seconds that elapsed since the beginning of 1970 plus 4611686018427387914
+(which is 10+2^62 or 400000000000000a hex). This is based on the current
+real time standard, <i>Temps Atomic International</i>, or TAI.
+The example timestamp above refers to 2005-07-07 21:45:38 TAI.
+See <a href="http://cr.yp.to/time.html">http://cr.yp.to/time.html</a>
+for more information on TAI.</p>
+
+<h2>Examples</h2>
+
+<p>An initial pracc file is created:</p>
+<pre>#pracc-v2-0-wimmer Waldemar Immerfroh
+$9 @4000000042cda28c root minimum balance <!--2005-07-07 23:45:38Z-->
+=500 @4000000042cda28c root initial credit <!--2005-07-07 23:45:38Z-->
+</pre>
+
+<p>After user wimmer has printed three jobs:</p>
+<pre>#pracc-v2-0-wimmer Waldemar Immerfroh
+$9 @4000000042cda28c root minimum balance <!--2005-07-07 23:45:38Z-->
+=500 @4000000042cda28c root initial credit <!--2005-07-07 23:45:38Z-->
+-10 @4000000042ce54a7 wimmer printer walze pages 1 job myfile.ps <!--2005-07-08 12:25:33Z-->
+-50 @4000000042ce6403 wimmer printer walze pages 5 job report.ps <!--2005-07-08 13:31:05Z-->
+-20 @4000000042ce9522 wimmer printer walze pages 2 job other.doc <!--2005-07-08 17:00:40Z-->
+</pre>
+
+<p>User wimmer got more credit:</p>
+<pre>#pracc-v2-0-wimmer Waldemar Immerfroh
+$9 @4000000042cda28c root minimum balance <!--2005-07-07 23:45:38Z-->
+=500 @4000000042cda28c root initial credit <!--2005-07-07 23:45:38Z-->
+-10 @4000000042ce54a7 wimmer printer walze pages 1 job myfile.ps <!--2005-07-08 12:25:33Z-->
+-50 @4000000042ce6403 wimmer printer walze pages 5 job report.ps <!--2005-07-08 13:31:05Z-->
+-20 @4000000042ce9522 wimmer printer walze pages 2 job other.doc <!--2005-07-08 17:00:40Z-->
++500 @4000000042cf0665 root an early Xmas present ;-) <!--2005-07-09 01:03:55Z-->
+</pre>
+
+<p>Use a tool to check the current balance:</p>
+<pre># <b>pracc-sum wimmer</b>
+acct <i>wimmer</i> balance <i>920</i> limit <i>9</i> ok
+</pre>
+
+<p>After printing many more jobs, user wimmer runs out of credits:</p>
+<pre># <b>pracc-sum wimmer</b>
+acct wimmer balance -20 limit 9 bad
+</pre>
+
+<p>User wimmer buys new credits.
+Then the purging operation is performed.
+The resulting pracc file looks like this:</p>
+<pre>#pracc-v2-0-wimmer Waldemar Immerfroh
+$9 @4000000042cda28c root minimum balance <!--2005-07-07 23:45:38Z-->
+=500 @4000000042cda28c root initial credit <!--2005-07-07 23:45:38Z-->
+=30 @4000000043341ac2 root balance <!--2005-09-23 17:09:44Z-->
++1000 @4000000043341ac2 root new credits bought <!--2005-09-23 17:09:44Z-->
+</pre>
+<p>The sequence of debits and credits was accumulated and the
+ resulting balance written to the new pracc file in place of
+ the individual debit and credit lines. All comment lines were
+ preserved. Finally, the credit software appended a credit line
+ according to the amount of credits bought.</p>
+
+<hr>
+
+<a name="v1"></a>
+<h2>Changes wrt pracc v1</h2>
+<p>V1 pracc files had group ownership <tt>lp</tt>
+ so that LPRng could directly append a debit line.</p>
+<p>The limit line in pracc files is new with v2.</p>
+<p>Timestamp format changed with v2.</p>
+<p>Note that most pracc tools work with both versions
+ because they only evaluate the first field on every line
+ and ignore unknown line types.</p>
+
+<div align="right"><i>v1, ujr/2003-11-13</i></div>
+<div align="right"><i>v2, ujr/2005-06-18</i></div>
+<div align="right"><i>latest: 2006-01-07</i></div>
+</body></html><!-- started 2003-08-12 -->

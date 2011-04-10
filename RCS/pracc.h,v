@@ -1,0 +1,199 @@
+head	1.4;
+access;
+symbols;
+locks
+	ujr:1.4; strict;
+comment	@ * @;
+
+
+1.4
+date	2008.03.12.16.46.10;	author ujr;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2008.01.16.23.32.02;	author ujr;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2008.01.14.23.19.02;	author ujr;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.08.05.12.58.20;	author ujr;	state Exp;
+branches;
+next	;
+
+
+desc
+@Pracc header file
+@
+
+
+1.4
+log
+@Added ifndef guard for inclusion idempotency
+@
+text
+@#ifndef _PRACC_H_
+#define _PRACC_H_
+
+#define PRACCOWNER "root"      // owner for pracc files (root is fine)
+#define PRACCGROUP "lpadmin"   // group for pracc files (dedicated group)
+#define PRACCDEFLT "default"   // default account name
+
+#define PRACCDIR "/var/print/pracc"
+#define PRACCLOG "/var/print/pracc.log"
+#define PRACCBIN "/var/print/bin"
+#define PRACCCGI "/var/print/cgi"
+#define PRACCDOC "/var/print/doc"
+
+/* Do not change things below */
+
+#define MAXNAME 64    // 2 + max account (and user) name length
+#define MAXLINE 256   // 2 + max line length in pracc files
+
+#define UNLIMITED -99999999  // unlimited if limit <= UNLIMITED
+
+#include <stdio.h>
+#include "tai.h"
+
+struct praccbuf {
+   int type;                 // record type (debit, reset, etc)
+   long value;               // associated value
+   struct tai taistamp;      // timestamp of record
+   char username[MAXNAME];   // user who created the record
+   char comment[MAXLINE];    // record's comment field
+   long lineno;
+   const char *fn;
+   FILE *fp; // private
+};
+
+int praccCreate(const char *acctname, long balance, long limit,
+	const char *comment, int overwrite);
+int praccAppend(const char *acctname, int type, long value,
+	const char *username, const char *comment);
+int praccPurge(const char *acctname, struct tai *tx, int keepresets,
+	int keeplimits, int keepnotes, int doit, const char *fntmp);
+int praccSum(const char *acctname, long *balance, long *limit);
+int praccOpen(const char *acctname, struct praccbuf *pracc);
+int praccRead(struct praccbuf *pracc);
+int praccClose(struct praccbuf *pracc);
+int praccGrant(const char *acctname, const char *username);
+int praccLogup(const char *acctname, const char *logstring);
+char praccAccountInfo(const char *acctname, char *buf, int len);
+
+int praccAssemble(char *buf, int type, long value, struct tai *taistamp,
+	const char *username, const char *comment);
+char *praccPath(const char *acctname);
+char *praccTypeString(char type);
+int praccCheckName(const char *acctname);
+int praccFormatName(char *buf, const char *name, int size);
+int praccFormatInfo(char *buf, const char *info, int size);
+
+/* The pracc.log file */
+
+struct pracclog {
+   struct tai taistamp;
+   char username[MAXNAME];
+   char acctname[MAXNAME];
+   char infostr[MAXLINE];
+   long lineno;
+   FILE *fp; // private
+};
+
+int praccLogOpen(struct pracclog *logentry);
+int praccLogRead(struct pracclog *logentry);
+int praccLogClose(struct pracclog *logentry);
+
+#endif /* _PRACC_H_ */
+@
+
+
+1.3
+log
+@*** empty log message ***
+@
+text
+@d1 6
+a6 1
+/* pracc.h */
+d11 2
+a12 4
+
+#define DEFLTACCT "default"    // default account name
+#define PRACCGROUP "lp"        // group for pracc files (dedicated group)
+#define PRACCOWNER "root"      // owner for pracc files (root is fine)
+d16 2
+a17 2
+#define MAXNAME 63           // max pracc file name length
+#define MAXLINE 256          // max pracc file line length
+d21 2
+a22 2
+int praccname(const char *acctname);
+int praccaccess(const char *username, const char *acctname);
+d24 47
+a70 2
+int praccread(const char *account, long *bp, long *lp);
+int praccwrite(const char *account, int type, long number, const char *info);
+d72 1
+a72 1
+char *praccpath(const char *acctname);
+@
+
+
+1.2
+log
+@*** empty log message ***
+@
+text
+@d11 1
+a11 2
+#define MAXNAME 63   /* max pracc file name length */
+#define MAXLINE 256  /* max pracc file line length */
+d13 2
+a14 4
+#define SUCCESS 0    /* exit value if successful */
+#define RETRY   111  /* can-be-retried exit value */
+#define ABORT   127  /* generic failure exit value */
+#define BADACCT 126  /* accounting failed, printing unknown */
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d3 1
+a3 1
+#define PRACCDIR "/var/print/pracc/"   // with trailing slash!
+d5 1
+d8 2
+a9 1
+#define PRACCGROUP "lp"        // group for pracc files
+d19 1
+a19 1
+#define UNLIMITED -99999999  // account unlimited if limit < UNLIMITED
+d22 1
+a22 1
+char *praccpath(const char *acctname);
+d24 2
+a25 2
+int readacct(const char *account, long *bp, long *lp);
+int writeacct(const char *account, int type, long number, const char *info);
+d27 1
+a27 10
+void checkuser(const char *username, char type);
+
+#define LOGFMT_BUFSIZE 1024 // buffer size for logfmt and die
+void logfmt(const char *fmt, ...); // formatted output to stderr
+void logup(int level, const char *fmt, ...); // logging to stderr
+
+/* pracc v1 legacy */
+#include <time.h>
+int oldscan(const char *s, struct tm *tp);
+int writeacct1(const char *account, int type, long number, const char *info);
+@

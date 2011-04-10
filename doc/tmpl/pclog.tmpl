@@ -1,0 +1,79 @@
+<!-- Template for pracc.cgi/logs/pclog -->
+<!-- Variables besides the standard ones:
+  filter, tmin, tmax: filter for selecting log entries;
+  pclog#: log entry iterator, sets these variables for each entry:
+  printer, pc (pagecount), pages, jobs, year, month, day, time;
+  pclog.totpages, pclog.totcount: availabe only after pclog#;
+  first, count, NR: paging (not fully implemented).
+-->
+
+{undefined?:\
+<script language="JavaScript" type="text/javascript">
+{;periodChanged.js}</script>}
+
+<h2>Pagecount Log</h2>
+
+<!--<div class="fltbox"><strong>Hinweise:</strong><br>
+Felder leer lassen um alle Daten<br>
+und/oder alle Drucker zu erfassen.<br>
+N&uuml;tzliche Beispiele:<br>
+<b>se*</b> ber&uuml;cksichtigt alle Senti-Drucker;<br>
+<b>*lj4300</b> ber&uuml;cksichtigt nur LJ 4300.</div>-->
+
+<form method="POST" action="{SCRIPT}/logs/pclog">
+<table border="0" cellpadding="3" cellspacing="0"><tbody>
+<tr><td align="right">Period:</td>{period?:{period=all}}
+ <td><select name="period" size="1" id="period" onchange="periodChanged()">
+  <option value="" {period=?selected:}>Custom</option>
+  <option value="today" {period=today?selected:}>Today</option>
+  <option value="thisweek" {period=thisweek?selected:}>This Week</option>
+  <option value="thismonth" {period=thismonth?selected:}>This Month</option>
+  <option value="thisyear" {period=thisyear?selected:}>This Year</option>
+  <option value="lastmonth" {period=lastmonth?selected:}>Last Month</option>
+  <option value="lastyear" {period=lastyear?selected:}>Last Year</option>
+  <option value="all" {period=all?selected:}>All time</option>
+ </select></td><td></td></tr>
+<tr><td align="right">From:</td>
+ <td><input type="text" name="tmin" value="{tmin}" id="tmin" size="15"></td>
+ <td>Format: <i>yyyy-mm-dd</i></td></tr>
+<tr><td align="right">Until:</td>
+ <td><input type="text" name="tmax" value="{tmax}" id="tmax" size="15"></td>
+ <td>Format: <i>yyyy-mm-dd</i></td></tr>
+<tr><td align="right">Printer:</td>
+ <td><input type="text" name="filter" value="{filter}" size="15"></td>
+ <td>Wildcards <b>*</b> and <b>?</b> allowed</td></tr>
+<tr><td></td><td><input type="submit" value="Analyse Log">
+ <!--<input type="reset" value="Reset">--></td>
+ <td>
+  <input type="radio" name="format" value="html" checked="checked">as HTML
+  <input type="radio" name="format" value="csv">as CSV (Excel)</td></tr>
+</tbody></table></form>
+
+{undefined?:\
+<script language="JavaScript" type="text/javascript">
+ periodChanged();
+</script>}
+
+<hr>
+
+{pclog#}{NR>0?\
+<p>Printer usage between {tmin} and {tmax}\:<br/>
+ <b>{NR}</b> printer{NR=1?:s} printed
+ <b>{pclog.totpages}</b> pages in
+ at least <b>{pclog.totcount}</b> jobs.</p>
+<table border="0" cellpadding="3" cellspacing="2" class="listtbl"><tbody>
+<tr><th>#</th><th>Printer</th>
+ <th>Pagecount</th><th>Pages</th><th>Jobs</th><th>Last used</th></tr>
+{pclog#<tr><td align="right">{#}</td>
+ <td>{printer}</td>
+ <td align="right">{pc=-1?<b>n/a</b>:{pc}}</td>
+ <td align="right">{pages=-1?<b>n/a</b>:{pages}}</td>
+ <td align="right">{jobs}</td>
+ <td>{year}-{month}-{day} {time}</td></tr>}
+</tbody></table>
+<hr><p><b>Note\:</b> All figures in the table refer to the selected
+ time period. Therefore, <b>pagecount</b> is the printer's last known
+ pagecount in the selected time period and <b>last used</b> is the
+ date and time of that pagecount recording.</p>
+:<p>No known printer usage between {tmin} and {tmax}.</p>}
+{error?<p class="failure">Error\: {error}</p>:}

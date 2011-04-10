@@ -1,0 +1,117 @@
+<!-- Template for pracc.cgi/vars -->
+
+<h2>Variables</h2>
+<p>Variables are refrenced by {undefined?:\{<i>name</i>\}}
+ and defined by {undefined?:\{<i>name</i>=value\}}.
+ Variable names are case sensitive.
+ Some variables are always defined.
+ You can test if variables are defined using
+ {undefined?:\{<i>name</i>?defined\:undefined\}} and
+ compare them against a constant using
+ {undefined?:\{<i>name</i>*value?true\:false\}} where
+ * is = or &lt; or &gt; (with the obvious meaning)
+ or % (which is true if <i>name</i> can be divided
+ by value without a remainder).</p>
+<!--<p>Files can be included verbatim by saying
+ {undefined?:\{$file\}} and subject to variable expansion
+ by saying {undefined?:\{*file\}}; in either case, the named
+ <i>file</i> is relative to the current working directory,
+ <em>not</em> the file in which those inclusion commands appear.</p>-->
+
+<hr><h3>General</h3>
+<table border="0" class="listtbl"><tbody>
+<tr><th>Name</th><th>Value</th><th>Description</th></tr>
+<tr><td>TITLE</td><td>{TITLE}</td>
+ <td>Title, defined in templates, defaulted in CGI compiled code</td></tr>
+<tr><td>SECTION</td><td>{SECTION}</td>
+ <td>Current section, set by the CGI compiled code,
+     useful in the navigation part of a web site</td></tr>
+<tr><td>SCRIPT</td><td>{SCRIPT}</td>
+ <td>Short for the <i>SCRIPT_NAME</i> CGI variable</td></tr>
+<tr><td>PATH</td><td>{PATH}</td>
+ <td>Short for the <i>PATH_INFO</i> CGI variable</td></tr>
+<tr><td>QUERY</td><td>{QUERY}</td>
+ <td>Short for the <i>QUERY_STRING</i> CGI variable</td></tr>
+<tr><td>first</td><td>{first}</td>
+ <td>Paging: index of first element shown (indexing starts with 1)</td></tr>
+<tr><td>count</td><td>{count}</td>
+ <td>Paging: number of elements to show on one page</td></tr>
+</tbody></table>
+
+<hr><h3>Date, Time, Host, Language</h3>
+<table border="0" class="listtbl"><tbody>
+<tr><th>Name</th><th>Value</th><th>Description</th></tr>
+<tr><td>YEAR</td><td>{YEAR}</td><td>Current year</td></tr>
+<tr><td>MONTH</td><td>{MONTH}</td><td>Month of year (1-12)</td></tr>
+<tr><td>DAY</td><td>{DAY}</td><td>Day of month (1-31) at execution</td></tr>
+<tr><td>TIME</td><td>{TIME}</td><td>Time of day in HHMM format</td></tr>
+<tr><td>HOSTNAME</td><td>{HOSTNAME}</td><td>Host name
+ as determined by gethostname(2)</td></tr>
+</tbody></table>
+<p>This page was generated on {YEAR}-{MONTH>9?:0}{MONTH}-{DAY>9?:0}{DAY}
+ at {TIME>999?{TIME}:0{TIME>99?{TIME}:0{TIME>9?{TIME}:0{TIME}}}}
+ on host {HOSTNAME}.</p>
+
+<hr><h3>Language</h3>
+<table border="0" class="listtbl"><tbody>
+<tr><th>Name</th><th>Value</th><th>Description</th></tr>
+<tr><td>LANG</td><td>{LANG?{LANG}:n/a}</td>
+ <td>Client's preferred language</td></tr>
+</tbody></table>
+<p>LANG is the first language specified by the client in the
+Accept-Language HTTP header field, that is, the client's preferred
+language. LANG is used to serve localised web pages by having
+pracc.cgi locating template files in language-specific folders.</p>
+
+<p>If pracc.cgi tries to locate a template file <i>f</i> and
+LANG is of the form <i>xx-YY</i>, for example, en-US, then
+these locations are tried in order:</p>
+<ol>
+<li><i>tmpl</i>/<i>xx-YY</i>/<i>f</i></li>
+<li><i>tmpl</i>/<i>xx</i>/<i>f</i></li>
+<li><i>tmpl</i>/<i>f</i></li>
+</ol>
+<p>If LANG is of the form <i>xx</i>, for example, en, then the
+first attempt in the list above is omitted. If the last attempt
+at locating the file fails, an error occurs.</p>
+
+<hr><h3>Standard CGI Variables</h3>
+<table border="0" class="listtbl"><tbody>
+<tr><th>Name</th><th>Value</th></tr>
+<tr><td>SERVER_NAME</td><td>{SERVER_NAME}</td></tr>
+<tr><td>HTTP_USER_AGENT</td><td>{HTTP_USER_AGENT}</td></tr>
+<tr><td>HTTP_REFERER</td><td>{HTTP_REFERER}</td></tr>
+<tr><td>REMOTE_ADDR</td><td>{REMOTE_ADDR}</td></tr>
+<tr><td>REMOTE_HOST</td><td>{REMOTE_HOST?{REMOTE_HOST}:(not defined)}</td></tr>
+<tr><td>REMOTE_USER</td><td>{REMOTE_USER?{REMOTE_USER}:(not defined)}</td></tr>
+<tr><td>SCRIPT_NAME</td><td>{SCRIPT_NAME}</td></tr>
+<tr><td>PATH_INFO</td><td>{PATH_INFO}</td></tr>
+<tr><td>QUERY_STRING</td><td>{QUERY_STRING?{QUERY_STRING}:(not defined)}</td></tr>
+<tr><td>REQUEST_METHOD</td><td>{REQUEST_METHOD}</td></tr>
+</tbody></table>
+<p>The CGI standard defines more variables but only those
+ listed above are available in template expansion.</p>
+
+<hr><h3>Identification</h3>
+<table border="0" class="listtbl"><tbody>
+<tr><th>Name</th><th>Value</th><th>Description</th></tr>
+<tr><td>UID</td><td><b>{UID}</b></td><td>Value of getuid(2)</td></tr>
+<tr><td>EUID</td><td><b>{EUID}</b></td><td>Value of geteuid(2)</td></tr>
+<tr><td>GID</td><td><b>{GID}</b></td><td>Value of getgid(2)</td></tr>
+<tr><td>EGID</td><td><b>{EGID}</b></td><td>Value of getegid(2)</td></tr>
+<tr><td>USER</td><td><b>{USER?{USER}:n/a}</b></td>
+ <td>Name of user we're running as</td></tr>
+<tr><td>ROLE</td><td><b>{ROLE?{ROLE}:n/a}</b></td>
+ <td>The role of REMOTE_USER.</td></tr>
+</tbody></table>
+<p>The IDs are always available, USER may be undefined.<br>
+The ROLE refers to REMOTE_USER (not USER, which is local);<br>
+it has one of these value: user, peek (observer), poke (admin).</p>
+
+<hr><h3>Symbol Table</h3>
+<p>For debugging, the symbol table can be dumped to stdout
+by saying {undefined?:\{symdump\}} in a template file.
+The format of each line is <i>name</i>=<i>value</i>$ where
+the $ is printed to show trailing white space; the order
+is random.</p>
+<pre>{symdump}</pre>

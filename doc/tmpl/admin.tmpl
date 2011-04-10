@@ -1,0 +1,39 @@
+<!-- Template for pracc.cgi/admin -->
+<!-- Variables: standard -->
+
+<h2>Pracc Administration</h2>
+
+<table border="0" cellpadding="3" cellspacing="8"><tbody>
+<tr><td align="center"><a class="btn"
+  href="{SCRIPT}/admin?op=create">Create</a></td>
+ <td><span class="lead">Neues Druck-Konto erzeugen.</span>
+  Sollte normalerweise nicht n&ouml;tig sein
+  weil Druck-Konten automatisch erzeugt werden.</td></tr>
+<tr><td align="center"><a class="btn"
+  href="{SCRIPT}/admin?op=credits">Credits</a></td>
+ <td><span class="lead">Gutschrift auf Druck-Konto.</span>
+  Studenten erwerben auf der Kanzlei neue Druck-Credits;
+  hier wird die Gutschrift effektiv vorgenommen.</td></tr>
+<tr><td align="center"><a class="btn"
+  href="{SCRIPT}/admin?op=edit">Edit</a></td>
+ <td><span class="lead">Bearbeiten eines Druck-Kontos.</span>
+  Sollte nicht n&ouml;tig sein, ausser etwa um eine
+  irrt&uuml;mliche Gutschrift zu stornieren.</td></tr>
+<tr><td align="center"><a class="btn"
+  href="{SCRIPT}/admin?op=purge">Purge</a></td>
+ <td><span class="lead">L&ouml;schen alter Eintr&auml;ge.</span>
+  Damit wird das Druckkonto kleiner, Kontostand und -Limite
+  bleiben aber unver&auml;ndert.</td></tr>
+<tr><td align="center"><a class="btn"
+  href="{SCRIPT}/admin?op=delete">Delete</a></td>
+ <td><span class="lead">L&ouml;schen eines Druck-Kontos.</span>
+  Druck-Konten werden durch die Abteilung ICT beim Austritt
+  eines Studenten/Mitarbeiters gel&ouml;scht.</td></tr>
+<tr><td align="center"><a class="btn"
+  href="{SCRIPT}/admin?op=checks">Checks</a></td>
+ <td><span class="lead">The future:</span>
+  Studenten kaufen auf der Kanzlei Credit-Voucher
+  und nehmen dann die Gutschrift selbst am Computer vor.
+  <em>Coming soon...</em></td></tr>
+</tbody></table>
+

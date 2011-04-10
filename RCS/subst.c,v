@@ -1,0 +1,727 @@
+head	1.3;
+access;
+symbols;
+locks
+	ujr:1.3; strict;
+comment	@ * @;
+
+
+1.3
+date	2008.09.03.20.52.32;	author ujr;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2008.03.08.15.05.35;	author ujr;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2008.03.08.14.35.04;	author ujr;	state Exp;
+branches;
+next	;
+
+
+desc
+@Simple CGI substitution engine motivated by CUPS cgi_copy.
+@
+
+
+1.3
+log
+@Include files are now located relative to current file
+@
+text
+@/* Substitution, $Revision$ */
+/* Syntax motivated by CUPS cgi_copy() */
+/* Urs-Jakob Rueetschi, March 2008 */
+/* ujr/20080902 include files now relative to current file */
+
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "scan.h"
+#include "symtab.h"
+
+extern void install(const char *name, const char *value);
+extern char *lookup(const char *name, const char *deflt);
+
+extern void arrayInit(const char *name);
+extern int arrayLoad(const char *name, int index);
+
+static char escape(char c);
+static int compare(int op, const char *s, const char *t);
+static char *qualify(const char *fn, const char *curfn);
+static void copy(FILE *in, FILE *out);
+
+/*
+ * {name}       substitute value of name
+ * {$name}      substitute value of name, formatted as a currency
+ * {name?true:false}
+ * {name=value?true:false}  also: < > %
+ * {name#html}
+ * {#}          iteration number or zero
+ * {:file}      input and process file
+ * {;file}      input file verbatim
+ * Note: file is relative to the currently processed file!
+ *
+ * Escapes:
+ *  X preceded by a backslash is X without its side effects.
+ *  For example, say \? for ? (useful in value), \: for :, \{
+ *  and \} for { and } (useful in html), and \\ for a backslash.
+ *  A newline preceded by a backslash is ignored.
+ *  Escapes are inactive outside the outmost {...} pair.
+ */
+void subst(FILE *in, FILE *out, char term, int num, int level)
+{
+   char name[256];
+   char value[256];
+   char *s;
+   const char *end;
+   long first, limit;
+   long prev, next;
+   long inpos;
+   int c, n, r;
+   int op, cmp;
+   int esc = 0;
+
+   while ((c = getc(in)) != EOF) {
+      if (esc) {
+         if (out && (c != '\n'))
+            putc(escape(c), out);
+         esc = 0; continue;
+      }
+      if (term && (c == '\\')) {
+         esc = 1; continue;
+      }
+      if (c == term) break; // done
+      if (c == '{') { // substitution
+         s = name;
+         end = s + sizeof(name) - 1;
+         while ((c = getc(in)) != EOF) {
+            if (strchr("}?=<>% \t\n\0", c)) break;
+            if ((c == '#') && (s > name)) break;
+            if (s < end) *s++ = c;
+         }
+         *s = '\0';
+
+         if (s == name) { // lonely opening brace
+            if (out)
+               fprintf(out, "{%c", c);
+            continue;
+         }
+
+         if (name[0] == ':') { // include and process file
+            if (c == '}') {
+               char *curfn = lookup("FILENAME", ".");
+               char *fn = qualify(name+1, curfn);
+               FILE *fp = fopen(fn, "r");
+               
+               if (fp) {
+                     char *savefn = lookup("FILENAME", 0);
+                     install("FILENAME", fn);
+                     subst(fp, out, 0, num, level+1);
+                     install("FILENAME", savefn);
+                     fclose(fp);
+               }
+               else if (out)
+                  fprintf(out, "{:%s: %s}", name+1, strerror(errno));
+               free(fn);
+            }
+            else if (out)
+               fprintf(out, "{%s%c", name, c);
+            continue;
+         }
+
+         if (name[0] == ';') { // include file verbatim
+            if (c == '}') {
+               char *curfn = lookup("FILENAME", ".");
+               char *fn = qualify(name+1, curfn);
+               FILE *fp = fopen(fn, "r");
+               if (fp) {
+                  if (out) copy(fp, out);
+                  fclose(fp);
+               }
+               else if (out)
+                  fprintf(out, "{;%s: %s}", name+1, strerror(errno));
+               free(fn);
+            }
+            else if (out)
+               fprintf(out, "{%s%c", name, c);
+            continue;
+         }
+
+         switch (c) {
+            case '}':
+               if (!out) break;
+               if (!strcmp(name, "#")) // iteration number
+                  fprintf(out, "%d", num);
+               else if (name[0] == '$') { // currency
+                  long number;
+                  char *s = lookup(name+1, "");
+                  int n = scani(s, &number);
+                  if (n && (s[n] == '\0'))
+                     fprintf(out, "%.02f", ((float) number)/100.0);
+                  else fprintf(out, "%s", lookup(name+1, ""));
+               }
+               else fprintf(out, "%s", lookup(name, ""));
+               break;
+            case '?':
+               cmp = (lookup(name, 0) != 0);
+               if (cmp) { // name exists
+                  subst(in, out, ':', num, level+1);
+                  subst(in, NULL, '}', num, level+1);
+               }
+               else { // name does not exist
+                  subst(in, NULL, ':', num, level+1);
+                  subst(in, out, '}', num, level+1);
+               }
+               break;
+            case '#':
+               arrayInit(name);
+               first = atol(lookup("first", "1"));
+               limit = first + atol(lookup("count", "10"));
+               inpos = ftell(in); // remember current position
+               if (inpos < 0) r = -1;
+               else for (n = first; n < limit; n++) {
+                  if ((r = arrayLoad(name, n))) break;
+                  if ((r = fseek(in, inpos, SEEK_SET))) break;
+                  subst(in, out, '}', n, level+1);
+               }
+               if (n == first) subst(in, NULL, '}', n, level+1);
+               if (r < 0) install("error", strerror(errno));
+               else install("error", 0); // remove error
+
+               /* Install "prev" link */
+               if ((r == 0) && (first > 1)) {
+                  char buf[16];
+                  long prev = first - n + first;
+                  if (prev < 1) prev = 1;
+                  snprintf(buf, sizeof(buf), "%ld", prev);
+                  install("prev", buf); // TODO make complete URL
+               }
+               else install("prev", 0);
+
+               /* Install "next" link */
+               if (r == 0) {
+                  char buf[16];
+                  snprintf(buf, sizeof(buf), "%ld", (long) n);
+                  install("next", buf); // TODO make complete URL
+               }
+               else install("next", 0);
+
+               break;
+            case '=':
+            case '<':
+            case '>':
+            case '%':
+               op = c;
+               s = value;
+               end = s + sizeof(value) - 1;
+               while ((c = getc(in)) != EOF) {
+                  if (esc) {
+                     esc = 0;
+                     if ((s < end) && (c != '\n'))
+                        *s++ = escape(c);
+                  }
+                  else {
+                     if (c == '\\') esc = 1;
+                     else {
+                        if (strchr("?}\0", c)) break;
+                        if (s < end) *s++ = c;
+                     }
+                  }
+               }
+               *s = '\0';
+               esc = 0;
+
+               if (c == '?') { // comparison
+                  char buf[16], *s;
+                  if (strcmp(name, "#") == 0) {
+                     snprintf(buf, sizeof(buf), "%d", num);
+                     s = buf;
+                  }
+                  else s = lookup(name, 0);
+                  cmp = compare(op, s, value);
+                  if (cmp) {
+                     subst(in, out, ':', num, level+1);
+                     subst(in, NULL, '}', num, level+1);
+                  }
+                  else {
+                     subst(in, NULL, ':', num, level+1);
+                     subst(in, out, '}', num, level+1);
+                  }
+               }
+               else if ((c == '}') && (op == '=') && out) { // assignment
+                  const char *n = strdup(name);
+                  if (n) install(n, value);
+                  else install("error", strerror(errno));
+               }
+               else if (out) // syntax error
+                  fprintf(out, "{%s%c%s%c", name, op, value, c);
+               break;
+            default:
+               if (out) fprintf(out, "{%s%c", name, c);
+               break;
+         }
+      }
+      else if (out) putc(c, out);
+   }
+}
+
+static char escape(char c)
+{
+   switch (c) {
+      case '0': return '\0'; // ASCII 0
+      case 'a': return '\a'; // ASCII 7, alert
+      case 'b': return '\b'; // ASCII 8, backspace
+      case 't': return '\t'; // ASCII 9, tab
+      case 'n': return '\n'; // ASCII 10, newline
+      case 'v': return '\v'; // ASCII 11, vertical tab
+      case 'f': return '\f'; // ASCII 12, form feed
+      case 'r': return '\r'; // ASCII 13, carriage return
+   }
+   return c;
+}
+
+/* Compare s and t; return 1 if s op t, 0 otherwise */
+static int compare(int op, const char *s, const char *t)
+{
+   long ns, nt;
+   char *ps, *pt;
+
+   if (s == t) return 1;
+   if (!s || !t) return 0;
+
+   ns = strtol(s, &ps, 10);
+   nt = strtol(t, &pt, 10);
+
+   if (!*ps && !*pt) switch (op) {
+      case '=': return ns == nt;
+      case '<': return ns < nt;
+      case '>': return ns > nt;
+      case '%': return (ns % nt) == 0;
+   }
+   else switch (op) {
+      case '=': return strcmp(s, t) == 0;
+      case '<': return strcmp(s, t) < 0;
+      case '>': return strcmp(s, t) > 0;
+   }
+   return 0;
+}
+
+/* Qualify given filename relative to current file,
+ * return it in a newly allocated piece of memory */
+static char *qualify(const char *fn, const char *curfn)
+{
+   const char *s;
+   char *buf;
+   int n, len;
+
+   if (fn[0] == '/') return strdup(fn);
+
+   s = strrchr(curfn, '/');
+   n = s ? s - curfn : 0;
+
+   if (n == 0) return strdup(fn);
+
+   len = n + 1 + strlen(fn) + 1;
+   if ((buf = malloc(len)) == NULL) {
+      perror("subst/qualify");
+      exit(111);
+   }
+
+   memcpy(buf, curfn, n); // prefix
+   snprintf(buf+n, len-n, "/%s", fn);
+
+   return buf;
+}
+
+/* Just copy input to output for {;file} */
+static void copy(FILE *in, FILE *out)
+{
+   int c;
+
+   while ((c = getc(in)) != EOF)
+      if (putc(c, out) == EOF) break;
+}
+
+/*** Driver for the substitution engine ***
+ *
+ * Usage: subst [-V] {a=b} {files}
+ *
+ * Arguments of the form a=b assign b to a; all other
+ * arguments are taken as files to be substituted.
+ *
+ * Option -V shows version and quits.
+ ***/
+
+#ifdef STANDALONE
+
+#include <time.h>
+#include <unistd.h>
+
+static char id[] = "$Id: subst.c,v 1.2 2008/03/08 15:05:35 ujr Exp ujr $";
+
+struct symtab syms;
+
+static char *stredup(const char *s)
+{
+   char *t = strdup(s);
+   if (t) return t;
+   perror("strdup");
+   exit(111);
+}
+
+static void dumpsym(struct symbol *s)
+{ if (s && s->sval) printf("%s=%s$\n", s->name, s->sval); }
+
+char *lookup(const char *name, const char *deflt)
+{
+   struct symbol *s;
+
+   if (!name) return (char *) deflt;
+
+   s = symget(&syms, name);
+   if (s) return (char *) (s->sval ? s->sval : deflt);
+
+   if (!strcmp(name, "symtab")) {
+      symdump(&syms, stdout);
+      return "";
+   }
+   if (!strcmp(name, "symdump")) {
+      symeach(&syms, dumpsym);
+      return "";
+   }
+
+   return (char *) deflt;
+}
+
+void install(const char *name, const char *value)
+{
+   struct symbol *sym;
+
+   sym = symput(&syms, name);
+   if (sym) {
+      if (sym->sval != value) {
+         if (sym->sval) free((void *) sym->sval);
+         if (value) value = stredup(value);
+         sym->sval = value;
+      }
+      else /* never free(x) and then strdup(x) */ ;
+   }
+   else {
+      perror("install failed");
+      exit(111);
+   }
+}
+
+/*
+ * Called by subst() once before substituting an array.
+ * This should prepare subsequent calls to arrayLoad.
+ */
+void arrayInit(const char *name)
+{
+}
+
+/*
+ * Called by subst() for each array element.
+ * Return 0 if OK, 1 if no such element,
+ * and -1 on error (set errno).
+ */
+int arrayLoad(const char *name, int num)
+{
+   return 1;
+}
+
+void setup(void)
+{
+   char buf[256];
+   time_t now = time(0);
+   struct tm *tp = localtime(&now);
+   if (tp) {
+      snprintf(buf, sizeof(buf), "%d", 1900+tp->tm_year);
+      install("YEAR", buf);
+      snprintf(buf, sizeof(buf), "%d", tp->tm_mon + 1);
+      install("MONTH", buf);
+      snprintf(buf, sizeof(buf), "%d", tp->tm_mday);
+      install("DAY", buf);
+      snprintf(buf, sizeof(buf), "%d", 100*tp->tm_hour + tp->tm_min);
+      install("TIME", buf);
+   }
+   if (gethostname(buf, sizeof(buf)) == 0) {
+      buf[sizeof(buf)-1] = '\0';
+      install("HOSTNAME", buf);
+   }
+}
+
+int main(int argc, char **argv)
+{
+   FILE *infp;
+   char *me, *s;
+   char buf[256];
+   int c;
+
+   extern int optind;
+   extern int opterr;
+   extern char *progname(char **argv);
+
+   me = progname(argv);
+   if (!me) return 127;
+
+   opterr = 0; // prevent stupid getopt output
+   while ((c = getopt(argc, argv, "V")) > 0) switch (c) {
+      case 'V': printf("%s\n", id); return 0;
+      default: fprintf(stderr, "Usage: %s [-V] {name=value} {files}\n", me);
+   }
+   argc -= optind;
+   argv += optind;
+
+   syminit(&syms, 100);
+   setup();
+
+   while (*argv) {
+      const char *arg = *argv++;
+
+      if (s = strchr(arg, '=')) {
+         *s++ = '\0'; // XXX
+         install(arg, s);
+      }
+      else {
+         install("FILENAME", arg);
+         if (!(infp = fopen(arg, "r"))) {
+            fprintf(stderr, "%s: open %s: %s\n",
+               me, arg, strerror(errno));
+            return 111;
+         }
+         if (fseek(infp, 0, SEEK_CUR)) {
+            fprintf(stderr, "%s: %s: Not seekable\n", me, arg);
+            return 127;
+         }
+         subst(infp, stdout, 0, 0, 0);
+      }
+   }
+   return 0;
+}
+#endif
+@
+
+
+1.2
+log
+@*** empty log message ***
+@
+text
+@d1 2
+a2 1
+/* Substitution // Syntax motivated by CUPS cgi_copy */
+d4 1
+a4 2
+
+/* TODO Error handling: on error, longjmp() out of subst and return -1 */
+d11 5
+a15 1
+static char id[] = "$Id: subst.c,v 1.1 2008/03/08 14:35:04 ujr Exp ujr $";
+d17 2
+a18 3
+extern const char *lookup(const char *name, const char *deflt);
+extern int install(const char *name, const char *value);
+extern int loadin(const char *name, long num, const char *filter);
+d22 2
+d26 2
+a27 1
+ * {name}
+d29 1
+a29 1
+ * {name=value?true:false}
+d31 4
+a34 4
+ * {*file}  (relative to working directory, not the processed file)
+ *
+ * {#name...} num of elems in name
+ * {#} iteration number or zero
+d43 1
+a43 1
+int subst(FILE *in, FILE *out, char term, int num, int level)
+d50 1
+d70 1
+a70 1
+            if (strchr("}?=<> \t\n\0", c)) break;
+d82 13
+a94 5
+         if (name[0] == '*') { // file inclusion
+            FILE *fp = fopen(name+1, "r");
+            if (fp) {
+               if (c == '}')
+                  subst(fp, out, 0, num, level+1);
+d96 2
+a97 1
+                  fprintf(out, "{%s%c", name, c);
+d100 1
+a100 1
+               fprintf(out, "{*%s: %s}", name+1, strerror(errno));
+d104 12
+a115 4
+         if (strcmp(name, "#") == 0) { // iteration number
+            if (out) {
+               if (c == '}') fprintf(out, "%d", num);
+               else fprintf(out, "{%s%c", name, c);
+d117 2
+d124 12
+a135 2
+               if (out)
+                  fprintf(out, "%s", lookup(name, ""));
+d149 1
+d155 1
+a155 1
+                  if ((r = loadin(name, n, 0))) break;
+d160 21
+a180 2
+               if (r < 0) install("errstr", strerror(errno));
+               else install("errstr", 0); // remove error
+d185 1
+d207 7
+a213 1
+                  cmp = compare(op, lookup(name, 0), value);
+d223 4
+a226 2
+               else if (c == '}') { // assignment
+                  (void) install(name, value);
+d271 1
+d281 3
+a283 2
+/* Dummy for TESTING */
+const char *lookup(const char *name, const char *deflt)
+a284 1
+   int num = 0;
+d286 2
+d289 1
+a289 2
+   if (!name) return deflt;
+   if (*name == '#') num=1, ++name;
+d291 15
+a305 3
+   if (num) return "12345";
+   s = getenv(name);
+   return (s) ? s : deflt;
+d308 2
+a309 2
+/* Dummy for TESTING */
+int install(const char *name, const char *value)
+d311 4
+a314 3
+   if (value) // add name=value
+      return setenv(name, value, 1);
+   return unsetenv(name); // remove
+d317 20
+a336 4
+/* Dummy for TESTING */
+#include "pracc.h"
+#include <dirent.h>
+int loadin(const char *name, long num, const char *filter)
+d338 8
+a345 3
+   static long lastnum = -1;
+   static DIR *dir = 0;
+   struct dirent *d;
+d347 3
+a349 4
+   if (strcmp(name, "acct")) {
+      errno = EINVAL;
+      return -1;
+   }
+d351 1
+a351 4
+   if (num <= 0) {
+      errno = EINVAL;
+      return -1;
+   }
+d353 2
+a354 3
+   if (dir && (lastnum + 1 == num)) {
+      d = readdir(dir);
+      if (!d) return 1; // no more
+d356 7
+a362 3
+      if (install("acct", d->d_name)) return -1;
+      lastnum = num;
+      return 0; // SUCCESS
+d365 6
+a370 4
+   if (dir) closedir(dir);
+fprintf(stderr, " opening %s (num=%ld)\n", PRACCDIR, num);
+   dir = opendir(PRACCDIR);
+   if (!dir) return -1;
+d372 12
+a383 5
+   lastnum = 0;
+   while (lastnum < num) {
+      d = readdir(dir);
+      if (!d) return 1; // no more
+      ++lastnum;
+d385 1
+d387 6
+a392 3
+   if (install("acct", d->d_name)) return -1;
+   lastnum = num;
+   return 0; // SUCCESS
+d395 9
+a403 5
+
+#ifdef TESTING
+#include <time.h>
+#include <unistd.h>
+extern char *progname(char **argv);
+d407 1
+a410 1
+      char buf[16];
+d412 1
+a412 1
+      install("YEAR", strdup(buf));
+d414 1
+a414 1
+      install("MONTH", strdup(buf));
+d416 7
+a422 1
+      install("DAY", strdup(buf));
+a423 1
+   // TODO More standard variables? TIME?
+a425 1
+const char *me;
+d428 3
+a430 3
+   FILE *infp = stdin;
+   const char *infn = "-";
+   char buf[256], *s;
+d435 1
+d443 1
+a443 1
+      default: fprintf(stderr, "Usage: %s [-V] {files}\n", me);
+d448 1
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d4 2
+d11 1
+a11 1
+static char id[] = "$Id$";
+d286 2
+d294 1
+a294 3
+      strftime(buf, sizeof(buf), "%Y-%m-%d", tp);
+      install("TODAY", strdup(buf));
+      snprintf(buf, sizeof(buf), "%d", tp->tm_year);
+d296 1
+a296 1
+      snprintf(buf, sizeof(buf), "%d", tp->tm_mon);
+d301 1
+a301 1
+   // TODO More standard variables?
+@

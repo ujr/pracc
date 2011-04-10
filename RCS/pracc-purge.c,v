@@ -1,0 +1,748 @@
+head	1.3;
+access;
+symbols;
+locks
+	ujr:1.3; strict;
+comment	@ * @;
+
+
+1.3
+date	2008.02.06.21.48.36;	author ujr;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.12.27.14.36.22;	author ujr;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.12.18.18.31.03;	author ujr;	state Exp;
+branches;
+next	;
+
+
+desc
+@Tool to purge old records from a pracc file.
+@
+
+
+1.3
+log
+@Using new pracc API functions
+@
+text
+@/* pracc-purge.c - a utility in the pracc package
+ * $Id: pracc-purge.c,v 1.2 2007/12/27 14:36:22 ujr Exp ujr $
+ * Copyright (c) 2006-2008 by Urs Jakob Ruetschi
+ */
+static char id[] = "This is pracc-purge by ujr\n$Revision: 1.2 $\n";
+
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#include "common.h"
+#include "pracc.h"
+#include "print.h"
+#include "scan.h"
+#include "tai.h"
+
+#define SUFFIX ".purge"
+
+int printdate(char *s, struct tai *taip);
+void setdate(const char *s, struct tai *taip);
+void usage(const char *s);
+
+char *me;
+char *acctname;
+
+int main(int argc, char **argv)
+{
+   char *fn, *fntmp;
+   struct tai breakTai;
+   int rflag, lflag, nflag, simul;
+   int c, len;
+
+   extern int optind;
+   extern char *optarg;
+   extern int opterr;
+
+   me = progname(argv);
+   if (!me) return 127; // no arg0
+
+   opterr = 0; // prevent stupid getopt output
+   rflag = lflag = nflag = simul = 0; // defaults
+   while ((c = getopt(argc, argv, "lrnDV")) > 0) switch (c) {
+      case 'l': lflag = 1; break;
+      case 'r': rflag = 1; break;
+      case 'n': nflag = 1; break;
+      case 'D': simul = 1; break;
+      case 'V': return (putln(stdout, id) == 0) ? 0 : 127;
+      default: usage("invalid option");
+   }
+   argc -= optind;
+   argv += optind;
+
+   if (*argv) acctname = *argv++;
+   else usage("no account specified");
+   if (praccCheckName(acctname))
+      usage("invalid account name");
+
+   if (*argv) setdate(*argv++, &breakTai);
+   else usage("no date specified");
+
+   if (*argv) usage("too many arguments");
+
+   if ((fn = praccPath(acctname)) == 0)
+      die(111, "praccPath(%s) failed", acctname);
+
+   len = strlen(fn) + strlen(SUFFIX) + 1;
+   if ((fntmp = calloc(len, sizeof(char))) == 0)
+      die(111, "calloc for %d chars failed", len);
+   strcpy(fntmp, fn);
+   strcat(fntmp, SUFFIX);
+
+   if (praccPurge(acctname, &breakTai, rflag, lflag, nflag, !simul, fntmp) < 0)
+      die(111, "purging account %s failed", acctname);
+
+   if (!simul) {
+      char comment[MAXLINE];
+      register char *p;
+
+      p = comment;
+      p += prints(p, "purge older than ");
+      p += printdate(p, &breakTai);
+      p += printc(p, '\0');
+
+      if (praccLogup(acctname, comment) < 0)
+         putfmt(stderr, "%s: cannot append to %s: %s\n",
+                me, PRACCLOG, strerror(errno));
+   }
+
+   return 0; // SUCCESS
+}
+   
+int printdate(char *s, struct tai *taip)
+{
+   time_t t;
+   struct tm *tm;
+   register char *p;
+
+   t = taiunix(taip);
+   tm = localtime(&t);
+   if (!tm) return 0;
+
+   p = s;
+   p += printu(p, 1900 + tm->tm_year);
+   p += printc(p, '-');
+   if (tm->tm_mon < 9)
+      p += printc(p, '0');
+   p += printu(p, 1 + tm->tm_mon);
+   p += printc(p, '-');
+   if (tm->tm_mday < 10)
+      p += printc(p, '0');
+   p += printu(p, tm->tm_mday);
+
+   return p - s; // #chars printed
+}
+
+void setdate(const char *s, struct tai *taip)
+{
+   struct tm tm;
+   time_t t;
+   int n;
+
+   if ((n = scandate(s, &tm)) == 0)
+      usage("invalid date argument");
+
+   tm.tm_sec = tm.tm_min = tm.tm_hour = 0;
+   if ((t = mktime(&tm)) < 0)
+      usage("invalid date argument");
+
+   if (taip) unixtai(taip, t);
+}
+
+void usage(const char *s)
+{
+   if (s) putfmt(stderr, "%s: %s\n", me, s);
+   putfmt(stderr, "Usage: %s [-lrnDV] account date\n", me);
+   putfmt(stderr, "Purge records older than <date> from <account>\n");
+   putfmt(stderr, "Specify the date as yyyy-mm-dd, e.g., 2005-12-31\n");
+   exit(127); // FAILURE
+}
+@
+
+
+1.2
+log
+@*** empty log message ***
+@
+text
+@d2 2
+a3 2
+ * $Id: pracc-purge.c,v 1.1 2007/12/18 18:31:03 ujr Exp ujr $
+ * Copyright (c) 2006-2007 by Urs Jakob Ruetschi
+d5 1
+a5 1
+static char id[] = "This is pracc-purge by ujr\n$Revision: 1.1 $\n";
+a7 2
+#include <fcntl.h>
+#include <stdarg.h>
+a10 1
+#include <unistd.h>
+d12 1
+d16 1
+a16 4
+#include "scf.h"
+#include "simpleio.h"
+#include "skipline.h"
+#include "taistamp.h"
+a18 1
+#define INFOSTR "by pracc-purge"
+d20 2
+a21 6
+int putreset(time_t t, long balance);
+int putlimit(time_t t, long balance);
+int addlog(void);
+int printdate(char *s, time_t t);
+void setdate(const char *s, time_t *t);
+void putfmt(const char *fmt, ...);
+d25 1
+a25 6
+char *account;
+time_t breakDate;
+int keepLimits;
+int keepResets;
+int keepNotes;
+int dummyMode;
+a28 3
+   extern int scfidx;
+   extern char *scfarg;
+
+d30 7
+a36 8
+   char *p, line[MAXLINE];
+   int c, n, partial;
+   time_t t = 0;       // record time, initially unknown
+   int breakdone = 0;  // set to 1 at old/new transition
+   struct tm tm;
+   struct tai tai;
+   long balance, limit;
+   long rdrops, ldrops;
+d38 1
+a38 1
+   me = scfbase(argv);
+d41 8
+a48 7
+   keepLimits = keepResets = keepNotes = dummyMode = 0;
+   while ((c = scfnext(argc, argv, "lrnDV")) > 0) switch (c) {
+      case 'l': keepLimits = 1; break;
+      case 'r': keepResets = 1; break;
+      case 'n': keepNotes = 1; break;
+      case 'D': dummyMode = 1; break;
+      case 'V': return (putstr(id) == 0) ? 0 : 127;
+d51 2
+a52 2
+   argc -= scfidx;
+   argv += scfidx;
+d54 1
+a54 1
+   if (*argv) account = *argv++;
+d56 1
+a56 1
+   if (praccname(account))
+d59 1
+a59 1
+   if (*argv) setdate(*argv++, &breakDate);
+d64 6
+a69 8
+   if ((fn = praccpath(account)) == 0)
+      die(111, "praccpath(%s) failed", account);
+   if (setin(fn) < 0) // redirect stdin
+      die(111, "cannot open %s for reading", fn);
+
+   n = strlen(fn) + strlen(SUFFIX) + 1;
+   if ((fntmp = calloc(n, sizeof(char))) == 0)
+      die(111, "calloc for %d chars failed", n);
+d73 2
+a74 85
+   umask(0007); // owner and group only
+   n = open(fntmp, O_WRONLY | O_CREAT | O_EXCL, 0660);
+   if (n < 0) die(111, "cannot create %s", fntmp);
+   if (dup2(n, 1) < 0) die(111, "dup failed");
+   if (close(n) < 0) die(111, "close failed");
+   
+   /*
+    * Once here, we have parsed our arguments into global variables,
+    * stdin reads from the pracc file, and stdout writes to tempfile.
+    * Now scan through the old file and copy to the tempfile...
+    */
+
+   balance = 0;
+   limit = UNLIMITED;
+   rdrops = ldrops = 0;
+
+   while ((n=getline(p=line, sizeof(line), '\n', &partial)) > 0) {
+      int type;
+      long value;
+
+      type = *p++;
+      switch (type) {
+      case '-': // debit
+      case '+': // credit
+         n = scanu(p, (unsigned long *) &value);
+         break;
+      case '=': // reset
+         n = scani(p, &value);
+         break;
+      case '$': // limit
+         n = scani(p, &value);
+         if (n <= 0 && *p == '*') { limit = UNLIMITED; n = 1; }
+         break;
+      case '?': // error (accounting)
+      case '!': // error (printing)
+         for (n=0; *p && !isspace(*p); p++) ++n;
+         break;
+      case '#': // note
+         goto notimestamp;
+      default: // other: skip
+         goto endline;
+      }
+      if (n > 0) p += n; // advance pointer past value
+      else goto endline; // syntax error - skip record
+
+      while (isspace(*p)) ++p;
+      if (((n = taiscan(p, &tai)) && ((t = tailocal(&tai, &tm)) > 0))
+       || ((n = utcscan(p, &tm)) && ((t = mktime(&tm)) > 0))) p += n;
+      else goto endline; // syntax error - skip record
+notimestamp:
+
+      /*
+       * Now decide if the current line shall be purged or retained.
+       * Relevant information: record's t (timestamp) and type...
+       */
+
+      if (t == 0) putline(line); // initial headers
+      else if (t < breakDate) switch (type) {
+         case '=': if (keepResets) putline(line);
+                   else ++rdrops; break;
+         case '$': if (keepLimits) putline(line);
+                   else ++ldrops; break;
+         case '#': if (keepNotes) putline(line); break;
+      }
+      else {
+         if (!breakdone) {
+            if (rdrops > 0 && putreset(breakDate, balance) < 0)
+               die(111, "write %s", fntmp);
+            if (ldrops > 0 && putlimit(breakDate, limit) < 0)
+               die(111, "write %s", fntmp);
+            breakdone = 1;
+         }
+         putline(line);
+      }
+
+      /*
+       * Update current balance and limit. Do this only after
+       * put{reset,limit} or the included reset/limit may be wrong.
+       */
+      switch (type) {
+      case '-': balance -= value; break;
+      case '+': balance += value; break;
+      case '=': balance = value; break;
+      case '$': limit = value; break;
+      }
+d76 12
+a87 15
+endline: // skip remainder of long lines
+      if (partial) skipline('\n');
+   }
+   putflush();
+
+   if (!dummyMode) {
+      if (fsync(1) < 0) die(111, "fsync %s failed", fntmp);
+      if (close(1) < 0) die(111, "close %s failed", fntmp);
+      if (rename(fntmp, fn) < 0)
+         die(111, "cannot rename %s to %s", fntmp, fn);
+
+      /* Append record to the common log file: */
+      if (addlog() < 0)
+         logfmt("%s: cannot append to %s: %s\n",
+            me, PRACCLOG, strerror(errno));
+d92 2
+a93 76
+
+int putreset(time_t t, long balance)
+{
+   char buf[MAXLINE];
+   register char *p;
+   struct tai tai;
+   int len;
+
+   tai.x = t;
+   tai.x += TAISHIFT;
+
+   p = buf;
+   p += printc(p, '=');
+   p += printi(p, balance);
+   p += printc(p, ' ');
+   p += taifmt(p, &tai);
+   p += printc(p, ' ');
+   p += printsn(p, INFOSTR, 16);
+   p += printc(p, '\n');
+
+   len = p - buf;
+   if (write(1, buf, len) != len) return -1;
+   return len; // #bytes written to stdout
+}
+
+int putlimit(time_t t, long limit)
+{
+   char buf[MAXLINE];
+   register char *p;
+   struct tai tai;
+   int len;
+
+   tai.x = t;
+   tai.x += TAISHIFT;
+
+   p = buf;
+   p += printc(p, '$');
+   if (limit <= UNLIMITED) p += printc(p, '*');
+   else p += printi(p, limit);
+   p += printc(p, ' ');
+   p += taifmt(p, &tai);
+   p += printc(p, ' ');
+   p += printsn(p, INFOSTR, 16);
+   p += printc(p, '\n');
+
+   len = p - buf;
+   if (write(1, buf, len) != len) return -1;
+   return len; // #bytes written to stdout
+}
+
+int addlog(void)
+{
+   char buf[MAXLINE];
+   register char *p;
+   int fd, len;
+
+   fd = open_append(PRACCLOG);
+   if (fd < 0) return -1;
+
+   p = buf;
+   p += taistamp(p);
+   p += prints(p, " by uid ");
+   p += printu(p, getuid());
+   p += prints(p, " acct ");
+   p += printsn(p, account, MAXNAME);
+   p += prints(p, ": purge older than ");
+   p += printdate(p, breakDate);
+   p += printc(p, '\n');
+
+   len = p - buf;
+   if (write(fd, buf, len) != len) return -1;
+   if (close(fd) < 0) return -1;
+   return 0; // SUCCESS
+}
+
+int printdate(char *s, time_t t)
+d95 1
+d99 1
+d117 1
+a117 1
+void setdate(const char *s, time_t *tp)
+d130 1
+a130 13
+   if (tp) *tp = t;
+}
+
+void putfmt(const char *fmt, ...)
+{ // formatted output to stdout
+   char buf[256];
+
+   va_list ap;
+   va_start(ap, fmt);
+
+   putbuf(buf, formatv(buf, sizeof buf, fmt, ap));
+
+   va_end(ap);
+d135 4
+a138 4
+   if (s) logfmt("%s: %s\n", me, s);
+   logfmt("Usage: %s [-lrnDV] account date\n", me);
+   logline("Purge records older than <date> from <account>");
+   logline("Specify the date as yyyy-mm-dd, e.g., 2005-12-31");
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 1
+a2 1
+ * $Id$
+d5 1
+a5 3
+static char id[] = "This is pracc-purge by ujr\n$Revision$\n";
+
+#define DEBUG
+d8 3
+a11 2
+#include <sys/stat.h>
+#include <sys/types.h>
+d16 1
+d21 4
+a24 2
+#include "streq.h"
+#include "timestamp.h"
+d26 6
+a31 2
+void setstrategy(const char *s);
+void syntax(const char *s);
+d36 5
+a40 5
+enum { NONE, SIZE, DAYS, DATE } strategy = NONE;
+time_t first; /* for strategies DAYS and DATE */
+unsigned long maxsize; /* for strategy SIZE */
+int nflag, vflag;
+long lineno;
+d44 98
+a141 114
+  extern int scfidx;
+  extern char *scfarg;
+  char line[MAXLINE];
+  int c, n, type, partial;
+  struct tm tm, *tp;
+  struct tai tai;
+  time_t t, tt;
+  long value;
+  long balance;
+  long limit;
+  char *tempfile;
+  char *p;
+  struct stat stbuf;  /* buffer for fstat(2) */
+  long nbytes = 0;  /* #bytes read so far */
+  int linedrops = 0; /* overall line drop counter */
+  int ddrops, cdrops, rdrops, ldrops, odrops; /* type-specific */
+
+  me = scfbase(argv);
+  if (!me) return 127; /* no arg0 */
+
+  nflag = vflag = 0; /* off by default */
+  while ((c = scfnext(argc, argv, "nvV")) > 0) switch (c) {
+  	case 'n': nflag = 1; break;
+  	case 'v': vflag = 1; break;
+  	case 'V': return (putline(id) == 0) ? 0 : 127;
+  	default: usage("invalid option");
+  }
+  argc -= scfidx;
+  argv += scfidx;
+
+  if (*argv) account = *argv++;
+  else usage("account not specified");
+  if (praccname(account))
+  	usage("invalid account name");
+
+  if (*argv) setstrategy(*argv++);
+  else usage("no strategy specified");
+
+  if (*argv) tempfile = *argv++;
+
+  if (*argv) usage("too many arguments");
+
+#ifdef DEBUG
+  logfmt("%s: strategy=%d", me, strategy);
+  if (strategy == SIZE) logfmt(", size=%d\n", maxsize);
+  if (strategy == DAYS || strategy == DATE) logfmt(", first=%d\n", first);
+#endif
+
+  if (chdir(PRACCDIR) != 0)
+  	die2(111, "cannot chdir to ", PRACCDIR);
+  if (setin(account) < 0) /* stdin from pracc file */
+  	die4(111, "canont open ", PRACCDIR, "/", account);
+  if ((strategy == SIZE) && (fstat(0, &stbuf) < 0))
+  	die4(111, "cannot stat ", PRACCDIR, "/", account);
+
+  if (!tempfile) { /* deflt: account.tmp */
+  	static char buf[MAXNAME+4+1];
+  	strncpy(buf, account, MAXNAME);
+  	strcat(buf, ".tmp");
+  	tempfile = buf;
+  }
+  if (setout(tempfile) < 0) /* stdout to temporary file */
+  	die2(111, "cannot create ", tempfile);
+
+  /** initialise our variables **/
+  if (strategy == SIZE) first = 0; /* turn off date criterium */
+  else maxsize = stbuf.st_size; /* turn off size criterium */
+  if ((tt = time(0)) < 0) die1(127, "time failed");
+  else tt += 86400; /* tomorrow */
+  balance = 0; limit = UNLIMITED; /* default */
+  nbytes = 0; lineno = 0; linedrops = 0;
+  ddrops = cdrops = rdrops = ldrops = odrops = 0;
+
+#ifdef DEBUG
+  logfmt("first=%d, maxsize=%d, tempfile=%s\n", first, maxsize, tempfile);
+#endif
+
+  while ((n=getline(p=line, sizeof(line), '\n', &partial)) > 0) {
+  	nbytes += n;
+  	lineno += 1;
+  	/*DEBUG logfmt("line %d: %s", lineno, p);*/
+
+  	switch (type = *p++) {
+  	case '-': /* debit */
+  		if (n = scanu(p, &value)) balance -= value;
+  		else { syntax("invalid debit"); goto endline; }
+  		p += n; break;
+  	case '+': /* credit */
+  		if (n = scanu(p, &value)) balance += value;
+  		else { syntax("invalid credit"); goto endline; }
+  		p += n; break;
+  	case '=': /* reset */
+  		if (n = scani(p, &value)) balance = value;
+  		else { syntax("invalid value"); goto endline; }
+  		p += n; break;
+  	case '$': /* limit */
+  		if (n = scani(p, &value)) { p += n; limit = value; }
+  		else if (*p++ == '*') limit = UNLIMITED;
+  		else { syntax("invalid limit"); goto endline; }
+  		break;
+  	case '?': /* accounting failed */
+  	case '!': /* printing failed */
+  		while (*p && !isspace(*p)) ++p;
+  		break;
+  	case '#': /* note */
+  		goto notimestamp;
+  	default: /* drop line */
+  		goto endline;
+  	}
+  	while (isspace(*p)) ++p; /* scan timestamp */
+  	if (((n = utcscan(p, &tm)) && (t = mktime(&tm)))
+  	 || ((n = taiscan(p, &tai)) && ((t = tailocal(&tai, &tm))>0))
+  	/* || ((n = oldscan(p, &tm)) && (t = mktime(&tm)))*/) {p += n;tt=t;}
+  	else syntax("invalid timestamp");
+d144 102
+a245 52
+  	/* Once we're here, <tt> holds the most recent valid timestamp,
+  	 * <type> is the current line type, and <nbytes> is the number
+	 * of bytes read so far. Now decide if we keep or drop the line!
+  	 */
+  	if ((tt < first) || (nbytes + maxsize < stbuf.st_size)) { /* drop */
+		linedrops++;
+  		switch (type) {
+  		case '-': ddrops++; break;
+  		case '+': cdrops++; break;
+  		case '=': rdrops++; break;
+  		case '$': ldrops++; break;
+  		default:  odrops++; break; // other
+  		}
+		/*DEBUG*/ logfmt(" >> drop (type=%c, value=%d, tt=%d)\n", type, value, tt);
+  	}
+	else { /* keep */
+		/*DEBUG*/ logfmt("keep: %s\n", line);
+  		if (putbuf(line, n) < 0)
+  			die2(111, "error writing ", tempfile);
+	}
+
+endline: /* skip remainder of long lines */
+  	if (partial) syntax("line too long");
+  	if (partial) nbytes += skipline('\n');
+  }
+  if (n < 0)
+  	die4(111, "error reading from ", PRACCDIR, "/", account);
+
+  if (linedrops > 0) { /* lines were dropped */
+  	char *comment = "by purge";
+  	char buf[1+TAIBYTES+TAIBYTES+1];
+  	buf[taistamp(buf)] = '\0';
+	/*DEBUG*/ logfmt("stamp %s comment %s\n", buf, comment);
+	if (ldrops > 0)
+		if (limit <= UNLIMITED)
+			putfmt("$* %s %s\n", buf, comment);
+  		else putfmt("$%d %s %s\n", limit, buf, comment);
+	if (ddrops+cdrops+rdrops > 0)
+		putfmt("=%d %s %s\n", balance, buf, comment);
+	putflush();
+	if (vflag) {
+		logfmt("total lines dropped: %d\n", linedrops);
+		logfmt("by line type: - %d, + %d, = %d, $ %d, other %d\n",
+				ddrops, cdrops, rdrops, ldrops, odrops);
+	}
+  }
+
+  if (!nflag) {
+  	/*TODO*/ logline("TODO: move tempfile over original");
+	/*TODO*/ logline("TODO: make pracc.log entry!");
+  }
+  return 0;
+d248 23
+a270 29
+void setstrategy(const char *s)
+{ /* parse strategy args and set global vars */
+  register const char *p = s;
+  register long n;
+
+  if (n = scanfix(p, "size=")) strategy = SIZE;
+  else if (n = scanfix(p, "days=")) strategy = DAYS;
+  else if (n = scanfix(p, "date=")) strategy = DATE;
+
+  if (n && *p) p += n; /* ok */
+  else usage("invalid strategy");
+
+  switch (strategy) { long val; struct tm tm;
+  case SIZE:
+  	if (scanu(p, &val)) maxsize = val;
+  	else usage("invalid N for strategy size=N");
+  	break;
+  case DAYS:
+  	if (scanu(p, &val)) first = time(0) - 86400*val;
+  	else usage("invalid N for strategy days=N");
+  	break;
+  case DATE:
+  	if (scandate(p, &tm)) {
+  		tm.tm_sec = tm.tm_min = tm.tm_hour = 0;
+  		if ((first = mktime(&tm)) >= 0) break;
+  	}
+  	usage("invalid D for strategy date=D");
+  	break;
+  }
+d273 1
+a273 1
+void syntax(const char *s)
+d275 18
+a292 3
+  if (!vflag) return; /* be quiet */
+  if (!s) s =  "syntax error";
+  logfmt("%s: %s line %d: %s\n", me, account, lineno, s);
+d295 1
+a295 1
+void die4(int code, char *s1, char *s2, char *s3, char *s4)
+d297 24
+a320 11
+  logfmt("%s: ", me);
+  if (s1) logstr(s1);
+  if (s2) logstr(s2);
+  if (s3) logstr(s3);
+  if (s4) logstr(s4);
+  if (errno) {
+  	logstr(": ");
+  	logstr(strerror(errno));
+  }
+  logchar('\n');
+  exit(code);
+d325 5
+a329 8
+  if (s) logline((char *) s);
+  else logfmt("This is %s", id);
+  logfmt("Usage: %s [-nvV] account strategy [tempfile]\n", me);
+  logline(" known strategies are:");
+  logline("  size=nbytes      # keep pracc file size below nbytes");
+  logline("  days=ndays       # remove records older than ndays");
+  logline("  date=YYYY-MM-DD  # remove records older than date");
+  exit(127);
+@

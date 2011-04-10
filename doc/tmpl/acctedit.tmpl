@@ -1,0 +1,67 @@
+<!-- Template for pracc.cgi/admin?op=edit -->
+<!-- Variables: TODO -->
+
+<h2>Edit Account</h2>
+
+{status?{status=ok?\
+<p class="success">Account
+<b><a href="{SCRIPT}/accounts/{acct}">{acct}</a> edited</b></p>:\
+<p class="failure">Editing failed: {error}</p>}:\
+<form method="POST" action="{SCRIPT}{PATH}">
+<input type="hidden" name="op" value="{op}">
+<table border="0" cellpadding="3" cellspacing="0"><tbody>
+<tr><td align="right">Account:</td>
+ <td>{acct?<b>{acct}</b>{gecos? ({gecos}):}
+  <input type="hidden" name="acct" value="{acct}">:\
+  <a href="{SCRIPT}/accounts" class="btn">Choose</a>}</td></tr>
+<tr><td align="right">Type:</td>
+ <td><select name="type" size="1" onchange="update();">
+  <option value="credit"{type=credit? selected:}>Credit</option>
+  <option value="debit"{type=debit? selected:}>Debit</option>
+  <option value="reset"{type=reset? selected:}>Reset</option>
+  <option value="limit"{type=limit? selected:}>Limit</option>
+  <option value="error"{type=error? selected:}>Error</option>
+  <option value="note"{type=note? selected:}>Note</option>
+ </select>{badtype?<b>invalid type</b>:}</td></tr>
+<tr><td align="right" id="valnam">Value:</td>
+ <td><input type="text" name="value" value="{value}" size="8" id="value">
+  {badvalue?<b>invalid value</b>:in CHF}</td></tr>
+<tr><td align="right">Comment:</td>
+ <td><input type="text" name="comment" value="{comment}" size="40">
+  {badcomment?<b>mandatory for type {type}</b>:}</td></tr>
+{confirm?<tr><td>Confirm\:</td>
+ <td><input type="checkbox" name="confirm" value="yes">
+  Yes, edit account</td></tr>:}
+<tr><td></td><td><input type="submit" value="Add Record"></td></tr>
+</tbody></table></form>
+{error?<p class="failure">{error}</p>:}
+
+<hr>
+<p>Add an arbitrary record to the selected account.
+ Choose a record <b>type</b>, enter the desired <b>amount</b>
+ or <b>balance</b>, and provide an optional <b>comment</b>
+ (required if type is <b>error</b> or <b>note</b>).
+ To make an unlimited account, set its limit to <b>none</b>.</p>
+
+<!-- Use JS to update field names and enable/disable -->
+<!-- Be careful about escaping curly braces!!! -->
+<script language="JavaScript" type="text/javascript">
+function update() {undefined?:\{}
+  var valnam = document.getElementById("valnam");
+  var valfld = document.getElementById("value");
+  var chooser = document.forms[0].elements["type"];
+  var option = chooser.options[chooser.selectedIndex].value;
+  if (option == "credit" || option == "debit")
+    valnam.innerHTML = "Amount:";
+  else if (option == "limit")
+    valnam.innerHTML = "Limit:";
+  else if (option == "reset")
+    valnam.innerHTML = "Balance:";
+  else valnam.innerHTML = "Value:";
+  if (option == "note" || option == "error")
+    valfld.disabled = true;
+  else valfld.disabled = false;
+{undefined?:\}}
+update();
+</script>
+}

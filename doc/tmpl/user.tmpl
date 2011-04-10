@@ -1,0 +1,75 @@
+<!-- Template for pracc.cgi/user -->
+<!-- Variables besides the standard ones: 
+  acct, balance, limit, gecos: user account information (out);
+  period, types: time period and record types to show (in/out);
+  tmin, tmax: time period, determined by 'period' (out only);
+  acct: iterator over selected pracc file records, defining:
+   year, month, day, time: record's timestamp (out);
+   user, type, value, comment: more record info (out);
+  error: error message, if any, otherwise undef (out).
+  Record types: + credit, - debit, = reset, $ limit, ! error.
+-->
+
+<h2>Druck-Konto {acct} {gecos? ({gecos}):}</h2>
+
+{diff>0?\
+<p class="success">Kontostand\: <b>Fr. {$balance}</b>
+{limit=none?(unlimitiert):(Limite\: Fr. {$limit})}</p>:\
+<p class="failure">\
+Kontostand\: <font color="#aa0000"><b>Fr. {$balance}</b></font>
+(Limite ist Fr. {$limit})<br>
+Neues Druck-Guthaben kann auf der Kanzlei erworben werden.</p>}
+
+<form method="POST" action="{SCRIPT}/user">
+<table border="0" cellpadding="3" cellspacing="0"><tbody>
+<tr><td align="right"><b>Auszug:</b></td>
+ <td><select name="period" size="1">
+  <option value="all" {period=all?selected:}>Alles</option>
+  <option value="today" {period=today?selected:}>Heute</option>
+  <option value="thisweek" {period=thisweek?selected:}>Diese Woche</option>
+  <option value="thismonth" {period=thismonth?selected:}>Dieser Monat</option>
+  <option value="lastmonth" {period=lastmonth?selected:}>Letzter Monat</option>
+  <option value="thisyear" {period=thisyear?selected:}>Dieses Jahr</option>
+  <option value="lastyear" {period=lastyear?selected:}>Letztes Jahr</option>
+  <option value="7" {period=7?selected:}>Letzte 7 Tage</option>
+  <option value="30" {period=30?selected:}>Letzte 30 Tage</option>
+ </select> <input type="submit" value="zeigen"></td></tr>
+<tr><td align="right">mit:</td>
+ <td><input type="radio" name="types" value="-" {types=-?checked:}>Ausdrucken
+  <input type="radio" name="types" value="+" {types=+?checked:}>Gutschriften
+  <input type="radio" name="types" value="" {types=?checked:}>allen
+   Aktionen</td></tr>
+</tbody></table>
+</form><hr>
+
+<p><b>Kontoauszug</b> von <span id="tmin">{tmin}</span>
+ bis <span id="tmax">{tmax}</span></p>
+
+<!-- Note: with acct#, NR is known only afterwards -->
+<table border="0" cellpadding="3" cellspacing="2" class="listtbl"><tbody>
+<tr><th>#</th><th>Datum</th><th>Zeit</th><th>Wer</th>
+ <th>Was</th><th>Betrag</th><th>Information</th></tr>
+{acct#<tr><td align="right">{#}</td>
+ <td>{year}-{month}-{day}</td>
+ <td>{time}</td>
+ <td>{user}</td>
+ <td>{type=+?<b>Gutschrift</b>:{type=-?Ausdruck:\
+{type==?<b>Saldo</b>:{type=$?<b>Limit</b>:{type=!?<b>Fehler</b>:{type}}}}}}</td>
+ <td align="right">{$value}</td>
+ <td>{comment}</td></tr>}
+</tbody></table>
+{NR?{NR>0?:<p>Keine passenden Eintr&auml;ge</p>}:}
+{error?<p class="failure">{error}</p>:}
+
+<!--
+Javascript:
+var rows = document.getElementByTagName('tr');
+for (i=0;i<rows.length;i++) {
+rows[i].onmouseover = highlight;
+rows[i].onmouseout = dehighlight;
+}
+function highlight() { this.className = "highlight"; }
+function dehighlight() { this.className = ""; }
+
+css:
+tr:hover, tr.highlight { background-color: #aaa; } -->

@@ -1,0 +1,920 @@
+head	1.6;
+access;
+symbols;
+locks
+	ujr:1.6; strict;
+comment	@ * @;
+
+
+1.6
+date	2008.02.06.21.48.54;	author ujr;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2008.01.30.23.13.26;	author ujr;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2008.01.29.17.10.35;	author ujr;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2008.01.29.16.24.27;	author ujr;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.12.16.20.34.55;	author ujr;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2006.04.01.09.18.28;	author ujr;	state Exp;
+branches;
+next	;
+
+
+desc
+@pracc-log: interface to common log file.
+@
+
+
+1.6
+log
+@Using new pracc API functions
+@
+text
+@/* pracc-log.c - a utility in the pracc package
+ * $Id: pracc-log.c,v 1.5 2008/01/30 23:13:26 ujr Exp ujr $
+ * Copyright (c) 2006-2008 by Urs Jakob Ruetschi
+ */
+static char id[] = "This is pracc-log by ujr\n$Revision: 1.5 $\n";
+
+/* TODO: get TZ in mktime and localtime right! */
+
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#include "common.h"
+#include "pracc.h"
+#include "scan.h"
+#include "streq.h"
+#include "tai.h"
+
+char *me;
+char *acctname;
+time_t datemin = 0;
+time_t datemax = 0;
+
+void setdate(const char *s, time_t *t);
+void usage(const char *s);
+
+int main(int argc, char **argv)
+{
+   struct pracclog pl;
+   char buf[MAXLINE];
+   struct tm tm;
+   time_t t;
+   int c, n;
+
+   extern int optind;
+   extern char *optarg;
+   extern int opterr;
+
+   me = progname(argv);
+   if (!me) return 127; // no arg0
+
+   opterr = 0; // prevent stupid getopt output
+   while ((c = getopt(argc, argv, "f:u:V")) > 0) switch (c) {
+      case 'f': setdate(optarg, &datemin); break;
+      case 'u': setdate(optarg, &datemax); datemax += 86400; break;
+      case 'V': return (putln(stdout, id) == 0) ? 0 : 127;
+      default: usage("invalid option");
+   }
+   argc -= optind;
+   argv += optind;
+
+   if (*argv) { // account name (optional)
+      acctname = *argv++;
+      if (praccCheckName(acctname))
+         usage("invalid account name");
+   }
+   else acctname = 0;
+
+   if (*argv) usage("too many arguments");
+
+   if (praccLogOpen(&pl) < 0)
+      die(111, "Cannot open %s", PRACCLOG);
+
+   while ((n = praccLogRead(&pl)) > 0) {
+      t = tailocal(&pl.taistamp, &tm);
+      if (t < datemin) continue;
+      if (t > datemax && datemax > datemin) continue;
+      if (acctname && strcmp(acctname, pl.acctname)) continue;
+
+      putbuf(stdout, buf, printstm(buf, &tm));
+      putfmt(stdout, " %s %s ", pl.username, pl.acctname);
+      putln(stdout, pl.infostr);
+   }
+   praccLogClose(&pl);
+   if (n < 0)
+      die(111, "error reading %s", PRACCLOG);
+
+   return 0; // SUCCESS
+}
+
+void setdate(const char *s, time_t *tp)
+{
+   register const char *p;
+   struct tm tm;
+   int n;
+
+   n = scandate(s, &tm);
+   if (n == 0) usage("invalid date argument");
+   tm.tm_sec = tm.tm_min = tm.tm_hour = 0;
+   *tp = mktime(&tm);
+   if (*tp < 0) usage("invalid date argument");
+}
+
+void usage(const char *s)
+{
+   if (s) putfmt(stderr, "%s: %s\n", me, s);
+   putfmt(stderr,
+      "Usage: %s [-V] [-f from] [-u until] [account]\n", me);
+   putln(stderr, " if account specified, look for pertinent log entries");
+   putln(stderr, " from, until: date in ISO 8601 format, eg, 2005-07-15");
+   exit(127); // FAILURE
+}
+@
+
+
+1.5
+log
+@Changed to use the new pracc API functions
+@
+text
+@d2 1
+a2 1
+ * $Id: pracc-log.c,v 1.4 2008/01/29 17:10:35 ujr Exp ujr $
+d5 1
+a5 1
+static char id[] = "This is pracc-log by ujr\n$Revision: 1.4 $\n";
+d13 1
+a13 1
+#include "basics.h"
+@
+
+
+1.4
+log
+@Rewrote using praccLogXxx routines
+@
+text
+@d2 1
+a2 1
+ * $Id: pracc-log.c,v 1.3 2008/01/29 16:24:27 ujr Exp ujr $
+d5 1
+a5 1
+static char id[] = "This is pracc-log by ujr\n$Revision: 1.3 $\n";
+a8 4
+#include <assert.h>
+#include <errno.h>
+#include <stdarg.h>
+#include <stdio.h>
+d13 1
+a13 1
+#include "common.h"
+a17 1
+#include "taistamp.h"
+a23 13
+struct logbuf {
+   struct tai taistamp;
+   char username[MAXNAME];
+   char acctname[MAXNAME];
+   char infostr[MAXLINE];
+   long lineno;
+   FILE *fp; // private
+};
+
+int praccLogOpen(struct logbuf *logentry);
+int praccLogRead(struct logbuf *logentry);
+int praccLogClose(struct logbuf *logentry);
+
+d25 1
+a25 1
+int scanpat(const char *s, const char *pat);
+d29 1
+a29 1
+   struct logbuf lb;
+d54 1
+a54 1
+      if (praccname(acctname))
+d61 1
+a61 1
+   if (praccLogOpen(&lb) < 0)
+d64 2
+a65 2
+   while ((n = praccLogRead(&lb)) > 0) {
+      t = tailocal(&lb.taistamp, &tm);
+d68 1
+a68 1
+      if (acctname && strcmp(acctname, lb.acctname)) continue;
+a69 1
+      //putfmt(stdout, "%d ", lb.lineno); //XXX DEBUG
+d71 2
+a72 2
+      putfmt(stdout, " %s %s ", lb.username, lb.acctname);
+      putln(stdout, lb.infostr);
+d74 1
+a74 1
+   praccLogClose(&lb);
+d76 1
+a76 67
+      die(111, "Error reading %s", PRACCLOG);
+
+   return 0; // SUCCESS
+}
+
+int praccLogOpen(struct logbuf *logentry)
+{
+   if (logentry->fp) fclose(logentry->fp);
+
+   logentry->lineno = 0;
+   logentry->fp = fopen(PRACCLOG, "r");
+   if (!logentry->fp) return -1;
+
+   return 0; // SUCCESS
+}
+
+int praccLogRead(struct logbuf *logentry)
+{
+   char line[MAXLINE];
+   char *userp, *acctp;
+   register char *p;
+   struct tai tai;
+   int n;
+
+   assert(logentry && logentry->fp);
+reread: p = line;
+   n = getln(logentry->fp, line, sizeof(line));
+   if (n > 0) {
+      // Format: @@STAMP by USER acct NAME: INFO
+      if (line[n-1] != '\n')
+         skipline(logentry->fp);
+      logentry->lineno += 1;
+//putfmt(stdout, "\n{%d} ", logentry->lineno);
+//putln(stdout, line); //XXX DEBUG
+
+      p += scanpat(p, " "); // skip space
+
+      if (n = taiscan(p, &tai)) p += n;
+      else goto reread; // skip bad line
+
+      if (n = scanpat(p, " by ")) p += n;
+      else goto reread; // skip bad line
+
+      userp = p;
+      while (*p && !isspace(*p)) ++p;
+      if (*p) *p++ = '\0';
+      else goto reread; // skip bad line
+
+      if (n = scanpat(p, " acct ")) p += n;
+      else goto reread; // skip bad line
+
+      acctp = p;
+      while (*p && (*p != ':')) ++p;
+      if (*p) *p++ = '\0';
+      else goto reread; // skip bad line
+
+      while (isspace(*p)) ++p;
+
+      logentry->taistamp = tai;
+      strncpy(logentry->username, userp, MAXNAME);
+      strncpy(logentry->acctname, acctp, MAXNAME);
+      strncpy(logentry->infostr, p, MAXLINE);
+      return 1; // SUCCESS and got entry
+   }
+
+   return (n < 0) ? -1 : 0; // error or eof
+}
+a77 6
+int praccLogClose(struct logbuf *logentry)
+{
+   if (logentry->fp) {
+      fclose(logentry->fp);
+      logentry->fp = 0;
+   }
+a93 39
+/*
+ * Expect the string s to start with the string pat,
+ * where any sequence of blanks in pat matches any
+ * non-empty sequence of white space in s. If pat
+ * starts with a blank, then this also matches the
+ * empty sequence of white space in s.
+ */
+int scanpat(const char *s, const char *pat)
+{
+   const char *sp = s; // source pointer
+   const char *pp = pat; // pattern pointer
+
+   for (;;) {
+      register char c = *pp++;
+      if (c == '\0') break; // pattern matched
+      if (c == ' ') { // blank: matches seq of white space
+         const char *q = sp;
+         while (isspace(*sp)) ++sp;
+         if ((pp > pat+1) && (sp == q)) return 0;
+         while (isspace(*pp)) ++pp;
+         continue;
+      }
+      if (c == *sp) { // other chars match themselves
+         ++sp;
+         continue;
+      }
+      return 0; // mismatch
+   }
+   return sp - s; // #chars matched
+}
+
+#if 0
+void syntax(const char *s)
+{
+   if (!s) s =  "syntax error";
+   putfmt(stderr, "%s: %s line %d: %s\n", me, PRACCLOG, lineno, s);
+}
+#endif
+
+@
+
+
+1.3
+log
+@*** empty log message ***
+@
+text
+@d2 1
+a2 1
+ * $Id: pracc-log.c,v 1.2 2007/12/16 20:34:55 ujr Exp ujr $
+d5 1
+a5 1
+static char id[] = "This is pracc-log by ujr\n$Revision: 1.2 $\n";
+a23 6
+//void settype(const char *s);
+void setdate(const char *s, time_t *t);
+//int scantok(const char *s, const char *delim);
+int scanpat(const char *s, const char *pat);
+//void syntax(const char *s);
+
+a27 2
+//char linetype = 0;
+//long lineno = 0;
+d42 3
+d88 1
+d127 2
+a128 2
+putfmt(stdout, "\n{%d} ", logentry->lineno);
+putln(stdout, line);
+d130 1
+a130 1
+      while (isspace(*p)) ++p;
+a131 1
+//fprintf(stderr, "{tai}");
+a134 1
+//fprintf(stderr, "{by}");
+a137 1
+//fprintf(stderr, "{user}");
+d143 1
+a143 4
+      while (isspace(*p)) ++p;
+
+//fprintf(stderr, "{acct}");
+      if (n = scanpat(p, "acct ")) p += n;
+a145 1
+//fprintf(stderr, "{name}");
+a171 111
+#if 0
+int main(int argc, char **argv)
+{
+   int c, n;
+   char line[MAXLINE];
+   struct tai tai;
+   struct tm tm;
+   time_t t;
+   char *acct, *what, *info;
+   FILE *fp;
+
+   extern int optind;
+   extern char *optarg;
+   extern int opterr;
+
+   me = progname(argv);
+   if (!me) return 127; // no arg0
+
+   opterr = 0; // prevent stupid getopt output
+   while ((c = getopt(argc, argv, "f:t:u:V")) > 0) switch (c) {
+      case 't': settype(optarg); break;
+      case 'f': setdate(optarg, &datemin); break;
+      case 'u': setdate(optarg, &datemax); datemax += 86400; break;
+      case 'V': return (putln(stdout, id) == 0) ? 0 : 127;
+      default: usage("invalid option");
+   }
+   argc -= optind;
+   argv += optind;
+
+   if (*argv) { // account (optional)
+      acctname = *argv++;
+      if (praccname(account))
+         usage("invalid account name");
+   }
+   else account = 0;
+
+   if (*argv) usage("too many arguments");
+
+   if ((fp = fopen(PRACCLOG, "r")) == NULL)
+      die(111, "canont open %s", PRACCLOG);
+
+   /* format: TIMESTAMP by uid UID acct ACCOUNT: ACTION ARGS */
+   while ((n = getln(fp, line, sizeof(line))) > 0) {
+      long uidnum;
+      int type;
+      char *p = line;
+
+      if (line[n-1] != '\n')
+         skipline(fp);
+      lineno += 1;
+
+      /* skip initial white space */
+      p += scanpat(p, " ");
+
+      if (n = taiscan(p, &tai)) p += n;
+      else { syntax("invalid timestamp"); continue; }
+
+      /* filter by timestamp */
+      t = tailocal(&tai, &tm);
+      if (t < datemin) continue;
+      if (t > datemax && datemax > datemin) continue;
+
+      if (n = scanpat(p, " by uid ")) { p += n;
+         if (n = scanu(p, (unsigned long *) &uidnum)) p += n;
+         else { syntax("malformed uid number"); continue; }
+      }
+      else { syntax(0); continue; }
+
+      if (n = scanpat(p, " acct ")) p += n;
+      else { syntax(0); continue; }
+
+      acct = p; // account name
+      if (n = scantok(p, ": \t")) p += n;
+      else { syntax(0); continue; }
+
+      /* filter by account name */
+      if (acctname && strcmp(acctname, acct)) continue;
+
+      what = p; // action type
+      if (n = scantok(p, " \t")) p += n;
+      else { syntax(0); continue; }
+
+      if (streq(what, "init")) type = '*';
+      else if (streq(what, "debit")) type = '-';
+      else if (streq(what, "credit")) type = '+';
+      else if (streq(what, "reset")) type = '=';
+      else if (streq(what, "limit")) type = '$';
+      else if (streq(what, "note")) type = '#';
+      else if (streq(what, "purge")) type = '\\';
+      else type = '?'; // type unknown
+
+      /* filter by type */
+      if (linetype && (type != linetype)) continue;
+
+      info = p; // action arguments
+      if (n = strlen(p)) p += (n-1);
+
+      /* remove trailing white space (incl \n) */
+      if (*p) while (isspace(*p)) --p;
+      if (*p) *++p = '\0';
+
+      /* print line to stdout */
+      putbuf(stdout, line, printstm(line, &tm));
+      putfmt(stdout, " %s %s %s\n", acct, what, info);
+   }
+   if (n < 0) die(111, "error reading %s", PRACCLOG);
+
+   return 0; // SUCCESS
+}
+#endif
+
+a184 31
+#if 0
+void settype(const char *s)
+{
+   if (streq(s, "init")) linetype = '*';
+   else if (streq(s, "debit")) linetype = '-';
+   else if (streq(s, "credit")) linetype = '+';
+   else if (streq(s, "reset")) linetype = '=';
+   else if (streq(s, "limit")) linetype = '$';
+   else if (streq(s, "note")) linetype = '#';
+   else if (streq(s, "purge")) linetype = '\\';
+   else usage("invalid argument to -t option");
+}
+#endif
+
+#if 0
+/*
+ * Replace first delim char in s with NUL; return
+ * number of non-delim chars + following delim chars.
+ */
+int scantok(const char *s, const char *delim)
+{
+   unsigned long n;
+   register char *p = (char *) s;
+
+   n = strcspn(p, delim);
+   if (n == 0) return 0; // no token
+   p += n; *p++ = '\0';
+   return n + 1 + strspn(p, delim);
+}
+#endif
+
+d186 5
+a190 5
+ * Expect the string s to start with the string t,
+ * but any blank in t matches any sequence of blanks
+ * and tabs in s.
+ *
+ * Note: my C lib has a slightly more complete scanpat().
+d194 3
+a196 1
+   register const char *p = s;
+d198 1
+a198 1
+      register char c = *pat++;
+d200 5
+a204 3
+      if (c == ' ') { // blank matches seq of blank/tab
+         if ((*p != ' ') && (*p != '\t')) return 0;
+         while ((*p == ' ') || (*p == '\t')) ++p;
+d207 2
+a208 2
+      if (c == *p) { // other chars match themselves
+         ++p;
+d213 1
+a213 1
+   return p - s; // #chars matched
+a229 1
+//   putln(stderr, " type: init, debit, credit, reset, limit, note, purge");
+@
+
+
+1.2
+log
+@Minimal cosmetic changes to the code.
+@
+text
+@d2 2
+a3 2
+ * $Id$
+ * Copyright (c) 2006-2007 by Urs Jakob Ruetschi
+d5 1
+a5 1
+static char id[] = "This is pracc-log by ujr\n$Revision$\n";
+d7 3
+a9 4
+/* TODO:
+ * Get the TZ in mktime and localtime right!
+ * Use utcinit() ??
+ */
+d12 1
+d17 1
+a19 3
+#include "scf.h"
+#include "simpleio.h"
+#include "skipline.h"
+d21 2
+a22 1
+#include "timestamp.h"
+d24 1
+a24 1
+void settype(const char *s);
+d26 3
+a28 6
+
+int scantok(const char *s, const char *delim);
+
+void putfmt(const char *fmt, ...);
+void syntax(const char *s);
+void usage(const char *s);
+d31 1
+a31 1
+char *account;
+d34 15
+a48 5
+char linetype = 0;
+char *types = 0;
+char line[MAXLINE];
+long lineno = 0;
+char buf[64];
+d52 130
+a181 2
+   extern int scfidx;
+   extern char *scfarg;
+d183 5
+a187 1
+   int c, n, partial;
+d191 2
+a192 3
+   char *acct, *what, type, *info;
+   long uidnum;
+   register char *p;
+d194 13
+a206 8
+   me = scfbase(argv);
+   if (!me) return 127; /* no arg0 */
+
+   while ((c = scfnext(argc, argv, "f:t:u:V")) > 0) switch (c) {
+      case 't': settype(scfarg); break;
+      case 'f': setdate(scfarg, &datemin); break;
+      case 'u': setdate(scfarg, &datemax); datemax += 86400; break;
+      case 'V': return (putstr(id) == 0) ? 0 : 127;
+d209 2
+a210 2
+   argc -= scfidx;
+   argv += scfidx;
+d213 1
+a213 1
+      account = *argv++;
+d221 1
+a221 1
+   if (setin(PRACCLOG) < 0) /* stdin from pracc file */
+d225 7
+a231 1
+   while ((n=getline(p=line, sizeof(line), '\n', &partial)) > 0) {
+a232 1
+      /*DEBUG logfmt("line %d: %s", lineno, p);*/
+d238 1
+a238 1
+      else { syntax("invalid timestamp"); goto endline; }
+d242 2
+a243 2
+      if (t < datemin) goto endline;
+      if (t > datemax && datemax > datemin) goto endline;
+d247 1
+a247 1
+         else { syntax("malformed uid number"); goto endline; }
+d249 1
+a249 1
+      else { syntax(0); goto endline; }
+d252 1
+a252 1
+      else { syntax(0); goto endline; }
+d256 1
+a256 1
+      else { syntax(0); goto endline; }
+d259 1
+a259 1
+      if (account && strcmp(account, acct)) goto endline;
+d263 1
+a263 1
+      else { syntax(0); goto endline; }
+d275 1
+a275 1
+      if (linetype && (type != linetype)) goto endline;
+d285 4
+a288 2
+      putbuf(buf, printstm(buf, &tm));
+      putfmt(" %s %s %s\n", acct, what, info);
+a289 6
+endline: /* skip remainder of long lines */
+      if (partial) syntax("line too long");
+      if (partial) skipline('\n');
+   }
+   if (n < 0)
+      die(111, "error reading from %s", PRACCLOG);
+d292 1
+d307 1
+d319 1
+d321 3
+a323 1
+/* Replace first delim char in s with NUL; return
+d332 1
+a332 1
+   if (n == 0) return 0; /* no token */
+d336 1
+d338 25
+a362 10
+void putfmt(const char *fmt, ...)
+{ // formatted output to stdout
+   char buf[256];
+
+   va_list ap;
+   va_start(ap, fmt);
+
+   putbuf(buf, formatv(buf, sizeof buf, fmt, ap));
+
+   va_end(ap);
+d365 1
+d369 1
+a369 1
+   logfmt("%s: %s line %d: %s\n", me, PRACCLOG, lineno, s);
+d371 1
+d375 6
+a380 5
+   if (s) logline((char *) s);
+   logfmt("Usage: %s [-V] [-f from] [-u until] [-t type] [account]\n", me);
+   logline(" if account specified, look for pertinent log entries");
+   logline(" type: init, debit, credit, reset, limit, note, purge");
+   logline(" from, until: date in ISO 8601 format, eg, 2005-07-15");
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d1 5
+a5 2
+/* pracc-log.c */
+/* Copyright (c) 2006 by Urs-Jakob Rueetschi */
+d9 1
+a9 1
+ * utcinit() ??
+a10 4
+
+static char id[] = "pracc-log by ujr/2006-03-31\n";
+static char RCSID[] = "$Id$\n";
+
+d12 2
+d30 1
+d46 2
+a47 2
+  extern int scfidx;
+  extern char *scfarg;
+d49 91
+a139 90
+  int c, n, partial;
+  struct tai tai;
+  struct tm tm;
+  time_t t;
+  char *acct, *what, type, *info;
+  long uidnum;
+  register char *p;
+
+  me = scfbase(argv);
+  if (!me) return 127; /* no arg0 */
+
+  while ((c = scfnext(argc, argv, "f:t:u:V")) > 0) switch (c) {
+  	case 't': settype(scfarg); break;
+  	case 'f': setdate(scfarg, &datemin); break;
+  	case 'u': setdate(scfarg, &datemax); datemax += 86400; break;
+  	case 'V': return (putline(id) == 0) ? 0 : 127;
+  	default: usage("invalid option");
+  }
+  argc -= scfidx;
+  argv += scfidx;
+
+  if (*argv) { /* account (optional) */
+  	account = *argv++;
+  	checkname(account);
+  }
+  else account = 0;
+
+  if (*argv) usage("too many arguments");
+
+  if (setin(PRACCLOG) < 0) /* stdin from pracc file */
+  	die2(111, "canont open ", PRACCLOG);
+
+  /* format: TIMESTAMP by uid UID acct ACCOUNT: ACTION ARGS */
+  while ((n=getline(p=line, sizeof(line), '\n', &partial)) > 0) {
+  	lineno += 1;
+  	/*DEBUG logfmt("line %d: %s", lineno, p);*/
+
+  	/* skip initial white space */
+  	p += scanpat(p, " ");
+
+  	if (n = taiscan(p, &tai)) p += n;
+  	else { syntax("invalid timestamp"); goto endline; }
+
+  	/* filter by timestamp */
+  	t = tailocal(&tai, &tm);
+  	if (t < datemin) goto endline;
+  	if (t > datemax && datemax > datemin) goto endline;
+
+  	if (n = scanpat(p, " by uid ")) { p += n;
+  		if (n = scanu(p, &uidnum)) p += n; // actor's uid
+  		else { syntax("malformed uid number"); goto endline; }
+  	}
+  	else { syntax(0); goto endline; }
+
+  	if (n = scanpat(p, " acct ")) p += n;
+  	else { syntax(0); goto endline; }
+
+  	acct = p; // account name
+  	if (n = scantok(p, ": \t")) p += n;
+  	else { syntax(0); goto endline; }
+
+  	/* filter by account name */
+  	if (account && strcmp(account, acct)) goto endline;
+
+  	what = p; // action type
+  	if (n = scantok(p, " \t")) p += n;
+  	else { syntax(0); goto endline; }
+
+  	if (streq(what, "init")) type = '*';
+  	else if (streq(what, "debit")) type = '-';
+  	else if (streq(what, "credit")) type = '+';
+  	else if (streq(what, "reset")) type = '=';
+  	else if (streq(what, "limit")) type = '$';
+  	else if (streq(what, "note")) type = '#';
+  	else if (streq(what, "purge")) type = '\\';
+  	else type = '?'; // type unknown
+
+  	/* filter by type */
+  	if (linetype && (type != linetype)) goto endline;
+
+  	info = p; // action arguments
+  	if (n = strlen(p)) p += (n-1);
+
+  	/* remove trailing white space (incl \n) */
+  	if (*p) while (isspace(*p)) --p;
+  	if (*p) *++p = '\0';
+
+  	/* print line to stdout */
+  	putbuf(buf, printstm(buf, &tm));
+  	putfmt(" %s %s %s\n", acct, what, info);
+d142 6
+a147 6
+  	if (partial) syntax("line too long");
+  	if (partial) skipline('\n');
+  }
+  if (n < 0)
+  	die2(111, "error reading from ", PRACCLOG);
+  return 0;
+d152 9
+a160 9
+  register const char *p;
+  struct tm tm;
+  int n;
+
+  n = scandate(s, &tm);
+  if (n == 0) usage("invalid date argument");
+  tm.tm_sec = tm.tm_min = tm.tm_hour = 0;
+  *tp = mktime(&tm);
+  if (*tp < 0) usage("invalid date argument");
+d165 8
+a172 8
+  if (streq(s, "init")) linetype = '*';
+  else if (streq(s, "debit")) linetype = '-';
+  else if (streq(s, "credit")) linetype = '+';
+  else if (streq(s, "reset")) linetype = '=';
+  else if (streq(s, "limit")) linetype = '$';
+  else if (streq(s, "note")) linetype = '#';
+  else if (streq(s, "purge")) linetype = '\\';
+  else usage("invalid argument to -t option");
+d175 3
+d179 8
+a186 9
+{ /* replace first delim char in s with '\0',
+   * return number of non-delim chars + following delim chars */
+  unsigned long n;
+  register char *p = (char *) s;
+
+  n = strcspn(p, delim);
+  if (n == 0) return 0; /* no token */
+  p += n; *p++ = '\0';
+  return n + 1 + strspn(p, delim);
+d189 10
+a198 4
+void syntax(const char *s)
+{
+  if (!s) s =  "syntax error";
+  logfmt("%s: %s line %d: %s\n", me, PRACCLOG, lineno, s);
+d201 1
+a201 1
+void die4(int code, char *s1, char *s2, char *s3, char *s4)
+d203 2
+a204 11
+  logfmt("%s: ", me);
+  if (s1) logstr(s1);
+  if (s2) logstr(s2);
+  if (s3) logstr(s3);
+  if (s4) logstr(s4);
+  if (errno) {
+  	logstr(": ");
+  	logstr(strerror(errno));
+  }
+  logchar('\n');
+  exit(code);
+d209 6
+a214 7
+  if (s) logline((char *) s);
+  else logfmt("This is %s", id);
+  logfmt("Usage: %s [-V] [-f from] [-u until] [-t type] [account]\n", me);
+  logline(" if account specified, look for pertinent log entries");
+  logline(" type: init, debit, credit, reset, limit, note, purge");
+  logline(" from, until: date in ISO 8601 format, eg, 2005-07-15");
+  exit(127);
+@

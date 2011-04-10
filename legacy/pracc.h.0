@@ -1,0 +1,83 @@
+#ifndef _PRACC_H_
+#define _PRACC_H_
+
+#define PRACCOWNER "root"      // owner for pracc files (root is fine)
+#define PRACCGROUP "lpadmin"   // group for pracc files (dedicated group)
+#define PRACCDEFLT "default"   // default account name
+
+#define PRACCDIR "/var/print/pracc"
+#define PRACCBIN "/var/print/bin"
+#define PRACCLOG "/var/print/pracc.log"
+#define PRACCPCLOG "/var/print/pc.log"
+
+#define PRACCDOC "/var/print/doc" // documentation directory
+#define PRACCCGI "/var/print/cgi" // where to put the CGI pracc.cgi
+#define PRACCPEEK "pracc-watch" // pracc observer group (read-only)
+#define PRACCPOKE "pracc-admin" // pracc admin group (make changes)
+
+/* Do not change things below */
+
+#define MAXNAME 64    // 2 + max account (and user) name length
+#define MAXLINE 256   // 2 + max line length in pracc files
+
+#define UNLIMITED -99999999  // unlimited if limit <= UNLIMITED
+
+#include <stdio.h>
+#include <time.h>
+
+struct praccbuf {
+   int type;                 // record type (debit, reset, etc)
+   long value;               // associated value
+   time_t tstamp;            // timestamp of record
+   char username[MAXNAME];   // user who created the record
+   char comment[MAXLINE];    // record's comment field
+   long lineno;
+   const char *fn;
+   FILE *fp; // private
+};
+
+int praccCreate(const char *acctname, long balance, long limit,
+	const char *username, const char *comment, int overwrite);
+int praccDelete(const char *acctname);
+int praccAppend(const char *acctname, int type, long value,
+	const char *username, const char *comment);
+int praccSum(const char *acctname,
+	long *balp, long *limp, long *credp, long *debp, time_t *lastp);
+int praccSumRange(const char *acctname, time_t tmin, time_t tmax,
+	long *balp, long *limp, long *credp, long *debp, time_t *lastp);
+int praccPurge(const char *acctname, time_t t, int keepresets,
+	int keeplimits, int keepnotes, int doit, const char *fntmp);
+int praccGrant(const char *acctname, const char *username);
+
+int praccOpen(const char *acctname, struct praccbuf *pracc);
+int praccRead(struct praccbuf *pracc);
+int praccClose(struct praccbuf *pracc);
+
+int praccLogup(const char *username, const char *acctname, const char *info);
+
+char praccAccountInfo(const char *acctname, char *gecos, int len);
+int praccAssemble(char *buf, int type, long value, time_t tstamp,
+	const char *username, const char *comment);
+char *praccPath(const char *acctname);
+char *praccTypeString(char type);
+int praccCheckName(const char *acctname);
+int praccFormatName(char *buf, const char *name, int size);
+int praccFormatInfo(char *buf, const char *info, int size);
+
+/* The pracc.log file */
+
+struct pracclog {
+   time_t tstamp;
+   char username[MAXNAME];
+   char acctname[MAXNAME];
+   char infostr[MAXLINE];
+   char type; // i c d r l n p x
+   long lineno;
+   FILE *fp; // private
+};
+
+int praccLogOpen(struct pracclog *logentry);
+int praccLogRead(struct pracclog *logentry);
+int praccLogClose(struct pracclog *logentry);
+
+#endif // _PRACC_H_

@@ -1,0 +1,54 @@
+head	1.1;
+access;
+symbols;
+locks
+	ujr:1.1; strict;
+comment	@ * @;
+
+
+1.1
+date	2007.10.31.15.02.44;	author ujr;	state Exp;
+branches;
+next	;
+
+
+desc
+@Header file for PJL lowlevel code.
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@#ifndef _PJL_H_
+#define _PJL_H_
+
+#include "cupspracc.h"
+
+#define PJL_MSG_COOKIE    MSG_COOKIE
+#define PJL_MSG_PAGECOUNT MSG_PAGECOUNT
+#define PJL_MSG_JOBSTART  MSG_JOBSTART
+#define PJL_MSG_JOBEND    MSG_JOBEND
+#define PJL_MSG_PAGE      MSG_PAGE
+#define PJL_MSG_OTHER     MSG_OTHER
+
+extern long pjl_cookie;
+extern long pjl_pagecount;
+extern long pjl_jobnum;
+extern long pjl_numpages;
+extern long pjl_curpage;
+
+void pjlinit(void);
+int pjluel(int fd);
+int pjlecho(int fd, int cookie);
+int pjlcount(int fd);
+int pjljob(int fd, int job, char *personality);
+int pjleoj(int fd, int job);
+int pjloff(int fd);
+int pjlparse(const char *msg);
+int pjlchar(char c);
+
+#endif // _PJL_H_
+@

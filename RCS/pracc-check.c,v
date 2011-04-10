@@ -1,0 +1,433 @@
+head	1.2;
+access;
+symbols;
+locks
+	ujr:1.2; strict;
+comment	@ * @;
+
+
+1.2
+date	2008.02.06.21.48.46;	author ujr;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.12.27.19.28.12;	author ujr;	state Exp;
+branches;
+next	;
+
+
+desc
+@Check pracc installation (existence and permission of files)
+@
+
+
+1.2
+log
+@*** empty log message ***
+@
+text
+@/* pracc-check.c - a utility in the pracc package
+ * $Id: pracc-check.c,v 1.1 2007/12/27 19:28:12 ujr Exp ujr $
+ * Copyright (c) 2007-2008 by Urs Jakob Ruetschi
+ */
+static char id[] = "This is pracc-check by ujr\n$Revision: 1.1 $\n";
+
+/***
+ d 2770 PRACCOWNER:PRACCGROUP PRACCDIR/             required
+ r  660 PRACCOWNER:PRACCGROUP PRACCDIR/PRACCDEFLT   required
+ r  660 PRACCOWNER:PRACCGROUP PRACCDIR/USER         optional
+ r  660 PRACCOWNER:PRACCGROUP PRACCDIR/any/USER     optional TODO
+ r  660 PRACCOWNER:PRACCGROUP PRACCLOG              optional
+ d  ??? *:*                   PRACCBIN              optional
+ r  755 *:*                   PRACCBIN/TOOL         optional
+ r 2755 PRACCOWNER:PRACCGROUP PRACCBIN/pracc-credit optional
+***/
+
+#include <assert.h>
+#include <dirent.h>
+#include <errno.h>
+#include <grp.h>
+#include <pwd.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include "common.h"
+#include "pracc.h"
+#include "print.h"
+#include "streq.h"
+
+int check(char *home, char *sub, char *fn,
+          int type, int uid, int gid, int mode, int opt);
+void grumble(char *home, char *sub, char *fn, char *fmt, ...);
+char *strftype(int mode);
+char *strfperm(int mode);
+int checkfile(const char *fn);
+void usage(const char *s);
+
+char *me;
+int grumbled = 0;
+
+int main(int argc, char **argv)
+{
+   struct group *gr;
+   gid_t praccgid;
+
+   struct passwd *pw;
+   uid_t praccuid;
+
+   DIR *dir;
+   struct dirent *d;
+
+   long goodcnt = 0;
+   long badcnt = 0;
+
+   int c;
+
+   extern int optind;
+   extern int otperr;
+
+   me = progname(argv);
+   if (!me) return 127;
+
+   opterr = 0; // prevent stupid getopt output
+   while ((c = getopt(argc, argv, "V")) > 0) switch (c) {
+      case 'V': return (putln(stdout, id) == 0) ? 0 : 127;
+      default: usage("invalid option");
+   }
+   argc -= optind;
+   argv += optind;
+
+   if (*argv) {
+      const char *fn;
+      const char *acctname = *argv++;
+      if (praccCheckName(acctname))
+         die(111, "invalid account name");
+      if ((fn = praccPath(acctname)) == 0)
+         die(111, "praccPath failed");
+      return checkfile(fn);
+   }
+   
+   if (*argv) usage("too many arguments");
+
+   putfmt(stdout, "Compile-time configuration:\n");
+   putfmt(stdout, "PRACCOWNER = %s\n", PRACCOWNER);
+   putfmt(stdout, "PRACCGROUP = %s\n", PRACCGROUP);
+   putfmt(stdout, "PRACCDEFLT = %s\n", PRACCDEFLT);
+   putfmt(stdout, "PRACCDIR = %s\n", PRACCDIR);
+   putfmt(stdout, "PRACCLOG = %s\n", PRACCLOG);
+   putfmt(stdout, "PRACCBIN = %s\n", PRACCBIN);
+   putfmt(stdout, "PRACCCGI = %s\n", PRACCCGI);
+   putfmt(stdout, "PRACCDOC = %s\n", PRACCDOC);
+
+   /* Ensure minimal lengths for MAXNAME and MAXLINE */
+   assert(MAXNAME > 9);  // max account name length
+   assert(MAXLINE > 79); // max pracc file line length
+
+   gr = getgrnam(PRACCGROUP);
+   if (!gr) die(127, "getgrnam %s failed", PRACCGROUP);
+   praccgid = gr->gr_gid;
+
+   pw = getpwnam(PRACCOWNER);
+   if (!pw) die(127, "getpwnam %s failed", PRACCOWNER);
+   praccuid = pw->pw_uid;
+
+   putln(stdout, "\nChecking pracc tools...");
+   check(0, 0, PRACCBIN, S_IFDIR, -1, -1, -1, 1);
+   check(PRACCBIN, 0, "pracc-init", S_IFREG, -1, -1, 0755, 1);
+   check(PRACCBIN, 0, "pracc-edit", S_IFREG, -1, -1, 0755, 1);
+   check(PRACCBIN, 0, "pracc-view", S_IFREG, -1, -1, 0755, 1);
+   check(PRACCBIN, 0, "pracc-sum", S_IFREG, -1, -1, 0755, 1);
+   check(PRACCBIN, 0, "pracc-credit", S_IFREG, 0, praccgid, 02755, 1);
+   check(PRACCBIN, 0, "pracc-purge", S_IFREG, -1, -1, 0755, 1);
+   check(PRACCBIN, 0, "pracc-check", S_IFREG, -1, -1, 0755, 1);
+   check(PRACCBIN, 0, "pracc-log", S_IFREG, -1, -1, 0755, 1);
+   check(PRACCBIN, 0, "pracc-ok", S_IFREG, -1, -1, 0755, 1);
+   check(0, 0, PRACCLOG, S_IFREG, praccuid, praccgid, 0660, 1);
+   
+   putln(stdout, "\nChecking pracc files...");
+   check(0, 0, PRACCDIR, S_IFDIR, praccuid, praccgid, 02770, 0);
+   if (check(PRACCDIR, 0, PRACCDEFLT, S_IFREG, praccuid, praccgid, 0660, 0))
+      ++badcnt; else ++goodcnt;
+   dir = opendir(PRACCDIR);
+   if (!dir) die(127, "cannot opendir %s", PRACCDIR);
+   while (d = readdir(dir)) {
+      char *fn = d->d_name;
+      if (streq(fn, ".")) continue;
+      if (streq(fn, "..")) continue;
+      if (praccCheckName(fn)) {
+         grumble(PRACCDIR, 0, fn, "invalid pracc name");
+         ++badcnt;
+         continue;
+      }
+      if (check(PRACCDIR, 0, fn, S_IFREG, praccuid, praccgid, 0660, 0)) {
+         ++badcnt;
+         continue;
+      }
+      ++goodcnt; // if we made it to here, the file was good
+   }
+   closedir(dir);
+   putfmt(stdout, "\nThere were %d+%d good+bad files in %s\n",
+          goodcnt, badcnt, PRACCDIR);
+   
+   return (badcnt) ? 1 : 0;
+}
+
+int check(home,sub,fn,type,uid,gid,mode,opt)
+char *home, *sub, *fn;
+int type, uid, gid, mode, opt;
+{
+   struct stat st;
+   struct passwd *pw;
+   struct group *gr;
+
+   grumbled = 0; // assume success
+
+   if (home && (chdir(home) < 0)) {
+      if (opt) grumble(home,sub,fn,"does not exist");
+      else die(127, "cannot chdir %s", home);
+   }
+   if (sub && (chdir(sub) < 0)) {
+      if (opt) grumble(home,sub,fn,"does not exist");
+      else die(127, "cannot chdir %s/%s", home, sub);
+   }
+
+   if ((uid != -1) && !(pw = getpwuid(uid)))
+      die(127, "getpwuid %d failed", uid);
+   if ((gid != -1) && !(gr = getgrgid(gid)))
+      die(127, "getgrgid %d failed", gid);
+
+   if (stat(fn, &st) < 0) {
+      if (errno == ENOENT)
+         grumble(home,sub,fn,"does not exist");
+      else die(127, "stat .../%s failed", fn);
+      return 0; // bad
+   }
+
+   if ((uid != -1) && (uid != st.st_uid))
+      grumble(home,sub,fn,"wrong owner (should be %s #%d)", pw->pw_name, uid);
+   if ((gid != -1) && (gid != st.st_gid))
+      grumble(home,sub,fn,"wrong group (should be %s #%d)", gr->gr_name, gid);
+   if ((mode != -1) && (mode != (st.st_mode & 07777)))
+      grumble(home,sub,fn,"wrong permissions (should be %s)", strfperm(mode));
+   if (type != (st.st_mode & S_IFMT))
+      grumble(home,sub,fn,"wrong type (should be %s)", strftype(type));
+
+   return grumbled ? -1 : 0; // bad or good
+}
+
+void grumble(char *home, char *sub, char *fn, char *fmt, ...)
+{
+   char *p, *end;
+   char buf[256];
+
+   va_list ap;
+   va_start(ap, fmt);
+
+   p = buf;
+   end = buf + sizeof(buf) - 9;
+   if (home) {
+      p += printsn(p, home, end-p);
+      p += printc(p, '/');
+   }
+   if (sub) {
+      p += printsn(p, home, end-p);
+      p += printc(p, '/');
+   }
+   if (fn) {
+      p += printsn(p, fn, end-p);
+      p += printc(p, ':');
+      p += printc(p, ' ');
+   }
+   p += vsnprintf(p, end-p, fmt, ap);
+   p += printc(p, '\n');
+   
+   putbuf(stdout, buf, p-buf);
+
+   va_end(ap);
+
+   grumbled = 1;
+}
+
+char *strftype(int mode)
+{
+   switch (mode & S_IFMT) {
+   case S_IFREG: return "regular file";
+   case S_IFDIR: return "directory";
+   case S_IFLNK: return "symbolic link";
+   case S_IFIFO: return "named pipe";
+   default: abort(); /* not here */
+   }
+}
+
+char *strfperm(int mode)
+{
+   static char buf[8];
+   register char *p;
+
+   mode &= 07777;
+   
+   p = buf + sizeof(buf);
+   *--p = '\0';
+   do {
+      *--p = '0' + (mode % 8);
+      mode /= 8;
+   }
+   while (mode > 0);
+
+   return p;
+}
+
+/*
+ * Carefully check the specified pracc file.
+ * Return 0 if valid, 111 on syntax errors.
+ */
+int checkfile(const char *fn)
+{
+   // TODO (see praccRead for inspiration)
+}
+
+void usage(const char *s)
+{
+   if (s) putfmt(stderr, "%s: %s\n", me, s);
+   putfmt(stderr, "Usage: %s [account]\n", me);
+   exit(127); // FAILURE
+}
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d2 2
+a3 2
+ * $Id$
+ * Copyright (c) 2007 by Urs Jakob Ruetschi
+d5 1
+a5 1
+static char id[] = "This is pracc-check by ujr\n$Revision$\n";
+d8 8
+a15 8
+ d 2770 root:PRACCGROUP PRACCDIR/             required
+ r  660 root:PRACCGROUP PRACCDIR/USER         optional
+ r  660 root:PRACCGROUP PRACCDIR/any/USER     optional TODO
+ r  660 root:PRACCGROUP PRACCLOG              required
+ d  775 root:root       PRACCBIN              not tested
+ r  755 root:root       PRACCBIN/TOOL         optional
+ r 2775 root:PRACCGROUP PRACCBIN/pracc-debit  optional
+ r 2775 root:PRACCGROUP PRACCBIN/pracc-credit optional
+d18 1
+d24 1
+d30 1
+a32 1
+#include "simpleio.h"
+d36 1
+a36 1
+          int type, int uid, int gid, int mode);
+d38 3
+a40 3
+char *strtype(int mode);
+char *strperm(int mode);
+void putfmt(const char *fmt, ...);
+a41 1
+void die(int code, const char *fmt, ...);
+d43 1
+a43 1
+char *me = "pracc-check";
+d59 26
+d86 1
+a86 2
+   if (argv && *argv) me = *argv++;
+   if (*argv) usage("no arguments expected");
+d88 13
+a100 9
+   putstr("Compile-time configuration:\n");
+   putfmt("PRACCOWNER = %s\n", PRACCOWNER);
+   putfmt("PRACCGROUP = %s\n", PRACCGROUP);
+   putfmt("PRACCDIR = %s\n", PRACCDIR);
+   putfmt("PRACCLOG = %s\n", PRACCLOG);
+   putfmt("PRACCBIN = %s\n", PRACCBIN);
+   putfmt("MAXNAME = %d (max account name length)\n", MAXNAME);
+   putfmt("MAXLINE = %d (max pracc line length)\n", MAXLINE);
+   if (MAXLINE < (80+MAXNAME+MAXNAME)) /* XXX */ ;
+d110 12
+a121 11
+   putstr("\nChecking pracc tools...\n");
+   check(0, 0, PRACCBIN, S_IFDIR, -1, -1, -1);
+   check(PRACCBIN, 0, "pracc-init", S_IFREG, -1, -1, 0755);
+   check(PRACCBIN, 0, "pracc-edit", S_IFREG, -1, -1, 0755);
+   check(PRACCBIN, 0, "pracc-view", S_IFREG, -1, -1, 0755);
+   check(PRACCBIN, 0, "pracc-sum", S_IFREG, -1, -1, 0755);
+   check(PRACCBIN, 0, "pracc-debit", S_IFREG, 0, praccgid, 02775);
+   check(PRACCBIN, 0, "pracc-credit", S_IFREG, 0, praccgid, 02775);
+   check(PRACCBIN, 0, "pracc-purge", S_IFREG, -1, -1, 0755);
+   check(PRACCBIN, 0, "pracc-check", S_IFREG, -1, -1, 0755);
+   check(PRACCBIN, 0, "pracc-log", S_IFREG, -1, -1, 0755);
+d123 4
+a126 2
+   putstr("\nChecking pracc files...\n");
+   check(0, 0, PRACCDIR, S_IFDIR, praccuid, praccgid, 02770);
+d133 1
+a133 1
+      if (praccname(fn)) {
+d138 1
+a138 1
+      if (check(PRACCDIR, 0, fn, S_IFREG, praccuid, praccgid, 0660)) {
+d145 2
+a146 2
+   putfmt("There were %d+%d good+bad files in %s\n",
+      goodcnt, badcnt, PRACCDIR);
+d151 1
+a151 1
+int check(home,sub,fn,type,uid,gid,mode)
+d153 1
+a153 1
+int type, uid, gid, mode;
+d161 8
+a168 4
+   if (home && (chdir(home) < 0))
+      die(127, "cannot chdir %s", home);
+   if (sub && (chdir(sub) < 0))
+      die(127, "cannot chdir %s/%s", home, sub);
+d187 1
+a187 1
+      grumble(home,sub,fn,"wrong permissions (should be %s)", strperm(mode));
+d189 1
+a189 1
+      grumble(home,sub,fn,"wrong type (should be %s)", strtype(type));
+d217 1
+a217 1
+   p += formatv(p, end-p, fmt, ap);
+d220 1
+a220 1
+   logbuf(buf, p-buf);
+d227 1
+a227 1
+char *strtype(int mode)
+d238 1
+a238 1
+char *strperm(int mode)
+d256 5
+a260 1
+void putfmt(const char *fmt, ...)
+d262 1
+a262 8
+   char buf[256];
+
+   va_list ap;
+   va_start(ap, fmt);
+
+   putbuf(buf, formatv(buf, sizeof buf, fmt, ap));
+
+   va_end(ap);
+d267 2
+a268 2
+   if (s) logfmt("%s: %s\n", me, s);
+   logfmt("Usage: %s\n", me);
+@

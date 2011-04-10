@@ -1,0 +1,42 @@
+<!-- Template for pracc.cgi/create -->
+<!-- Variables:
+  acct, value, limit, comment: account creation parameters (in/out);
+  badacct, badvalue, badlimit: defined if bad field values (out);
+  status: "ok" or "fail" or undef (before praccCreate() call) (out);
+  error: error message or undef (if no error) (out).
+-->
+
+<h2>Create Account</h2>
+
+{status?{status=ok?\
+<p class="success">Account
+<b><a href="{SCRIPT}/accounts?filter={acct}">{acct}</a> created</b></p>:\
+<p class="failure">Creation failed: {error}</p>}:\
+
+<form method="POST" action="{SCRIPT}/admin">
+<input type="hidden" name="op" value="{op}">
+<table border="0" cellpadding="3" cellspacing="0"><tbody>
+<tr><td align="right">Name:</td>
+ <td><input type="text" name="acct" value="{status?:{acct}}" size="25">
+  {badacct?<span class="bad">invalid name</span>:}</td></tr>
+<tr><td align="right">Balance:</td>
+ <td><input type="text" name="value" value="{value}" size="8">
+  {badvalue?<span class="bad">invalid value</span>:in CHF}</td></tr>
+<tr><td align="right">Limit:</td>
+ <td><input type="text" name="limit" value="{limit}" size="8">
+  {badlimit?<span class="bad">invalid limit</span>:in CHF
+   or &quot;none&quot; for no limit}</td></tr>
+<tr><td align="right">Comment:</td>
+ <td><input type="text" name="comment" value="{comment}" size="50"></td></tr>
+<tr><td></td><td><input type="submit" value="Create Account"></td></tr>
+</tbody></table></form>
+{error?<p class="failure">{error}</p>:}
+
+<hr>
+<p>Specify an account <b>name</b>, its initial <b>balance</b>
+and <b>limit</b> (which might be <i>none</i> = unlimited), and
+an optional <b>comment</b>. The account's <b>name</b> must not
+contain blanks, slashes, backslashes, or non-printable characters.
+Printing will be allowed as long as the account's balance is
+greater than its limit.</p>}
+

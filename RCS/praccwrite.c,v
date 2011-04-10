@@ -1,0 +1,146 @@
+head	1.3;
+access;
+symbols;
+locks
+	ujr:1.3; strict;
+comment	@ * @;
+
+
+1.3
+date	2008.01.14.16.38.51;	author ujr;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2007.12.27.11.02.41;	author ujr;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2007.12.27.10.55.48;	author ujr;	state Exp;
+branches;
+next	;
+
+
+desc
+@Pracc API function praccwrite: append a pracc record.
+@
+
+
+1.3
+log
+@Replaced timestamp.h by taistamp.h (and UTCSTAMPLEN by TAISTAMPLEN)
+@
+text
+@#include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+#include "pracc.h"
+#include "print.h"
+#include "taistamp.h"
+
+#ifndef O_NONBLOCK
+#define PRACC_OPEN_APPEND_FLAGS (O_WRONLY | O_APPEND | O_NONBLOCK)
+#else
+#define PRACC_OPEN_APPEND_FLAGS (O_WRONLY | O_APPEND | O_NDELAY)
+#endif
+
+int praccwrite(const char *account, int type, long number, const char *info)
+{
+  char buf[MAXLINE];
+  char *bufptr, *bufend;
+  const char *path;
+  int praccfd, saverr;
+
+  assert(sizeof(buf) > 1+10+1+TAISTAMPLEN+1);
+
+  switch (type) {
+  	case '-': /* debit */ break;
+  	case '+': /* credit */ break;
+  	case '=': /* reset */ break;
+  	case '$': /* limit */ break;
+  	case '?': /* pracc error */ break;
+  	case '!': /* print error */ break;
+  	case '#': /* comment */ break;
+  	default: abort(); /* BUG */
+  }
+
+  path = praccpath(account);
+  if (path == 0) return -1; // ENOMEM
+  praccfd = open(path, PRACC_OPEN_APPEND_FLAGS);
+  saverr = errno;
+  free((void *) path);
+  errno = saverr;
+  if (praccfd < 0) return -1; // see errno
+
+  bufptr = buf;
+  bufend = buf + sizeof(buf) - 1; // reserve one byte for \n
+  bufptr += printc(bufptr, (char) type); // debit, error, etc
+  switch (type) {
+  case '-': // debit
+  case '+': // credit
+  	bufptr += printu(bufptr, number);
+  	break;
+  case '=': // reset
+  	bufptr += printi(bufptr, number);
+  	break;
+  case '$': // limit
+  	if (number <= UNLIMITED)
+  		bufptr += printc(bufptr, '*');
+  	else bufptr += printi(bufptr, number);
+  	break;
+  case '#': // notes do not have time stamps!
+  	goto notimestamp;
+  }
+  bufptr += printc(bufptr, ' ');
+  bufptr += taistamp(bufptr);
+notimestamp:
+  bufptr += printc(bufptr, ' ');
+  if (info) while ((bufptr < bufend) && *info) *bufptr++ = *info++;
+  bufptr += printc(bufptr, '\n');
+  
+  /* append atomically: in just one write! */
+  if (write(praccfd, buf, bufptr-buf) != bufptr-buf) return -1;
+  if (close(praccfd) < 0) return -1;
+
+  return 0; // SUCCESS
+}
+@
+
+
+1.2
+log
+@*** empty log message ***
+@
+text
+@d9 1
+a9 1
+#include "timestamp.h"
+d24 1
+a24 1
+  assert(sizeof(buf) > 1+10+1+UTCSTAMPLEN+1); // worst case mandatory part
+d65 1
+a65 1
+  bufptr += timestamp(bufptr);
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d61 2
+d65 3
+a67 4
+  if (type != '#') { // no stamp for notes
+  	bufptr += timestamp(bufptr);
+  	bufptr += printc(bufptr, ' ');
+  }
+d75 1
+a75 1
+  return 0;
+@

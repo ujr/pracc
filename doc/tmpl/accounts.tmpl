@@ -1,0 +1,50 @@
+<!-- Template for pracc.cgi/accounts -->
+<!-- Variables: TODO -->
+
+<div class="fltbox"><strong>Konten suchen:</strong><br>
+Mit <b>*</b> (Sternchen) kann nach Konten gesucht werden,
+deren Namen nicht genau bekannt ist. Beispiel: <b>a*</b>
+findet alle Konten, die mit &quot;a&quot; beginnen.</div>
+
+<h2>Manage Accounts</h2>
+
+<form method="POST" action="{SCRIPT}/accounts">
+<p>Account:
+ <input type="text" name="filter" value="{filter}" size="20" id="query">
+ <input type="submit" value="Find"><br/>
+Show as:
+ <input type="radio" name="format" value="html" checked="checked">HTML
+ <input type="radio" name="format" value="csv">CSV (Excel)</p>
+</form>
+
+{accts#}{NR>0?<p><b>{NR}</b> account{NR=1?:s} found.</p>
+<table border="0" cellpadding="3" cellspacing="2" class="listtbl"><tbody>
+<tr><th>#</th><th>Class</th><th>Account</th><th>Owner</th>
+ <th>Balance</th><th>Limit</th><th>Last used</th>
+ <th colspan="4">Control</th></tr>
+{accts#<tr><td align="right">{#}</td>
+ <td align="center">{class}</td>
+ <td><a href="{SCRIPT}/accounts/{acct}" class="oplnk">{acct}</a></td>
+ <td>{gecos?{gecos}:&nbsp;}</td>
+ <td align="right">{diff>0?{$balance}:\
+  <font color="#cc0000"><b>{$balance}</b></font>}</dt>
+ <td align="right">{limit=none?<b>none</b>:{$limit}}</td>
+ <td>{year}-{month}-{day} {time}</td>
+ <td><a href="{SCRIPT}/admin?acct={acct}&op=edit" class="oplnk">Edit</a></td>
+ <td><a href="{SCRIPT}/admin?acct={acct}&op=purge" class="oplnk">Purge</a></td>
+ <td><a href="{SCRIPT}/admin?acct={acct}&op=delete" class="oplnk">Delete</a></td>
+</tr>}
+</tbody></table>
+<!--<p>{prev?&lt;<a href="{prev}">prev</a>:}
+ {next?<a href="{next}">next</a>&gt;:}</p>-->
+<p>Account classes\:
+ <b>P</b> personal,
+ <b>G</b> group,
+ <b>D</b> default,
+ <b>z</b> zombie account (no owner).</p>
+:<p>No accounts found.
+ Try using wildcards <b>*</b> and <b>?</b> in your query.</p>}
+{error?<p class="failure">An error occurred\: <b>{error}</b></p>:}
+<script language="JavaScript" type="text/javascript">
+ document.getElementById("query").focus();
+</script>

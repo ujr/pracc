@@ -1,0 +1,2989 @@
+head	1.16;
+access;
+symbols;
+locks
+	ujr:1.16; strict;
+comment	@ * @;
+
+
+1.16
+date	2009.10.06.19.39.13;	author ujr;	state Exp;
+branches;
+next	1.15;
+
+1.15
+date	2008.04.14.19.17.22;	author ujr;	state Exp;
+branches;
+next	1.14;
+
+1.14
+date	2008.04.04.16.41.05;	author ujr;	state Exp;
+branches;
+next	1.13;
+
+1.13
+date	2008.03.17.11.00.43;	author ujr;	state Exp;
+branches;
+next	1.12;
+
+1.12
+date	2008.03.11.10.42.44;	author ujr;	state Exp;
+branches;
+next	1.11;
+
+1.11
+date	2008.03.10.13.33.16;	author ujr;	state Exp;
+branches;
+next	1.10;
+
+1.10
+date	2008.03.05.14.43.49;	author ujr;	state Exp;
+branches;
+next	1.9;
+
+1.9
+date	2008.03.05.11.55.56;	author ujr;	state Exp;
+branches;
+next	1.8;
+
+1.8
+date	2008.02.12.22.51.47;	author ujr;	state Exp;
+branches;
+next	1.7;
+
+1.7
+date	2008.02.12.18.37.13;	author ujr;	state Exp;
+branches;
+next	1.6;
+
+1.6
+date	2008.02.06.21.50.17;	author ujr;	state Exp;
+branches;
+next	1.5;
+
+1.5
+date	2008.02.01.12.06.10;	author ujr;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2008.01.21.09.48.32;	author ujr;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2008.01.18.09.23.46;	author ujr;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2008.01.04.20.48.51;	author ujr;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2008.01.04.18.20.15;	author ujr;	state Exp;
+branches;
+next	;
+
+
+desc
+@The CUPS pracc backend
+@
+
+
+1.16
+log
+@Job user name wird nach Kleinbuchstaben umgewandelt,
+weil Samba offenbar auch grossgeschriebene Usernamen
+durchgehen laesst (auch LDAP scheint case INsensitiv zu sein).
+@
+text
+@/* Pracc as a CUPS backend
+ *
+ * Copyright (c) 2007 by Urs-Jakob Ruetschi.
+ * Use at your own exclusive risk and under the terms of the GNU
+ * General Public License.  See AUTHORS, COPYRIGHT, and COPYING.
+ */
+
+static char rcsid[] = \
+"$Id: cupspracc.c,v 1.15 2008/04/14 19:17:22 ujr Exp $";
+
+#include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <time.h>
+#include <unistd.h>
+#include <cups/cups.h>
+#include <cups/http.h>
+#include <cups/backend.h>
+
+#include "delay.h"
+#include "pracc.h"
+#include "print.h"
+#include "tai.h"
+
+#include "ps.h"
+#include "pjl.h"
+
+/* Configuration */
+
+#define PRIVATE_LOGFILE "/var/log/cups/pracc" // XXX
+
+#define DEFLT_WAIT0_PS 20    /* pause before first pc probe */
+#define DEFLT_WAIT1_PS 10    /* pause between more pc probes */
+#define DEFLT_WAIT0_PJL 300  /* timeout for first PJL reply */
+#define DEFLT_WAIT1_PJL 120  /* timeout for subsequent replies */
+
+#define SHELL "/bin/sh"      /* Used to launch the job scanner */
+
+/* Type definitions */
+
+typedef enum {                 // How to do accounting:
+   NONE = 0,                   // no accounting
+   POSTSCRIPT = 1,             // use PostScript commands
+   PJL = 2,                    // use PJL JOB/EOJ and PAGE
+   JOBSCAN = 3                 // just scan print job
+} mode;
+
+enum {                         // States of a PJL job:
+   PJLINIT = 0,                // initial state
+   PJLSYNC,                    // after @@PJL ECHO with our cookie
+   PJLJOB,                     // after "our" @@PJL USTATUS JOB
+   PJLDONE                     // after "our" @@PJL USTATUS EOJ
+};
+
+/* Global variables */
+
+int pagecost = 0;              // cost per printed page
+mode acctmode = NONE;          // no accounting by default
+int wait0 = -1, wait1 = -1;    // delays waiting for page ejects
+const char *jobscan = 0;       // optional job page scanner
+
+const char *acctname;          // name of account to charge
+//const char *jobuser;           // an alias for main's argv[2]
+char jobuser[MAXNAME];         // job user taken from argv[2]
+char jobtitle[48];             // job title taken from argv[3]
+const char *printer;           // printer name (not hostname)
+long pages = -1;               // num pages printed by printer
+long pagecount = -1;           // printer's pagecount register
+long jobid = -1;               // job id number: atoi(argv[1])
+long jobpages = -1;            // num pages in print job
+
+int cookie;                    // for message authentication
+int pcpending;                 // 1 if pending PS pc message
+int pjlstate;                  // state for PJL job; see pjlinput()
+
+int jobfd;                     // print job's file descriptor
+int devfd;                     // printer's file descriptor
+
+char hostname[1024];           // where to connect to,
+char portname[256];            //  to what service (port name/num),
+char username[256];            //  and as what user
+
+/* Prototypes */
+
+void parseURI(const char *deviceURI);
+mode parseMode(const char *value, mode deflt);
+int parseOnOff(const char *value, int deflt);
+
+void parseinput(const char *buf, unsigned len);
+void pjlinput(const char *buf, unsigned len);
+void psinput(const char *buf, unsigned len);
+
+int copyuser(char *dest, int size, const char *s);
+int copytitle(char *dest, int size, const char *s);
+void checkaccess(const char *username, const char *acctname);
+long sendjob(int jobfd, int devfd);
+long runscan(int fd, const char *scanprog);
+long estimate(long m, long n);
+void acctstr(char *buf, int maxlen);
+int logpc(long pc, const char *printer);
+
+int writeall(int fd, const char *buf, unsigned len);
+ssize_t writen(int fd, const void *buf, size_t len);
+int fdblocking(int fd);
+int fdnonblock(int fd);
+
+char *cupsGetJobBilling(const char *printer, long jobid);
+
+void log_page(long number, long copies);   // PAGE: ...
+void log_state(const char *s);             // STATE: ...
+void log_debug(const char *fmt, ...);      // DEBUG: ...
+void log_info(const char *fmt, ...);       // INFO: ...
+void log_error(const char *fmt, ...);      // ERROR: ...
+void die(int code, const char *fmt, ...);  // error & exit
+void cancel(int signo);
+
+/*
+ * Usage: printer-uri job-id user title copies options [file]
+ */
+int main(int argc, char *argv[], char *envp[])
+{
+   const char *devuri;         // printer's device URI
+   int copies;                 // num of copies to print
+   http_addrlist_t *addrlist;  // list of resolved addrs
+   http_addrlist_t *connaddr;  // the chosen address
+   char buf[256];              // general-purpose buffer
+   int i;                      // all-purpose counter
+
+   /*
+    * Preparation:
+    * Make sure that status messages are shipped out unbuffered!
+    * Ignore SIGPIPE (we still get errno = EPIPE); see also
+    *  http://www.developerweb.net/forum/showthread.php?t=2953
+    * Catch common signals to terminate in an orderly fashion.
+    */
+
+   setbuf(stderr, NULL);
+
+   if (signal(SIGPIPE, SIG_IGN) < 0)
+      die(CUPS_BACKEND_FAILED, "signal");
+   if (signal(SIGINT, cancel) < 0)
+      die(CUPS_BACKEND_FAILED, "signal");
+   if (signal(SIGQUIT, cancel) < 0)
+      die(CUPS_BACKEND_FAILED, "signal");
+   if (signal(SIGTERM, cancel) < 0)
+      die(CUPS_BACKEND_FAILED, "signal");
+
+   /*
+    * Device discovery:
+    * If invoked with no arguments, backends should list
+    * all supported/detected printer devices to stdout or
+    * at least tell what types of printers are supported.
+    * We currently only do the latter...
+    */
+
+   if (argc == 1) {
+      char *s = strrchr(argv[0], '/');
+      if (s == NULL) s = argv[0]; else ++s;
+      printf("network %s \"Unknown\" \"AppSocket/JetDirect w/Acct\"\n", s);
+      return CUPS_BACKEND_OK;
+   }
+
+   /*
+    * Backends are invoked with 6 or 7 arguments:
+    * The optional 7th argument is the file to print and defaults
+    * to stdin. Complain if not 6 or 7 arguments were supplied.
+    */
+
+   switch (argc) {
+   case 6: // filtered printing
+      jobfd = 0; // print stdin
+      copies = 1; // cannot repeat
+      break;
+   case 7: // raw printing
+      if ((jobfd = open(argv[6], O_RDONLY)) < 0)
+         die(CUPS_BACKEND_FAILED, "open %s", argv[6]);
+      copies = atoi(argv[4]);
+      break;
+   default:
+      fprintf(stderr,
+         "Usage: %s job-id user title copies options [file]\n", argv[0]);
+      return CUPS_BACKEND_FAILED;
+   }
+
+   jobid = atoi(argv[1]);
+   //jobuser = argv[2]; // 2009-08-22 copyuser(): lower case
+   copyuser(jobuser, sizeof(jobuser), argv[2]);
+   copytitle(jobtitle, sizeof(jobtitle), argv[3]);
+
+   printer = getenv("PRINTER");
+   if (printer == NULL) printer = hostname;
+
+   /*
+    * Parse the device URI into its constituents and
+    * store them in global variables for easy access.
+    *
+    * Note that cupsBackendDeviceURI() is essentially an abbreviation
+    * for this: (devuri = getenv("DEVICE_URI") ? devuri : argv[0])
+    */
+
+   devuri = cupsBackendDeviceURI(argv);
+   if (devuri) parseURI(devuri);
+   else {
+      errno = 0;
+      log_error("no device URI specified!");
+      return CUPS_BACKEND_STOP;
+   }
+
+   /*
+    * The pracc backend is now ready to do its actual work:
+    * check credits, send the print job, and do accounting.
+    */
+
+   log_debug("This is cupspracc, $Revision: 1.15 $");
+   log_debug("Job %d user=%s title=%s", jobid, jobuser, jobtitle);
+   log_debug("DeviceURI: %s", devuri);
+   log_debug("Parameter: acctmode=%d pagecost=%d wait0=%d wait1=%d",
+      acctmode, pagecost, wait0, wait1);
+   log_debug("Running as: uid=%d euid=%d gid=%d egid=%d pid=%d",
+      getuid(), geteuid(), getgid(), getegid(), getpid());
+
+   /*
+    * Run the optional job scanner and set jobpages accordingly.
+    * For filtered jobs, copy stdin to a temporary file and then
+    * work with that file, both for job scanning and printing.
+    */
+
+   if (jobscan) {
+      if (jobfd == 0) {
+         char fn[256];
+         char buf[16384];
+         int fd;
+         ssize_t n;
+
+         if ((fd = cupsTempFd(fn, sizeof(fn))) < 0)
+            die(CUPS_BACKEND_FAILED, "cupsTempFd failed");
+         if (unlink(fn) < 0)
+            die(CUPS_BACKEND_FAILED, "unlink failed");
+
+         log_debug("Copying stdin to %s", fn);
+         do {
+            n = read(jobfd, buf, sizeof(buf));
+            if (n > 0) if (writen(fd, buf, n) < 0)
+               die(CUPS_BACKEND_FAILED, "write %s failed");
+         }
+         while (n > 0);
+         if (n < 0) die(CUPS_BACKEND_FAILED, "read failed");
+
+         if (lseek(fd, 0, SEEK_SET) != 0) // rewind
+            die(CUPS_BACKEND_FAILED, "lseek on temp file failed");
+
+         jobfd = fd;
+      }
+
+      jobpages = runscan(jobfd, jobscan);
+      if (lseek(jobfd, 0, SEEK_SET) != 0) // rewind
+         die(CUPS_BACKEND_FAILED, "lseek on jobfd failed");
+   }
+   else jobpages = -1; // unknown
+
+   /** Check credits **/
+
+   if (acctmode) {
+      long balance, limit;
+
+      acctname = cupsGetJobBilling(printer, jobid);
+      if (praccCheckName(acctname) < 0) acctname = jobuser;
+      if (praccCheckName(acctname) < 0) // give up
+         die(CUPS_BACKEND_CANCEL, "invalid job user name");
+
+      log_debug("Check access: user %s to account %s", jobuser, acctname);
+      checkaccess(jobuser, acctname); // die if access denied
+
+      if (praccSum(acctname, &balance, &limit, 0, 0, 0) < 0) {
+         if (errno == ENOENT) { // no such account
+            if (praccSum(PRACCDEFLT, &balance, &limit, 0, 0, 0) < 0) {
+               log_error("no account to bill (requested: %s)", acctname);
+               return CUPS_BACKEND_FAILED;
+            }
+            else acctname = PRACCDEFLT;
+         }
+         else {
+            log_error("error reading account %s", acctname);
+            return CUPS_BACKEND_FAILED;
+         }
+      }
+
+      /* Here: acctname & balance & limit are set */
+
+      if (limit == UNLIMITED) strcpy(buf, "none");
+      else sprintf(buf, "%ld", limit); // limited
+      log_info("account %s: balance %ld limit %s", acctname, balance, buf);
+      if (jobpages > 0) balance -= jobpages * pagecost;
+      if ((balance < limit) && (limit != UNLIMITED)) {
+         log_error("account %s: insufficient funds", acctname);
+         return CUPS_BACKEND_OK; // XXX _CANCEL ?
+      }
+   }
+
+   /** Connect **/
+
+   addrlist = httpAddrGetList(hostname, AF_UNSPEC, portname);
+   if (addrlist == NULL) {
+      log_error("Cannot resolve %s", hostname);
+      return CUPS_BACKEND_STOP; // stop queue!
+   }
+
+   log_debug("connecting to %s port %s...", hostname, portname);
+   log_state("+connecting-to-device");
+
+   while (1) {
+      static int delay = 0;
+      connaddr = httpAddrConnect(addrlist, &devfd);
+      if (connaddr == NULL) {
+         int saverr = errno;
+         devfd = -1;
+
+         /*
+          * If the CLASS env var is set, the job was submitted
+          * to a class and not to a specific printer. In this
+          * case, terminate immediately so that the job can be
+          * re-queued on the next available printer in the class.
+          */
+
+         if (getenv("CLASS")) {
+            errno = (saverr) ? saverr : ECONNABORTED;
+            log_info("%s port %s: %s", hostname, portname, strerror(errno));
+            sleep(5); // do not re-queue too rapidly...
+            return CUPS_BACKEND_FAILED;
+         }
+
+         /*
+          * Report the error, sleep some seconds, and try again.
+          * CUPS backends are required to do this forever...
+          *
+          * Better:
+          * Check what the error is and give up immediately
+          * if it is a permanent error, otherwise repeat up
+          * to a max number of retries / connection timeout.
+          */
+
+         errno = (saverr) ? saverr : ECONNABORTED;
+         log_error("%s port %s", hostname, portname);
+
+         if (delay < 60) delay += 5;
+         log_info("retrying in %d seconds", delay);
+         sleep(delay);
+      }
+      else break; // connected
+   }
+
+   log_state("-connecting-to-device");
+
+#ifdef AF_INET6
+   if (connaddr->addr.addr.sa_family == AF_INET6)
+      log_debug("connected to [%s]:%d (IPv6)",
+         httpAddrString(&connaddr->addr, buf, sizeof(buf)),
+         ntohs(connaddr->addr.ipv6.sin6_port));
+   else
+#endif // AF_INET6
+      if (connaddr->addr.addr.sa_family == AF_INET)
+         log_debug("connected to %s:%d (IPv4)",
+            httpAddrString(&connaddr->addr, buf, sizeof(buf)),
+            ntohs(connaddr->addr.ipv4.sin_port));
+
+   /*
+    * Finally, ignore SIGTERM to ensure the driver can emit
+    * a complete page. For raw printing (no filter, no driver,
+    * just the backend) do NOT ignore SIGTERM for otherwise
+    * there is no way to cancel a raw print job.
+    */
+
+   if (jobfd == 0) // stdin means filtered printing
+      signal(SIGTERM, SIG_IGN);
+
+   /** Synchronise **/
+
+   srand(time(0) ^ getpid());
+   cookie = 10000 + (rand() & 65535);
+  
+   if (acctmode == POSTSCRIPT) {
+      psinit();
+      if (pscount(devfd, cookie))
+         die(CUPS_BACKEND_FAILED, "pscount");
+      pcpending = 0;
+   }
+
+   if (acctmode == PJL) {
+      pjlinit();
+      if (pjluel(devfd)) // just an UEL
+         die(CUPS_BACKEND_FAILED, "pjluel");
+      if (pjlecho(devfd, cookie)) // @@PJL ECHO cookie
+         die(CUPS_BACKEND_FAILED, "pjlecho");
+      if (pjlcount(devfd)) // @@PJL INFO PAGECOUNT
+         die(CUPS_BACKEND_FAILED, "pjlcount");
+      if (pjljob(devfd, jobid, 0, 0)) // @@PJL JOB ...
+         die(CUPS_BACKEND_FAILED, "pjljob");
+      pjlstate = PJLINIT;
+   }
+
+   /** Send print job **/
+
+   log_info("Sending job data...");
+
+   for (i = 0; i < copies; i++) {
+      long nbytes;
+
+      if (jobfd != 0) // raw printing (not stdin)
+         lseek(jobfd, 0, SEEK_SET); // rewind
+
+      nbytes = sendjob(jobfd, devfd);
+
+      if (jobfd != 0 && nbytes >= 0)
+         log_debug("Sent job file: %ld bytes, copy %d/%d", nbytes, i+1, copies);
+   }
+
+   /** Get job status **/
+
+   if ((acctmode == PJL) || (acctmode == POSTSCRIPT)) {
+      long lastpages;
+      struct timeval timeout;
+
+      log_info("Waiting for printer to finish...");
+
+      if (acctmode == POSTSCRIPT) {
+         for (i = wait0; i > 0; i = sleep(i));
+         if (pscount(devfd, cookie) < 0)
+            die(CUPS_BACKEND_FAILED, "pscount");
+         lastpages = pages-1; // -2
+         timeout.tv_sec = wait1;
+      }
+      else if (acctmode == PJL) {
+         if (pjleoj(devfd, jobid))
+            die(CUPS_BACKEND_FAILED, "pjleoj");
+         timeout.tv_sec = wait0;
+      }
+
+      while (1) {
+         fd_set rfds;
+         char buf[1024];
+         int r;
+
+         if (fdnonblock(devfd) < 0) // non-blocking printer i/o
+            die(CUPS_BACKEND_STOP, "cannot set O_NONBLOCK on devfd");
+
+         FD_ZERO(&rfds);
+         FD_SET(devfd, &rfds);
+         timeout.tv_usec = 0;
+
+         if ((r = select(devfd+1, &rfds, NULL, NULL, &timeout)) > 0) {
+            ssize_t n = read(devfd, buf, sizeof(buf));
+            if (n > 0) parseinput(buf, n);
+            else {
+               if (n == 0) log_debug("Printer closed connection"); // EOF
+               else log_debug("Reading printer failed: %s", strerror(errno));
+               break; // nothing more to wait for...
+            }
+         }
+         else {
+            if (r == 0)
+               log_debug("Timeout waiting for printer");
+            break; // error or timeout: silently give up
+         }
+
+         if (acctmode == POSTSCRIPT) {
+            if (pcpending && (pages == lastpages)) break;
+            if (pages > 0) log_info("Pages printed: %d", pages);
+            for (i = wait1; i > 0; i = sleep(i));
+            if (pscount(devfd, cookie) < 0)
+               die(CUPS_BACKEND_FAILED, "pscount");
+            lastpages = pages;
+            pcpending = 0;
+            timeout.tv_sec = wait1;
+         }
+         else if (acctmode == PJL) {
+            if (pjlstate == PJLDONE) break;
+            timeout.tv_sec = wait1;
+         }
+      } // while
+   } // if
+
+   if (acctmode == PJL) {
+      // Errors, typically broken pipe, are non-fatal here
+      // because the printer might closed the connection by now.
+      if (pjloff(devfd)) log_error("pjloff");
+      if (pjluel(devfd)) log_error("pjluel");
+   }
+
+   close(devfd);
+   connaddr = 0;
+   httpAddrFreeList(addrlist);
+   if (jobfd != 0) close(jobfd);
+
+   /** Append Accounting Record **/
+
+   if (acctmode) {
+      int type;
+      char info[96];
+      long count, amount;
+
+      if (jobpages > 0) jobpages *= copies;
+      count = estimate(jobpages, pages);
+
+      if (count < 0) {
+         type = '!'; // error: pages unknown
+         amount = 0;
+      }
+      else {
+         type = '-'; // debit pages printed
+         amount = count * pagecost;
+      }
+
+      acctstr(info, sizeof info);
+
+      log_info("account %s: %c %s", acctname, type, info);
+      if (praccAppend(acctname, type, amount, jobuser, info) != 0) {
+         log_error("praccAppend %s failed", acctname);
+         return CUPS_BACKEND_STOP; // stop queue!
+      }
+   }
+
+   /** Append Pagecount Record **/
+
+   switch (logpc(pagecount, printer)) {
+      case 0: /* success */ break;
+      case 1: /* no pc log */ break;
+      default: log_error("logpc failed"); break;
+   }
+
+   log_info("Job done");
+   return CUPS_BACKEND_OK;
+}
+
+/*
+ * Send print job to printer and handle data sent back
+ * by printer. This is essentially a select()-loop and
+ * modelled after the CUPS backend/runloop.c source file.
+ */
+long sendjob(int jobfd, int devfd)
+{
+   int nfds;
+   fd_set rfds, wfds;
+   char buffer[8192];
+   char *bufptr = buffer;
+   long bytes = 0, total = 0;
+   int offline = 0, nopaper = 0;
+
+   if (fdnonblock(devfd) < 0) // want non-blocking printer i/o
+      die(CUPS_BACKEND_STOP, "cannot set O_NONBLOCK on devfd");
+   if (fdnonblock(jobfd) < 0) // want non-blocking job reading
+      die(CUPS_BACKEND_STOP, "cannot set O_NONBLOCK on jobfd");
+
+   nfds = 1 + ((jobfd > devfd) ? jobfd : devfd);
+
+   while (1) {
+      FD_ZERO(&rfds);
+      if (bytes == 0)
+         FD_SET(jobfd, &rfds);
+      FD_SET(devfd, &rfds);
+
+      FD_ZERO(&wfds);
+      if (bytes > 0)
+         FD_SET(devfd, &wfds);
+      
+      if (select(nfds, &rfds, &wfds, NULL, NULL) < 0) {
+         log_debug("sendjob: select failed: errno=%d", errno);
+         /* XXX unsure - taken from backend/runloop.c */
+         if (errno == ENXIO && !offline) {
+            log_state("+offline-error");
+            log_info("Printer is currently offline");
+            offline = 1;
+         }
+         sleep(2);
+         continue;
+      }
+
+      /* Handle async printer input */
+
+      if (FD_ISSET(devfd, &rfds)) {
+         char mbuf[1024];
+         ssize_t n = read(devfd, mbuf, sizeof(mbuf));
+         if (n > 0) parseinput(mbuf, (int) n);
+         else {
+            if (n == 0) log_debug("Printer closed connection"); // EOF
+            else log_debug("Reading printer failed: %s", strerror(errno));
+            /* Otherwise ignore these errors */
+         }
+      }
+
+      /* Read print job data */
+
+      if ((bytes == 0) && FD_ISSET(jobfd, &rfds)) {
+         ssize_t n = read(jobfd, buffer, sizeof(buffer));
+         if (n > 0) bytes = n;
+         else if (n < 0) {
+            if (errno == EAGAIN || errno == EINTR)
+               bytes = 0;
+            else { // all other errors
+               log_error("cannot read print job data");
+               return -1; // see errno
+            }
+         }
+         else break; // end-of-file, we're done
+
+         bufptr = buffer; // reset bufptr
+      }
+
+      /* Write job data to printer */
+
+      if ((bytes > 0) && FD_ISSET(devfd, &wfds)) {
+         ssize_t n = write(devfd, bufptr, bytes);
+         if (n < 0) switch (errno) {
+            case ENOSPC:
+               if (nopaper) break;
+               log_error("Out of paper!");
+               log_state("+media-empty-error");
+               nopaper = 1;
+               break;
+            case ENXIO:
+               if (offline) break;
+               log_state("+offline-error");
+               log_info("Printer is offline");
+               offline = 1;
+               break;
+            case EAGAIN:
+            case EINTR:
+            case ENOTTY:
+               break;
+            default:
+               log_error("cannot write printer: %s", strerror(errno));
+               return -1;
+         }
+         else {
+            if (nopaper) {
+               log_state("-media-empty-error");
+               nopaper = 0;
+            }
+            if (offline) {
+               log_state("-offline-error");
+               log_info("Printer now online");
+               offline = 0;
+            }
+
+            bytes -= n;
+            bufptr += n;
+            total += n;
+         }
+      }
+   }
+
+   return total; // #bytes sent to printer
+}
+
+/*
+ * Scan the print job on the given fd using the given
+ * program. This program must read print job data from
+ * its standard input and write the number of pages the
+ * job would produce when printed to its standard output.
+ * Also, it must return status 0 if successful.
+ *
+ * I don't use popen/pclose so I get a chance to dup
+ * the given job fd to stdin between fork and exec.
+ */
+long runscan(int fd, const char *scanprog)
+{
+   FILE *scanner;
+   char line[256];
+   long num = -1;
+   int pfd[2], n;
+   pid_t pid;
+   int status;
+
+   assert(scanprog);
+
+   log_debug("runscan(%d, %s)...", fd, scanprog);
+
+   if (pipe(pfd) < 0)
+      die(CUPS_BACKEND_FAILED, "pipe failed");
+
+   if ((pid = fork()) < 0)
+      die(CUPS_BACKEND_FAILED, "fork failed");
+
+   if (pid == 0) { // child
+      close(pfd[0]);
+      if (pfd[1] != 1) {
+         dup2(pfd[1], 1);
+         close(pfd[1]);
+      }
+      dup2(fd, 0);
+      close(3);
+      close(4);
+      execl(SHELL, "sh", "-c", scanprog, (char *) 0);
+      _exit(127);
+   }
+
+   close(pfd[1]);
+   scanner = fdopen(pfd[0], "r");
+   if (!scanner)
+      die(CUPS_BACKEND_FAILED, "fdopen failed");
+
+   do {
+      n = getln(scanner, line, sizeof(line), 0);
+      if ((num < 0) && (n > 0)) {
+         const char *p = line;
+         line[n-1] = '\0'; // overwrite \n
+         log_debug("Job scanner said: %s$", p);
+         while (isspace(*p)) ++p;
+         scanu(p, &num);
+      }
+   }
+   while (n > 0);
+
+   if (fclose(scanner) != 0)
+      die(CUPS_BACKEND_FAILED, "fclose failed");
+   while (waitpid(pid, &status, 0) < 0)
+      if (errno != EINTR)
+         die(CUPS_BACKEND_FAILED, "waitpid failed");
+   if (status != 0)
+      die(CUPS_BACKEND_FAILED, "%s failed", scanprog);
+
+   return num; // jobpages, -1 if unknown
+}
+
+/*
+ * Handle input from the printer:
+ *
+ * Look for messages (PostScript or PJL, depending on
+ * the acctmode), parse messages by calling low-level
+ * routines, and react upon the parsed message code.
+ */
+void parseinput(const char *buf, unsigned len)
+{
+   char out[64];
+   int i, n;
+
+   n = sizeof(out) - 1;
+   if (len < n) n = len;
+   for (i = 0; i < n; i++) {
+      register char c = buf[i];
+      if ((c == ' ') || isgraph(c)) out[i] = c;
+      else out[i] = '.';
+   }
+   out[i] = '\0';
+
+   log_debug("Got %d bytes from printer:", len);
+   log_debug("%s", out);
+
+   cupsBackChannelWrite(buf, len, 1.0);
+
+   switch (acctmode) {
+   case POSTSCRIPT:
+      psinput(buf, len);
+      break;
+   case PJL:
+      pjlinput(buf, len);
+      break;
+   default: /* ignore */ ;
+   }
+}
+
+void psinput(const char *buf, unsigned len)
+{
+   register const char *p = buf;
+   const char *end = buf + len;
+
+   while (p < end) {
+      int t = pschar(*p++);
+      if (t) switch (t) {
+      case PS_MSG_PAGECOUNT:
+         if (ps_cookie == cookie) {
+            log_debug("psinput: PAGECOUNT %d", ps_pagecount);
+            if (pagecount < 0)
+               pagecount = ps_pagecount; // remember initial pc
+            else if (ps_pagecount >= pagecount)
+               pages = ps_pagecount - pagecount;
+            pcpending = 1; // got valid pc message
+         }
+         else log_debug("psinput: got cookie %ld, expected %ld",
+                    ps_cookie, cookie);
+         break;
+      case PS_MSG_PRERROR:
+         log_error("PrinterError: %s", ps_error);
+         exit(CUPS_BACKEND_FAILED);
+         break;
+      case PS_MSG_FLUSHING:
+         log_error("Flushing: rest of job will be ignored");
+         exit(CUPS_BACKEND_CANCEL); // cancel job
+         break;
+      }
+   }
+}
+
+/*
+ * Parse PJL messages and try counting pages printed.
+ * Use the messages to advance in a simple state diagram:
+ *
+ *   INIT---(1)-->SYNCED---(2)-->INJOB---(3)-->DONE
+ *
+ * Transitions: (1) ECHO with our cookie; (2) JOB with
+ * our cookie; (3) EOJ with our cookie.
+ *
+ * While INJOB, use all PAGE and EOJ messages to set
+ * the global pages variable, not just our EOJ message.
+ * Reason: at least the HP LaserJet 5000 gets the EOJ
+ * pages wrong for nested JOB/EOJ pairs; to reproduce,
+ * print a Windows Test Page to an HP LaserJet 5000...
+ */
+void pjlinput(const char *buf, unsigned len)
+{
+   register const char *p = buf;
+   const char *end = buf + len;
+
+   while (p < end) {
+      int msg = pjlchar(*p++);
+      if (msg) switch (msg) {
+      case PJL_MSG_COOKIE:
+         if (pjl_cookie != cookie) break; // not our cookie
+         log_debug("pjlinput: state=%d COOKIE %ld (ok)",
+                   pjlstate, pjl_cookie);
+         if (pjlstate != PJLINIT) break; // ignore unexpected ECHO message
+         pjlstate = PJLSYNC;
+         break;
+      case PJL_MSG_PAGECOUNT:
+         if (pjlstate != PJLSYNC) break;
+         log_debug("pjlinput: state=%d PAGECOUNT %ld",
+                   pjlstate, pjl_pagecount);
+         if (pagecount < 0) pagecount = pjl_pagecount; // only once
+         break;
+      case PJL_MSG_JOBSTART:
+         log_debug("pjlinput: state=%d JOB %ld",
+                   pjlstate, pjl_jobnum);
+         if (pjlstate != PJLSYNC) break; // out-of-order
+         if (pjl_jobnum != jobid) break; // not our job
+         pjlstate = PJLJOB;
+         break;
+      case PJL_MSG_JOBEND:
+         log_debug("pjlinput: state=%d EOJ %ld %ld",
+                   pjlstate, pjl_jobnum, pjl_numpages);
+         if (pjlstate != PJLJOB) break;
+         if (pjl_numpages > pages) pages = pjl_numpages;
+         if (pjl_jobnum == jobid) {
+            pjlstate = PJLDONE;
+         }
+         break;
+      case PJL_MSG_PAGE:
+         log_debug("pjlinput: state=%d PAGE %ld",
+                   pjlstate, pjl_curpage);
+         if (pjlstate != PJLJOB) break; // ignore outside "our" job
+         if (pjl_curpage > pages) pages = pjl_curpage;
+         if (jobfd != 0) log_page(pages, 1);
+         log_info("Printed page %d", pjl_curpage);
+         break;
+      }
+   }
+}
+
+/*
+ * Estimate the number of pages printed, based on the
+ * number m of pages in the printjob (-1 if unknown)
+ * and the number n of pages printed as reported by
+ * the printer (-1 if unknown).
+ *
+ * PJL is much more robust than the PostScript method:
+ * if acctmode == PJL trust n and don't average with m.
+ */
+long estimate(long m, long n)
+{
+   if ((m < 0) && (n < 0)) return -1; // unknown
+
+   if (m < 0) return n;
+   if (n < 0) return m;
+
+   if (acctmode == PJL) return n;
+   return (m < n) ? n : (m+n)/2;
+}
+
+/*
+ * Build the accounting info string in the given buffer,
+ * using information from global variables. The buffer
+ * should be at least 90 bytes. Account info string format:
+ *
+ *   print JID PRINTER JOBPAGES PAGES [JOBTITLE]
+ *
+ * JOBPAGES and PAGES are -1 if unknown.
+ */
+void acctstr(char *buf, int maxlen)
+{
+   register char *p = buf;
+   p += prints(p, "print ");
+   p += printu(p, jobid);
+   p += printc(p, ' ');
+   p += printsn(p, printer, 30);
+   p += printc(p, ' ');
+   p += printi(p, jobpages); // -1 if unknown
+   p += printc(p, ' ');
+   p += printi(p, pages); // -1 if unknown
+   if (jobtitle && jobtitle[0]) {
+      p += printc(p, ' ');
+      p += printsn(p, jobtitle, 30);
+   }
+   p += print0(p);
+}
+
+/*
+ * Append a record to the pagecount log file.
+ *
+ * The format of pagecount log records is
+ *
+ *   @@timestamp pagecount printer [comment]
+ *
+ * Return 0 if ok, 1 if no pagecount log file,
+ * and -1 on system errors (see errno).
+ */
+int logpc(long pc, const char *printer)
+{
+   struct tai now;
+   char buf[80];
+   char *p, *endp;
+   int fd, len;
+
+   fd = open(PRACCPCLOG, O_WRONLY | O_APPEND);
+   if (fd < 0) {
+      if (errno == ENOENT) return 1; // no pc log
+      else return -1; // general error, see errno
+   }
+
+   tainow(&now); // system time
+
+   p = buf;
+   endp = buf + sizeof buf - 1;
+   p += taifmt(p, &now);
+   p += printc(p, ' ');
+   p += printi(p, pc);
+   p += printc(p, ' ');
+   if (!printer) printer = "unknown";
+   p += printsn(p, printer, endp-p);
+   p += printc(p, '\n');
+
+   len = p - buf;
+   if (write(fd, buf, len) < 0) return -1; // see errno
+   if (close(fd) < 0) return -1; // see errno
+
+   return 0; // ok
+}
+
+/*
+ * Parse the device URI into its constituents and
+ * store them in global variables for easy access.
+ */
+void parseURI(const char *deviceURI)
+{
+   char method[256];
+   char resource[1024];
+   char *options;
+   http_uri_status_t result;
+   const char *name, *value;
+   long number;
+   int portnum = 0;
+
+   result = httpSeparateURI(HTTP_URI_CODING_ALL, deviceURI,
+      method, sizeof(method), username, sizeof(username),
+      hostname, sizeof(hostname), &portnum,
+      resource, sizeof(resource));
+
+   if (portnum == 0) portnum = 9100; // default: JetDirect
+   portname[printu(portname, portnum)] = '\0';
+
+   if ((options = strchr(resource, '?')) != NULL) {
+      *options++ = '\0';
+      while (*options) {
+      name = options;
+      while (*options && *options != '=' && *options != '&')
+         ++options;
+         value = options++;
+         if (*value == '=') {
+            *(char*)value++ = '\0'; // overwrite '=' with NUL
+            while (*options && *options != '&' && *options != '+')
+               ++options;
+            if (*options) *options++ = '\0';
+         }
+         else *(char*)value = '\0';
+
+         /* Process the name=value pair */
+         if (!strcasecmp(name, "acct")) {
+            acctmode = parseMode(value, NONE);
+            if (wait0 < 0) switch (acctmode) {
+               case POSTSCRIPT: wait0 = DEFLT_WAIT0_PS; break;
+               case PJL: wait0 = DEFLT_WAIT0_PJL; break;
+               default: wait0 = 0; break;
+            }
+            if (wait1 < 0) switch (acctmode) {
+               case POSTSCRIPT: wait1 = DEFLT_WAIT1_PS; break;
+               case PJL: wait1 = DEFLT_WAIT1_PJL; break;
+               default: wait1 = 0; break;
+            }
+         }
+         else if (!strcasecmp(name, "pagecost")) {
+            pagecost = atoi(value);
+         }
+         else if (!strcasecmp(name, "wait0")) {
+            if (scanu(value, &number))
+               wait0 = (int) number;
+         }
+         else if (!strcasecmp(name, "wait1")) {
+            if (scanu(value, &number))
+               wait1 = (int) number;
+         }
+         else if (!strcasecmp(name, "jobscan")) {
+            jobscan = value;
+         }
+      }
+   }
+}
+
+/*
+ * Translate the string pointed to by value
+ * to one of the accounting/synchronising modes.
+ */
+mode parseMode(const char *value, mode deflt)
+{
+   if (strcasecmp(value, "off") == 0) return NONE;
+   if (strcasecmp(value, "PJL") == 0) return PJL;
+   if (strcasecmp(value, "PS") == 0) return POSTSCRIPT;
+   if (strcasecmp(value, "PostScript") == 0) return POSTSCRIPT;
+   if (strcasecmp(value, "job") == 0) return JOBSCAN;
+   return deflt;
+}
+
+/*
+ * Translate the string pointed to by value to either
+ * true (1) or false (0), or return the given default.
+ */
+int parseOnOff(const char *value, int deflt)
+{
+   if (strcasecmp(value, "on") == 0) return 1;
+   if (strcasecmp(value, "off") == 0) return 0;
+   if (strcasecmp(value, "yes") == 0) return 1;
+   if (strcasecmp(value, "no") == 0) return 0;
+   if (strcasecmp(value, "true") == 0) return 1;
+   if (strcasecmp(value, "false") == 0) return 0;
+   return deflt;
+}
+
+int copyuser(char *dest, int size, const char *s)
+{
+   int i = 0;
+
+   while (i < size-1)
+   {
+      char c = s[i];
+      if (!c) break;
+
+      dest[i] = tolower(c);
+      i += 1;
+   }
+
+   dest[i] = 0; // terminate string
+}
+
+/*
+ * Copy the job title given in s into the buffer dest[size].
+ * Chop an initial "smbprn.XXXXXXXX", replace white space
+ * by underscores, and replace non-printable characters by
+ * question marks.
+ *
+ * The resulting string in dest is always NUL-terminated.
+ * Return the number of characters copied.
+ */
+int copytitle(char *dest, int size, const char *s)
+{
+   register char *p = dest;
+   char *end = p + size - 1;
+
+   if (strncmp("smbprn.", s, 7) == 0) {
+      s += 7; while (*s)
+         if (!isdigit(*s++)) break;
+   }
+
+   while (p < end) {
+      register char c = *s++;
+      if (isgraph(c)) *p++ = c;
+      else if (isspace(c)) *p++ = '_';
+      else if (c != '\0') *p++ = '?';
+      else break; // end of string
+   }
+   if (size > 0) *p = '\0';
+
+   return p - dest; // #chars
+}
+
+/*
+ * Check if user 'username' is allowed to access account
+ * 'acctname' and exit if not.
+ *
+ * If access is denied, try to record the error in the
+ * requesting user's personal account (this is useful
+ * feedback on invalid job-billing values), then quit
+ * and cancel the job.
+ */
+void checkaccess(const char *username, const char *acctname)
+{
+   int result;
+
+   assert(username && acctname);
+
+   result = praccGrant(username, acctname);
+   if (result < 0) // system error - see errno
+      die(CUPS_BACKEND_FAILED, "praccGrant failed");
+
+   if (result > 0) { // deny access to account
+      char s[MAXNAME+32];
+
+      strncpy(s, acctname, MAXNAME);
+      strcat(s, ": Access denied");
+      praccAppend(username, '!', -1, jobuser, s);
+
+      die(CUPS_BACKEND_CANCEL, "praccGrant(%s to %s) = DENY",
+          username, acctname);
+   }
+
+   log_debug("praccGrant(%s to %s) = GRANT", username, acctname);
+}
+
+/*
+ * Write the given buffer to the given file descriptor
+ * in blocking mode: do not return until all data has
+ * been written or an error occurred.
+ *
+ * Use this function for sending small amounts of data
+ * to the printer en block without bothering about the
+ * printer's asynchronous replies. Careful: this could
+ * create a dead-lock (no select-loop)!
+ *
+ * Return 0 if OK or -1/errno if an error occurred.
+ */
+int writeall(int fd, const char *buf, unsigned len)
+{
+   int ret;
+
+   if (fdblocking(fd) < 0) return -1; // see errno
+
+   if (writen(fd, buf, len) < 0) return -1; // see errno
+
+   return 0; // OK
+}
+
+/*
+ * On some special devices (notably terminals, networks, streams)
+ * a write() operation may return less than specified. This isn't
+ * an error and we should continue with the remainder of the data.
+ * This phenomenon never happens with ordinary disk files.
+ *
+ * See Stevens (1993, p.406-408) for details.
+ */
+ssize_t writen(int fd, const void *buf, size_t len)
+{
+   size_t nbytes = len;
+   char * bufptr = (char *) buf;  // no ptr arith with void star
+
+   while (nbytes > 0) {
+      ssize_t n = write(fd, bufptr, nbytes);
+      if (n <= 0) return -1; // see errno
+      nbytes -= n;
+      bufptr += n;
+   }
+
+   return len;
+}
+
+/*
+ * These two functions take a descriptor of an open file (or pipe,
+ * socket, etc) and set/clear the O_NONBLOCK bit in the status flags
+ * Return -1 on error, some other value if ok.
+ */
+
+#ifndef O_NONBLOCK
+#error Your system headers do not define O_NONBLOCK.
+#endif
+
+int fdblocking(int fd)
+{
+   return fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) & ~O_NONBLOCK);
+}
+
+int fdnonblock(int fd)
+{
+   return fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+}
+
+/*
+ * Try getting the job-billing IPP/CUPS job attribute.
+ * Return an malloc'ed string of NULL on failure.
+ *
+ * The Get-Job-Attributes operation request attributes:
+ *  attributes-charset
+ *  attributes-natural-language
+ *  printer-uri AND job-id OR job-uri
+ *
+ * This function makes use of CUPS API routines.
+ */
+char *cupsGetJobBilling(const char *printer, long jobid)
+{
+   http_t *http;          // HTTP connection object
+   ipp_t *request;        // IPP request object
+   ipp_t *response;       // IPP response object
+   ipp_attribute_t *attr; // current IPP attr in response
+   const char *const attrs[] = { "job-billing" };
+   int numattrs = 1; // sizeof(attrs) / sizeof(attrs[0])
+   char uri[HTTP_MAX_URI];
+   char *jobBillingString;
+
+   http = httpConnectEncrypt(cupsServer(), ippPort(), cupsEncryption());
+   if (!http) return (char *) 0;
+
+   request = ippNewRequest(IPP_GET_JOB_ATTRIBUTES);
+   if (!request) return (char *) 0;
+
+   snprintf(uri, sizeof uri, "ipp://%s/printers/%s/",
+      cupsServer(), printer);
+   ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI,
+      "printer-uri", NULL, uri);
+
+   ippAddInteger(request, IPP_TAG_OPERATION, IPP_TAG_INTEGER,
+      "job-id", jobid);
+
+   numattrs = sizeof(attrs) / sizeof(attrs[0]);
+   ippAddStrings(request, IPP_TAG_OPERATION, IPP_TAG_KEYWORD,
+      "requested-attributes", numattrs, NULL, attrs);
+
+   jobBillingString = (char *) 0; // assume failure
+   response = cupsDoRequest(http, request, "/"); // XXX /jobs ?
+   if (response && response->request.status.status_code == IPP_OK)
+      for (attr = response->attrs; attr; attr = attr-> next)
+         if (strcmp(attr->name, "job-billing") == 0)
+            jobBillingString = strdup(attr->values[0].string.text);
+
+   ippDelete(response); // request is deleted by cupsDoRequest()
+   httpClose(http);
+
+   return jobBillingString;
+}
+
+static void private_log(const char *fmt, ...)
+{
+   static FILE *logfp = 0;
+   static int first = 1;
+   va_list ap;
+
+   if (first) {
+      int logfd;
+      struct stat stbuf;
+
+      first = 0;
+
+      /* Can't use fopen() because it creates the file! */
+      logfd = open(PRIVATE_LOGFILE, O_APPEND | O_WRONLY);
+      if (logfd < 0) return; // silently give up
+      logfp = fdopen(logfd, "a");
+      if (!logfp) return; // silently give up
+
+      /* Truncate to zero if too long */
+      if (fstat(fileno(logfp), &stbuf) == 0)
+         if (stbuf.st_size > 1000000)
+            ftruncate(fileno(logfp), 0);
+   }
+
+   if (logfp) {
+      va_start(ap, fmt);
+      fprintf(logfp, "Job %ld: ", jobid); // tag
+      vfprintf(logfp, fmt, ap);
+      fflush(logfp);
+      va_end(ap);
+   }
+}
+
+/*
+ * Notify the CUPS log file about normal things going on.
+ * Use warn() for warnings and die() for fatal errors.
+ *
+ * Note: The scheduler (at least in version 1.2.2) seems
+ *       to NOT log INFO strings from backends. Annoying.
+ */
+void log_info(const char *fmt, ...)
+{
+   char msg[256];
+
+   va_list ap;
+   va_start(ap, fmt);
+
+   vsnprintf(msg, sizeof msg, fmt, ap);
+   fprintf(stderr, "INFO: %s\n", msg);
+   private_log("INFO: %s\n", msg);
+
+   va_end(ap);
+}
+
+/*
+ * Issue a PAGE message to standard error. There are two types
+ * of PAGE messages used by CUPS:
+ *
+ * PAGE: n m         # add m to job-media-sheets-completed attr
+ * PAGE: n total     # set job-media-sheets-completed attr to n
+ *
+ * If copies is negative, then the second version is produced,
+ * if both arguments are positive, the first version is written.
+ */
+void log_page(long number, long copies)
+{
+   assert(number >= 0);
+
+   if (copies < 0) fprintf(stderr, "PAGE: %ld total\n", number);
+   else fprintf(stderr, "PAGE: %ld %ld\n", number, copies);
+}
+
+/*
+ * Issue a state change message to standard error:
+ *
+ * STATE: +printer-state-reason      # add
+ * STATE: -printer-state-reason      # remove
+ * STATE: printer-state-reason       # set
+ *
+ * The CUPS scheduler will parse these messages and add/remove/set
+ * printer-state-reason keywords to the print queue. Typical use is
+ * to report media and ink/toner conditions. Backends may also use
+ * it to report "connecting-to-device" to the scheduler.
+ */
+void log_state(const char *s)
+{
+   fprintf(stderr, "STATE: %s\n", s);
+}
+
+/*
+ * Issue a debug message to standard error
+ * Because CUPS seems to loose messages,
+ * we also log to our private debug log!
+ */
+void log_debug(const char *fmt, ...)
+{
+   char msg[256];
+
+   va_list ap;
+   va_start(ap, fmt);
+
+   vsnprintf(msg, sizeof msg, fmt, ap);
+   fprintf(stderr, "DEBUG: %s\n", msg);
+   private_log("DEBUG: %s\n", msg);
+
+   va_end(ap);
+}
+
+/*
+ * Issue an error message to standard error.
+ * Append strerror(errn) if errno is non-zero.
+ */
+void log_error(const char *fmt, ...)
+{
+   char msg[256];
+
+   va_list ap;
+   va_start(ap, fmt);
+
+   vsnprintf(msg, sizeof msg, fmt, ap);
+   if (errno == 0) fprintf(stderr, "ERROR: %s\n", msg);
+   else fprintf(stderr, "ERROR: %s: %s\n", msg, strerror(errno));
+   if (errno == 0) private_log("ERROR: %s\n", msg);
+   else private_log("ERROR: %s: %s\n", msg, strerror(errno));
+
+   va_end(ap);
+}
+
+/*
+ * Issue an error message to standard error.
+ * Append strerror(errno) if errno is non-zero.
+ * Exit with given code (see CUPS_BACKEND_XXX constants).
+ */
+void die(int code, const char *fmt, ...)
+{
+   char msg[256];
+   int saverr = errno;
+
+   va_list ap;
+   va_start(ap, fmt);
+
+   vsnprintf(msg, sizeof(msg), fmt, ap);
+
+   if (saverr == 0) fprintf(stderr, "ERROR: %s\n", msg);
+   else fprintf(stderr, "ERROR: %s: %s\n", msg, strerror(errno));
+   if (saverr == 0) private_log("ERROR: %s\n", msg);
+   else private_log("ERROR: %s: %s\n", msg, strerror(errno));
+
+   va_end(ap);
+
+   exit(code);
+}
+
+void cancel(int signo)
+{
+   errno = 0; // prevent strerror(errno) in message!
+   log_error("Killed by signal %d", signo);
+   log_info("Job cancelled, printer ready");
+   exit(CUPS_BACKEND_CANCEL);
+}
+@
+
+
+1.15
+log
+@*** empty log message ***
+@
+text
+@d9 1
+a9 1
+"$Id: cupspracc.c,v 1.14 2008/04/04 16:41:05 ujr Exp ujr $";
+d70 2
+a71 1
+const char *jobuser;           // an alias for main's argv[2]
+d100 1
+d193 3
+a195 2
+   jobuser = argv[2];
+   copytitle(jobtitle, sizeof jobtitle, argv[3]);
+d221 1
+a221 1
+   log_debug("This is cupspracc, $Revision: 1.14 $");
+d1051 16
+d1276 1
+a1276 1
+      fprintf(logfp, "Job %d: ", jobid); // tag
+@
+
+
+1.14
+log
+@*** empty log message ***
+@
+text
+@d9 1
+a9 1
+"$Id: cupspracc.c,v 1.13 2008/03/17 11:00:43 ujr Exp ujr $";
+d218 1
+a218 1
+   log_debug("This is cupspracc, $Revision: 1.13 $");
+d278 1
+a278 1
+      if (praccSum(acctname, 0, 0, &balance, &limit, 0, 0, 0) < 0) {
+d280 1
+a280 1
+            if (praccSum(PRACCDEFLT, 0, 0, &balance, &limit, 0, 0, 0) < 0) {
+d294 1
+a294 1
+      if (limit <= UNLIMITED) strcpy(buf, "none");
+d298 1
+a298 1
+      if ((balance < limit) && (limit > UNLIMITED)) {
+d534 1
+a534 1
+   log_info("Job done, printer ready");
+@
+
+
+1.13
+log
+@Added jobscan feature, dropped jobmagic scanning.
+Reason: independent of the rest of CUPS filtering...
+@
+text
+@d9 1
+a9 1
+"$Id: cupspracc.c,v 1.12 2008/03/11 10:42:44 ujr Exp $";
+d38 7
+a44 4
+#define DEFLT_WAIT0_PS 20 /* pause before first pc probe */
+#define DEFLT_WAIT1_PS 10 /* pause between more pc probes */
+#define DEFLT_WAIT0_PJL 300 /* timeout for first PJL reply */
+#define DEFLT_WAIT1_PJL 120 /* timeout for subsequent replies */
+a101 1
+//int jobmagic(const char *buf, unsigned long len);
+a181 2
+      if ((jobfd != 0) && (dup2(jobfd, 0) < 0))
+         die(CUPS_BACKEND_FAILED, "dup2 jobfd to 0");
+d218 2
+a219 2
+   log_debug("This is cupspracc, $Revision: 1.12 $");
+   log_debug("Job %d user=%s title=%s fd=%d", jobid, jobuser, jobtitle, jobfd);
+d228 2
+a229 1
+    * For simplicity, this is only done on raw jobs (not stdin).
+d232 27
+a258 1
+   if ((jobfd != 0) && jobscan) {
+d261 1
+a261 1
+         die(CUPS_BACKEND_CANCEL, "lseek on jobfd failed");
+d278 1
+a278 1
+      if (praccSum(acctname, &balance, &limit) < 0) {
+d280 1
+a280 1
+            if (praccSum(PRACCDEFLT, &balance, &limit) < 0) {
+d300 1
+a300 1
+         return CUPS_BACKEND_CANCEL;
+d400 1
+a400 1
+      if (pjljob(devfd, jobid, 0)) // @@PJL JOB ...
+a424 1
+//      time_t nowtime, endtime;
+a440 17
+#if 0
+      switch (acctmode) {
+      case PJL:
+         if (pjleoj(devfd, jobid))
+            die(CUPS_BACKEND_FAILED, "pjleoj");
+         break;
+      case POSTSCRIPT:
+         for (i = 2*pcpause; i > 0; i = sleep(i));
+         if (pscount(devfd, cookie) < 0)
+            die(CUPS_BACKEND_FAILED, "pscount");
+         lastpages = pages-1; // -2
+         break;
+      default: // no acct
+         shutdown(devfd, 1);
+         break;
+      }
+#endif
+a441 3
+//      nowtime = time(0);
+//      endtime = nowtime+waiteof;
+//      while (nowtime < endtime) {
+a443 1
+//         struct timeval timeout;
+a451 2
+//         timeout.tv_sec = endtime-nowtime;
+//         timeout.tv_sec = (first) ? wait0 : wait1;
+a452 1
+//         first = 0;
+a482 2
+
+//         nowtime = time(0);
+a550 1
+//   int firstread = 1; // first job read
+a609 5
+//         if (firstread && (n = jobmagic(buffer, bytes)) > 0) {
+//            bufptr += n; bytes -= n;
+//            log_debug("Skipping %ld bytes of magic job info", n);
+//         }
+//         firstread = 0;
+d658 10
+d670 1
+a670 1
+   FILE *scanpipe;
+d673 3
+a675 1
+   int n;
+d681 2
+a682 13
+   scanpipe = popen(scanprog, "r");
+   if (scanpipe) {
+      do {
+         n = getln(scanpipe, line, sizeof(line), 0);
+         if ((num < 0) && (n > 0)) {
+            const char *p = line;
+            line[n-1] = '\0'; // overwrite \n
+            log_debug("job scanner sent: %s$", p);
+            while (isspace(*p)) ++p;
+            scanu(p, &num);
+         }
+      }
+      while (n > 0);
+d684 2
+a685 4
+      if (pclose(scanpipe) != 0)
+         die(CUPS_BACKEND_FAILED, "pclose failed");
+   }
+   else die(CUPS_BACKEND_FAILED, "popen %s failed", scanprog);
+d687 26
+a712 25
+   return num; // jobpages, -1 if unknown
+}
+
+#if 0
+int jobmagic(const char *buf, unsigned long len)
+{
+   char line[256], *lp = line;
+   int maxline = sizeof(line) - 1;
+   const char *sp = buf;
+   const char *lim;
+   unsigned long num;
+
+   lim = buf + ((len < maxline) ? len : maxline);
+   if (lim < buf + 3) return 0;
+
+   if (*sp++ != '#') return 0;
+   if (*sp++ != '#') return 0;
+
+   while (sp < lim) {
+      register char c = *sp++;
+      if (c == '\0') return 0;
+      if ((c == '\n') || (c == '\r')) {
+         *lp = '\0'; // terminate
+         if ((c == '\r') && (*sp == '\n')) ++sp;
+         break;
+a713 1
+      else *lp++ = c;
+d715 1
+a715 1
+   if (*lp != '\0') return 0;
+d717 7
+a723 7
+   lp = line; // reset
+   log_debug("jobmagic: ##%s", line);
+   while ((*lp == ' ') || (*lp == '\t')) ++lp;
+   if (scanu(lp, &num)) {
+      if (jobpages < 0) jobpages = num; // 1st copy
+      else jobpages += num; // add 2nd 3rd etc copy
+   }
+d725 1
+a725 1
+   return sp - buf; // magic bytes to skip
+a726 1
+#endif
+d1268 1
+a1268 1
+ * Note: The scheduler (at least version 1.2.2) seems
+d1362 1
+a1362 1
+ * Exit with the given status code (see CUPS_BACKEND_XXX constants).
+a1386 3
+#if 0
+   die(CUPS_BACKEND_CANCEL, "Killed by signal %d", signo);
+#else
+a1389 1
+#endif
+@
+
+
+1.12
+log
+@Added private log truncation again
+(because CUPS does its own log rotation,
+so no dist does logrotate in /var/log/cups).
+@
+text
+@d9 1
+a9 1
+"$Id: cupspracc.c,v 1.11 2008/03/10 13:33:16 ujr Exp ujr $";
+a22 1
+
+d37 5
+a41 4
+#define PAGECOUNT_LOGFILE "/var/log/cups/pagecount"
+#define PRIVATE_LOGFILE "/var/log/cups/pracc"
+#define DEFLT_WAITEOF 300 /* 5 minutes */
+#define DEFLT_PCPAUSE 8 /* 8 seconds between pc probes */
+d63 2
+a64 2
+int waiteof = 0;               // how long to wait for printer
+int pcpause = 0;               // delay between pc probes
+d99 2
+a100 1
+int jobmagic(const char *buf, unsigned long len);
+a192 1
+   jobpages = -1; // unknown
+d218 2
+a219 1
+   log_debug("This is cupspracc, $Revision$");
+d221 16
+a236 6
+   log_debug("Arguments: jobid=%d user=%s title=%s copies=%d",
+      jobid, jobuser, jobtitle, copies);
+   log_debug("Parameter: acctmode=%d pagecost=%d waiteof=%d pcpause=%d",
+      acctmode, pagecost, waiteof, pcpause);
+   log_debug("User IDs: uid=%d, euid=%d, gid=%d, egid=%d",
+      getuid(), geteuid(), getgid(), getegid());
+a274 24
+
+#if 0
+      switch (praccSum(acctname, &balance, &limit)) {
+      case 1: // no accounting
+         acctname = PRACCDEFLT;
+         if (praccread(acctname, &balance, &limit) != 0)
+            balance = limit = 0; // last resort
+         // FALLTHRU
+      case 0: // ok
+         if (limit <= UNLIMITED) strcpy(buf, "none");
+         else sprintf(buf, "%ld", limit);
+         log_info("account %s: balance %ld limit %s", acctname, balance, buf);
+         if (jobpages > 0)
+            balance -= jobpages * pagecost;
+         if ((balance < limit) && (limit > UNLIMITED)) {
+            log_error("account %s: insufficient funds", acctname);
+            return CUPS_BACKEND_CANCEL;
+         }
+         break;
+      default:
+         log_error("error reading account %s", acctname);
+         return CUPS_BACKEND_FAILED;
+      }
+#endif
+a322 7
+//         delay += 5;
+//         if (delay > 60) {
+//            log_state("-connecting-to-device");
+//            log_error("giving up, stopping queue");
+//            return CUPS_BACKEND_STOP;
+//         }
+ 
+d396 1
+a396 1
+   if (acctmode || waiteof > 0) {
+d398 2
+a399 1
+      time_t nowtime, endtime;
+d403 13
+d431 1
+d433 4
+a436 3
+      nowtime = time(0);
+      endtime = nowtime+waiteof;
+      while (nowtime < endtime) {
+d438 1
+a438 1
+         struct timeval timeout;
+d447 2
+a448 1
+         timeout.tv_sec = endtime-nowtime;
+d450 1
+a452 1
+            //log_debug("Reading from printer...");
+a453 1
+            //if (n == 0) break; // end-of-file
+d469 2
+a470 2
+            log_info("Pages printed: %d", pages);
+            for (i = pcpause; i > 0; i = sleep(i));
+d475 5
+a480 1
+         else if (pjlstate == PJLDONE) break;
+d482 3
+a484 3
+         nowtime = time(0);
+      }
+   }
+d551 1
+a551 1
+   int firstread = 1; // first job read
+a584 1
+         ssize_t n;
+d586 6
+a591 6
+         if ((n = read(devfd, mbuf, sizeof(mbuf))) > 0) {
+            parseinput(mbuf, (int) n);
+            cupsBackChannelWrite(mbuf, n, 1.0);
+         }
+         else if (n == 0) { // EOF
+            
+a592 1
+         else /* ignore errors */ ;
+d611 5
+a615 5
+         if (firstread && (n = jobmagic(buffer, bytes)) > 0) {
+            bufptr += n; bytes -= n;
+            log_debug("Skipping %ld bytes of magic job info", n);
+         }
+         firstread = 0;
+d664 34
+d734 1
+d760 2
+d933 1
+a933 1
+   fd = open(PAGECOUNT_LOGFILE, O_WRONLY | O_APPEND);
+d998 4
+a1001 4
+            if (waiteof <= 0) switch (acctmode) {
+               case POSTSCRIPT: // FALLTHRU
+               case PJL: waiteof = DEFLT_WAITEOF; break;
+               case JOBSCAN: waiteof = 0; break;
+d1003 4
+a1006 3
+            if (pcpause <= 0) switch (acctmode) {
+               case POSTSCRIPT: pcpause = DEFLT_PCPAUSE; break;
+               default: pcpause = 0; break;
+d1012 1
+a1012 1
+         else if (!strcasecmp(name, "waiteof")) {
+d1014 1
+a1014 1
+               waiteof = (int) number;
+d1016 1
+a1016 1
+         else if (!strcasecmp(name, "pcpause")) {
+d1018 4
+a1021 1
+               pcpause = (int) number;
+d1361 2
+a1362 1
+   private_log("ERROR: %s: %s\n", msg, strerror(errno));
+d1395 1
+d1397 5
+@
+
+
+1.11
+log
+@Added a few more debug logging messages
+@
+text
+@d9 1
+a9 1
+"$Id: cupspracc.c,v 1.10 2008/03/05 14:43:49 ujr Exp ujr $";
+d218 1
+d455 1
+a455 1
+            log_debug("Reading from printer...");
+d459 3
+a461 2
+            else if (n == 0) { // end-of-file
+               log_debug("Printer closed connection");
+d712 14
+a725 1
+   log_debug("Got %d bytes from printer", len);
+a1100 2
+   //fprintf(stderr, "{>>>%s}\n", buf, len); //DEBUG
+
+a1217 1
+#if 0
+d1220 1
+a1220 1
+         if (stbuf.st_size > 100000)
+a1221 1
+#endif
+d1303 1
+a1303 1
+   private_log("DEBUG: %s\n", msg); //XXX
+d1322 1
+a1322 1
+   private_log("ERROR: %s: %s\n", msg, strerror(errno)); //XXX
+d1344 2
+a1345 2
+   if (saverr == 0) private_log("ERROR: %s\n", msg); //XXX
+   else private_log("ERROR: %s: %s\n", msg, strerror(errno)); //XXX
+@
+
+
+1.10
+log
+@Removed truncation of private log.
+@
+text
+@d9 1
+a9 1
+"$Id: cupspracc.c,v 1.9 2008/03/05 11:55:56 ujr Exp ujr $";
+d96 1
+a96 1
+int strsanecpy(char *dest, int size, const char *s);
+d191 1
+a191 1
+   strsanecpy(jobtitle, sizeof jobtitle, argv[3]);
+d399 2
+d410 1
+a410 1
+         log_info("Sent job file: %ld bytes, copy %d/%d", nbytes, i+1, copies);
+d443 1
+d453 2
+a454 1
+         if (select(devfd+1, &rfds, NULL, NULL, &timeout) > 0) {
+d456 1
+a456 1
+            if (n == 0) break; // end-of-file
+d458 9
+a467 1
+         else break; // error or timeout: silently give up
+d589 3
+d1003 6
+a1008 3
+ * Copy string s into dest, at most size-1 bytes, always
+ * terminate with NUL. Replace white space by underscores
+ * and non-printable characters by question marks.
+d1011 1
+a1011 1
+int strsanecpy(char *dest, int size, const char *s)
+d1016 5
+@
+
+
+1.9
+log
+@Try connecting forever... as the socket backend does it!
+@
+text
+@d9 1
+a9 1
+"$Id: cupspracc.c,v 1.8 2008/02/12 22:51:47 ujr Exp ujr $";
+a188 16
+#if 0
+{ // XXX DEBUG
+   int c;
+   FILE *fptmp = fopen("/tmp/pracc.job", "w");
+   if (!fptmp) return CUPS_BACKEND_STOP;
+   FILE *fpin = fdopen(jobfd, "r");
+   if (!fpin) return CUPS_BACKEND_STOP;
+   while ((c = getc(fpin)) != EOF) putc(c, fptmp);
+   fclose(fptmp);
+
+   fptmp = fopen("/tmp/pracc.job", "r");
+   if (!fptmp) return CUPS_BACKEND_STOP;
+   copies = 1; jobfd = fileno(fptmp);
+}
+#endif
+
+d234 1
+a234 1
+         die(CUPS_BACKEND_STOP, "invalid job user name");
+d1182 1
+d1187 1
+@
+
+
+1.8
+log
+@Hacked in code for an external scanner. Buggy.
+@
+text
+@d9 1
+a9 1
+"$Id: cupspracc.c,v 1.7 2008/02/12 18:37:13 ujr Exp ujr $";
+d39 1
+a64 1
+const char *scanner = 0;       // external job scan program
+d73 1
+a85 15
+/* The job scanner */
+
+//extern long jobpages; // job page estimate, -1 if unknown
+//extern void jobscan(const char *buf, unsigned len);
+
+int jobscan_init(const char *prog, int *jswfd, int *jsrfd);
+void jobscan_read(const char *buf, unsigned len);
+void jobscan_done(void);
+
+long jobpages;
+int jsdone;
+int jswfd = -1;
+int jsrfd = -1;
+pid_t jspid;
+
+d99 1
+d185 1
+a185 2
+         "Usage: %s job-id user title copies options [file]\n",
+         argv[0]);
+a241 11
+   /*
+    * Launch the specified job scanner (if any):
+    * this external program scans the print job while it is
+    * sent to the printer, trying to figure out how many
+    * pages this job causes to be printed...
+    */
+
+   if (scanner && (jobscan_init(scanner, &jswfd, &jsrfd) < 0))
+      die(CUPS_BACKEND_FAILED, "cannot start job scanner %s", scanner);
+   log_debug("Job scanner %s pid %d w %d r %d", scanner, jspid, jswfd, jsrfd);
+
+d256 1
+a256 1
+         if (errno == ENOENT) {
+d339 1
+a339 3
+          * The CUPS backends are required to do this forever...
+          * Here I repeat some times and then STOP the queue,
+	  * prompting for the administrator's attention.
+d350 7
+a356 6
+         delay += 5;
+         if (delay > 60) {
+            log_state("-connecting-to-device");
+            log_error("giving up, stopping queue");
+            return CUPS_BACKEND_STOP;
+         }
+d385 1
+a385 1
+   if (jobfd == 0) // stdin
+a431 2
+      int printer_done = 0;
+      int scanner_done = (scanner == 0);
+a454 1
+         int maxfd;
+a456 1
+         ssize_t n;
+d462 1
+a462 3
+         if (!printer_done) FD_SET(devfd, &rfds);
+         if (!scanner_done) FD_SET(jsrfd, &rfds);
+         maxfd = (jsrfd > devfd) ? jsrfd : devfd;
+d466 4
+a469 4
+         if (select(maxfd+1, &rfds, NULL, NULL, &timeout) > 0) {
+//            int n = read(devfd, readbuf, sizeof readbuf);
+//            if (n == 0) break; // end-of-file
+//            if (n > 0) parseinput(readbuf, n);
+d473 8
+a480 5
+         /* Something from the job scanner? */
+         if (FD_ISSET(jsrfd, &rfds)) {
+            n = read(jsrfd, buf, sizeof(buf));
+            if (n > 0) jobscan_read(buf, n);
+            else if (n == 0) scanner_done = 1;
+d482 1
+a482 22
+
+         /* Something from the printer? */
+         if (FD_ISSET(devfd, &rfds)) {
+            n = read(devfd, buf, sizeof(buf));
+            if (n > 0) {
+               parseinput(buf, n);
+
+               if (acctmode == POSTSCRIPT) {
+                  if (pcpending && (pages == lastpages)) break;
+                  log_info("Pages printed: %d", pages);
+                  for (i = pcpause; i > 0; i = sleep(i));
+                  if (pscount(devfd, cookie) < 0)
+                     die(CUPS_BACKEND_FAILED, "pscount");
+                  lastpages = pages;
+                  pcpending = 0;
+               }
+               else if (pjlstate == PJLDONE) break;
+            }
+            else if (n == 0) printer_done = 1;
+         }
+
+         if (printer_done && scanner_done) break;
+a487 2
+   if (scanner) jobscan_done(); // term & wait
+
+d490 1
+a490 1
+      // because the connection may already by dead by now.
+d551 1
+a551 2
+   char *bufptr2 = buffer;
+   long bytes = 0, bytes2 = 0, total = 0;
+d553 1
+a566 1
+      FD_SET(jsrfd, &rfds); ///
+a570 2
+      if (bytes2 > 0) ///
+         FD_SET(jswfd, &wfds); ///
+a595 9
+      if (FD_ISSET(jsrfd, &rfds)) {
+         ssize_t n;
+         char sbuf[1024];
+         if ((n = read(jsrfd, sbuf, sizeof(sbuf))) > 0) {
+            jobscan_read(sbuf, n);
+         }
+         else /* ignore errors */ ;
+      }
+
+d598 3
+a600 7
+      if ((bytes == 0) && (bytes2 == 0) && FD_ISSET(jobfd, &rfds)) {
+         ssize_t n = read(jobfd, buffer, sizeof buffer);
+         if (n > 0) {
+            //jobscan(buffer, n); ///
+            bytes = n;
+            bytes2 = n; ///
+         }
+d610 1
+d612 3
+a614 15
+         bufptr2 = buffer; ///
+      }
+
+      /* Write job data to scanner */
+
+      if (FD_ISSET(jswfd, &wfds) && (bytes2 > 0) && scanner) {
+         log_debug("Writing %ld bytes to scanner...", bytes2);
+         ssize_t n = write(jswfd, bufptr2, bytes2);
+         if (n < 0) {
+            log_error("cannot write to job scanner: %s", strerror(errno));
+            return -1;
+         }
+         else {
+            bytes2 -= n;
+            bufptr2 += n;
+d616 1
+a621 1
+         log_debug("Writing %ld bytes to printer...", bytes);
+d665 37
+a969 3
+         else if (!strcasecmp(name, "scanner")) {
+            scanner = value;
+         }
+a1179 72
+/*
+ * Job scanning: an external program can be invoked to scan
+ * the print job as it is sent to the printer, figure out
+ * how many pages are in the job, and report this back.
+ * The result will be stored in the jobpages global variable.
+ */
+int jobscan_init(const char *prog, int *jswfd, int *jsrfd)
+{
+   char *args[2], *envs[1];
+   int rfds[2], wfds[2], pid;
+
+   if (pipe(rfds) < 0) return -1;
+   if (pipe(wfds) < 0) return -1;
+   if ((pid = fork()) < 0) return -1;
+
+   if (pid == 0) { // child
+      if (close(devfd) < 0) die(111, "close devfd failed");
+      if (dup2(wfds[0], 0) < 0) die(111, "dup2 failed");
+      if (dup2(rfds[1], 1) < 0) die(111, "dup2 failed");
+//      if (dup2(wfds[0], 3) < 0) exit(111); // dup away
+//      if (dup2(rfds[1], 4) < 0) exit(111); // dup away
+//      close(0); if (dup(3) < 0) exit(111); // become stdin
+//      close(1); if (dup(4) < 0) exit(111); // become stdout
+      /* leave stderr (fd 2) as is: to the CUPS scheduler */
+//      close(3); close(4); close(5); close(6); close(7); // hack
+
+      args[0] = (char *) prog;
+      args[1] = (char *) 0; // no arguments (except prog name)
+      envs[0] = (char *) 0; // empty environment...
+      fprintf(stderr, "ERROR: execve %s...\n", prog);
+      execve(prog, args, envs);
+      fprintf(stderr, "ERROR: execve %s failed\n", prog);
+      exit(111); // exec failed
+   }
+
+   assert(pid > 0); // we're the parent
+
+   close(rfds[1]);
+   close(wfds[0]);
+   if (jswfd) *jswfd = wfds[1];
+   if (jsrfd) *jsrfd = rfds[0];
+
+   jsdone = 0;
+   return jspid = pid;
+}
+
+void jobscan_read(const char *buf, unsigned len)
+{
+   long value = 0;
+   int i = 0;
+
+   if (!jsdone && buf && (len > 0)) {
+      while (i < len) {
+         register char c;
+         c = (unsigned long) (buf[i] - '0');
+         if (c > 9) break;
+         value = 10 * value + c;
+         ++i;
+      }
+      if (i > 0) jobpages = value;
+      jsdone = 1;
+   }
+}
+
+void jobscan_done(void)
+{
+   close(jsrfd); jsrfd = -1;
+   close(jswfd); jswfd = -1;
+   kill(jspid, SIGKILL);
+   waitpid(jspid, 0, 0);
+}
+
+d1183 1
+a1183 1
+
+a1184 1
+   va_start(ap, fmt);
+d1186 2
+a1187 1
+   if (!logfp) {
+d1189 7
+a1195 3
+      mode_t old = umask(0022);
+      logfp = fopen("/tmp/cupspracc.log", "a");
+      (void) umask(old); // restore
+a1196 1
+      //private_log("private log fd = %d\n", fileno(logfp));
+d1204 7
+a1210 5
+   fprintf(logfp, "Jid%d: ", jobid); // tag
+   vfprintf(logfp, fmt, ap);
+   fflush(logfp);
+
+   va_end(ap);
+d1229 1
+a1229 2
+   fprintf(stderr, "DEBUG: %s\n", msg);
+   private_log("INFO: %s\n", msg); //XXX
+d1315 1
+d1320 1
+a1320 1
+   vsnprintf(msg, sizeof msg, fmt, ap);
+d1322 1
+a1322 1
+   if (errno == 0) fprintf(stderr, "ERROR: %s\n", msg);
+d1324 1
+a1324 1
+   if (errno == 0) private_log("ERROR: %s\n", msg); //XXX
+@
+
+
+1.7
+log
+@*** empty log message ***
+@
+text
+@d9 1
+a9 1
+"$Id: cupspracc.c,v 1.6 2008/02/06 21:50:17 ujr Exp ujr $";
+d20 1
+d87 12
+a98 2
+extern long jobpages; // job page estimate, -1 if unknown
+extern void jobscan(const char *buf, unsigned len);
+d192 2
+d222 1
+d256 11
+a271 4
+      jobpages = -1; // Alternatively, try getting it from
+                     // the media-sheets job attribute, but
+                     // this is rarely set so not worth...
+
+d458 3
+d483 1
+d485 2
+a486 1
+         char readbuf[1024];
+d488 1
+a488 1
+         if (fdnonblock(devfd) < 0) // want non-blocking printer i/o
+d492 3
+a494 1
+         FD_SET(devfd, &rfds);
+d498 4
+a501 4
+         if (select(devfd+1, &rfds, NULL, NULL, &timeout) > 0) {
+            int n = read(devfd, readbuf, sizeof readbuf);
+            if (n == 0) break; // end-of-file
+            if (n > 0) parseinput(readbuf, n);
+d505 25
+a529 9
+         /* PostScript: wait for "true" end-of-job */
+         if (acctmode == POSTSCRIPT) {
+            if (pcpending && (pages == lastpages)) break;
+            log_info("Pages printed: %d", pages);
+            for (i = pcpause; i > 0; i = sleep(i));
+            if (pscount(devfd, cookie) < 0)
+               die(CUPS_BACKEND_FAILED, "pscount");
+            lastpages = pages;
+            pcpending = 0;
+d531 2
+a532 2
+         /* PJL: wait for parser to see our EOJ */
+         else if (pjlstate == PJLDONE) break;
+d538 2
+d603 2
+a604 1
+   long bytes = 0, total = 0;
+d619 1
+d624 2
+d643 13
+a655 4
+         char readbuf[1024];
+         if ((n = read(devfd, readbuf, sizeof readbuf)) > 0) {
+            parseinput(readbuf, (int) n);
+            cupsBackChannelWrite(readbuf, n, 1.0);
+d662 1
+a662 1
+      if ((bytes == 0) && FD_ISSET(jobfd, &rfds)) {
+d665 1
+a665 1
+            jobscan(buffer, n);
+d667 1
+d679 16
+d700 1
+d1225 72
+@
+
+
+1.6
+log
+@Using new pracc API functions
+@
+text
+@d9 1
+a9 1
+"$Id: cupspracc.c,v 1.5 2008/02/01 12:06:10 ujr Exp ujr $";
+d38 1
+a38 1
+#define DEFLT_WAITEOF 180 /* 3 minutes */
+d63 1
+d935 3
+@
+
+
+1.5
+log
+@Changed to use new pracc API functions.
+@
+text
+@d9 1
+a9 1
+"$Id: cupspracc.c,v 1.4 2008/01/21 09:48:32 ujr Exp ujr $";
+a1140 1
+log_debug("jobBillingString={%s}", jobBillingString);
+@
+
+
+1.4
+log
+@*** empty log message ***
+@
+text
+@d9 1
+a9 1
+"$Id: cupspracc.c,v 1.3 2008/01/18 09:23:46 ujr Exp ujr $";
+d18 1
+d30 1
+a30 1
+#include "taistamp.h"
+d43 5
+a47 4
+typedef enum {
+   NONE = 0,
+   POSTSCRIPT = 1,
+   PJL = 2
+d50 7
+d74 1
+a74 1
+int pjldone = 0;               // 1 if PJL job is finished
+d125 6
+a130 7
+   const char *devuri;  // printer's device URI
+   int copies;
+   char buf[256];       // general-purpose buffer
+   int i;               // all-purpose counter
+
+   http_addrlist_t *addrlist;
+   http_addrlist_t *connaddr;
+d143 1
+a143 1
+      die(CUPS_BACKEND_FAILED, "cannot ignore SIGPIPE");
+d145 1
+a145 1
+      die(CUPS_BACKEND_FAILED, "cannot catch SIGINT");
+d147 1
+a147 1
+      die(CUPS_BACKEND_FAILED, "cannot catch SIGQUIT");
+d149 1
+a149 1
+      die(CUPS_BACKEND_FAILED, "cannot catch SIGTERM");
+d173 1
+a173 1
+   case 6:
+d177 2
+a178 3
+   case 7: // print specified file
+      jobfd = open(argv[6], O_RDONLY);
+      if (jobfd < 0)
+d189 16
+d234 2
+a235 2
+   log_debug("Arguments: %d \"%s\" \"%s\" %d \"%s\"",
+      jobid, jobuser, jobtitle, copies, argv[5]);
+d238 2
+d246 4
+d251 2
+a252 2
+      if (praccname(acctname) < 0) acctname = jobuser;
+      if (praccname(acctname) < 0) // give up
+d255 2
+a256 1
+      jobpages = -1; // unknown (later, try using job attrs)
+d258 24
+a281 3
+      log_debug("praccaccess: jobuser %s account %s uid %d:%d gid %d:%d",
+             jobuser, acctname, getuid(), geteuid(), getgid(), getegid());
+      checkaccess(jobuser, acctname); // die if access denied
+d283 2
+a284 2
+      switch (praccread(acctname, &balance, &limit)) {
+      char s[16]; // weird but legal...
+d286 1
+a286 1
+         acctname = DEFLTACCT; // try default account
+d291 3
+a293 3
+         if (limit <= UNLIMITED) strcpy(s, "none");
+         else sprintf(s, "%ld", limit);
+         log_info("account %s: balance %ld limit %s", acctname, balance, s);
+d297 1
+a297 2
+            log_info("account %s: insufficient funds", acctname);
+            //praccwrite(acctname, '!', -1, "insufficient funds");
+d301 1
+a301 1
+      default: // I/O error
+d305 1
+d401 1
+d406 3
+a408 1
+      if (pjlecho(devfd, cookie)) // UEL@@PJL ECHO cookie
+d410 1
+a410 1
+      if (pjlcount(devfd)) // UEL@@PJL INFO PAGECOUNT
+d414 1
+d422 1
+a422 1
+      if (jobfd != 0) // not stdin = raw printing
+d436 1
+a436 1
+      log_debug("Print job sent; waiting for printer to finish...");
+a441 1
+         pjldone = 0;
+a447 1
+         pcpending = 0;
+a471 1
+            if (n > 0) log_debug("waiting: got %d bytes from printer", n);
+a475 3
+         /* PJL: break if parser got EOJ */
+         if (pjldone && (acctmode == PJL)) break;
+
+d486 2
+d494 4
+a497 4
+      if (pjloff(devfd)) // @@PJL USTATUSOFF
+         die(CUPS_BACKEND_FAILED, "pjloff");
+      if (pjluel(devfd))
+         die(CUPS_BACKEND_FAILED, "pjluel");
+d516 1
+a516 1
+         type = '?'; // pages unknown
+d520 1
+a520 1
+         type = '-'; // add debit record
+d526 3
+a528 6
+      log_info("account %s: %s", acctname, info);
+      log_debug("praccwrite %s: type %c amount %d (%s)",
+         acctname, type, amount, info);
+
+      if (praccwrite(acctname, type, amount, info) != 0) {
+         log_error("praccwrite %s failed", acctname);
+d541 1
+a593 1
+            log_debug("sendjob: got %d bytes from printer", (int) n);
+d675 2
+d684 1
+a684 3
+   default:
+      log_debug("Got %d bytes of unsolicited job output", len);
+      break;
+d720 15
+a739 2
+   static enum { INIT, SYNCED, INJOB, DONE } phase = INIT;
+
+d741 2
+a742 2
+      int t = pjlchar(*p++);
+      if (t) switch (t) {
+d744 5
+a748 4
+         log_debug("pjlinput: phase=%d COOKIE %ld", phase, pjl_cookie);
+         if (phase != INIT) break;
+         if (pjl_cookie != cookie) break;
+         phase = SYNCED;
+d751 3
+a753 2
+         log_debug("pjlinput: phase=%d PAGECOUNT %ld", phase, pjl_pagecount);
+         if (phase != SYNCED) break; // only in SYNCED phase!
+d757 3
+a759 2
+         log_debug("pjlinput: phase=%d JOB %ld", phase, pjl_jobnum);
+         if (phase != SYNCED) break;
+d761 1
+a761 2
+         // TODO: evtl set printer state/reason
+         phase = INJOB;
+d764 7
+a770 7
+         log_debug("pjlinput: phase=%d EOJ %ld %ld", phase,
+               pjl_jobnum, pjl_numpages);
+         if (phase != INJOB) break;
+         if (pjl_jobnum != jobid) break; // not our job
+         pages = pjl_numpages; // printed pages
+         pjldone = 1; // signal job as done
+         phase = DONE;
+d773 3
+a775 2
+         log_debug("pjlinput: phase=%d PAGE %ld", phase, pjl_curpage);
+         if (phase != INJOB) break;
+d809 1
+a809 1
+ *   print JID PRINTER PAGES JOBPAGES [JOBTITLE]
+d811 1
+a811 1
+ * where unknown values are represented by question marks.
+d821 1
+a821 1
+   p += (jobpages < 0) ? printc(p, '?') : printu(p, jobpages);
+d823 1
+a823 1
+   p += (pages < 0) ? printc(p, '?') : printu(p, pages);
+d843 1
+d845 1
+a845 1
+   char *p, *end;
+d854 2
+d857 2
+a858 2
+   end = buf + sizeof buf;
+   p += taistamp(p);
+d863 1
+a863 1
+   p += printsn(p, printer, end-p-1);
+d913 9
+a921 4
+            if (acctmode && waiteof <= 0)
+               waiteof = DEFLT_WAITEOF;
+            if (acctmode && pcpause <= 0)
+               pcpause = DEFLT_PCPAUSE;
+d948 1
+d991 2
+a992 3
+ * Control access to pracc files: call praccaccess() from
+ * the pracc API to check if the given user shall be granted
+ * access to the given account.
+d996 2
+a997 1
+ * feedback on invalid job-billing values), then quit.
+d1005 1
+a1005 1
+   result = praccaccess(username, acctname);
+d1007 2
+a1008 1
+      die(CUPS_BACKEND_FAILED, "praccaccess failed");
+d1011 1
+d1014 1
+a1014 1
+      (void) praccwrite(username, '!', -1, s);
+d1016 2
+a1017 2
+      die(CUPS_BACKEND_FAILED, "praccaccess(%s to %s) = DENY",
+      		username, acctname);
+d1020 1
+a1020 1
+   log_debug("praccaccess(%s to %s) = GRANT", username, acctname);
+d1141 1
+d1145 28
+d1189 2
+d1232 2
+d1244 1
+d1263 1
+d1281 1
+d1284 2
+@
+
+
+1.3
+log
+@*** empty log message ***
+@
+text
+@d9 1
+a9 1
+"$Id: cupspracc.c,v 1.2 2008/01/04 20:48:51 ujr Exp ujr $";
+d247 1
+a247 1
+            // TODO emit an "insufficient funds" job attribute!
+d465 1
+a465 1
+         type = '?'; // no pagecount info
+d920 1
+a920 1
+ * access to the given account. Die if access denied!
+d922 3
+a924 1
+ * XXX Consider/test CUPS_BACKEND_AUTH_REQUIRED
+d935 6
+a940 1
+   if (result > 0) // deny access to account
+d943 1
+@
+
+
+1.2
+log
+@*** empty log message ***
+@
+text
+@d9 1
+a9 1
+"$Id: cupspracc.c,v 1.1 2008/01/04 18:20:15 ujr Exp ujr $";
+d26 1
+d57 1
+a57 2
+const char *jobtitle;          // an alias for main's argv[3]
+long jobpages = -1;            // determined by parsing job data
+d67 3
+d74 5
+d81 3
+a83 3
+static void parseURI(const char *deviceURI);
+static mode parseMode(const char *value, mode deflt);
+static int parseOnOff(const char *value, int deflt);
+a87 1
+void scanjob(const char *buf, unsigned len);
+d89 1
+d101 9
+a109 7
+static void page(long number, long copies);       // PAGE: ...
+static void state(const char *fmt, ...);          // STATE: ...
+static void debug(const char *fmt, ...);          // DEBUG: ...
+static void notify(const char *fmt, ...);         // INFO: ...
+static void error(const char *fmt, ...);          // ERROR: ...
+static void die(int code, const char *fmt, ...);  // error & exit
+static void cancel(int signo);
+a115 2
+   int jobfd;           // print job
+   int devfd;           // printer's file descriptor
+d184 1
+a184 1
+   jobtitle = argv[3];
+d201 1
+a201 1
+      error("no device URI specified!");
+d210 2
+a211 2
+   debug("DeviceURI: %s", devuri);
+   debug("Arguments: %d \"%s\" \"%s\" %d \"%s\"",
+d213 1
+a213 1
+   debug("Parameter: acctmode=%d pagecost=%d waiteof=%d pcpause=%d",
+d219 8
+a226 1
+      long balance, limit; // only locally valid!
+d228 1
+a228 2
+      acctname = jobuser; // TODO use job-billing...
+      debug("praccaccess: jobuser %s account %s uid %d:%d gid %d:%d",
+d242 1
+a242 1
+         notify("account %s: balance %ld limit %s", acctname, balance, s);
+d246 1
+a246 1
+            notify("account %s: insufficient funds", acctname);
+d252 1
+a252 1
+         error("error reading account %s", acctname);
+d261 1
+a261 1
+      error("Cannot resolve %s", hostname);
+d265 2
+a266 2
+   debug("connecting to %s port %s...", hostname, portname);
+   state("+connecting-to-device");
+d284 1
+a284 1
+            notify("%s port %s: %s", hostname, portname, strerror(errno));
+d302 1
+a302 1
+         error("%s port %s", hostname, portname);
+d306 2
+a307 2
+            state("-connecting-to-device");
+            error("giving up, stopping queue");
+d311 1
+a311 1
+         notify("retrying in %d seconds", delay);
+d317 1
+a317 1
+   state("-connecting-to-device");
+d321 1
+a321 1
+      debug("connected to [%s]:%d (IPv6)",
+d327 1
+a327 1
+         debug("connected to %s:%d (IPv4)",
+d367 1
+a367 2
+      if (jobfd != 0) { // not stdin = raw printing
+         if (acctmode != PJL) page(1, 1);
+a368 1
+      }
+d373 1
+a373 1
+         notify("Sent job file: %ld bytes, copy %d/%d", nbytes, i+1, copies);
+d381 1
+a381 1
+      debug("Print job sent; waiting for printer to finish...");
+d419 1
+a419 1
+            if (n > 0) debug("waiting: received %d bytes from printer", n);
+d430 1
+a430 1
+            notify("Pages printed: %d", pages);
+d475 2
+a476 2
+      notify("account %s: %s", acctname, info);
+      debug("praccwrite %s: type %c amount %d (%s)",
+d480 1
+a480 1
+         error("praccwrite %s failed", acctname);
+d490 1
+a490 1
+      default: error("logpc failed"); break;
+d528 1
+a528 1
+         debug("sendjob: select failed: errno=%d", errno);
+d531 2
+a532 2
+            state("+offline-error");
+            notify("Printer is currently offline");
+d545 1
+a545 1
+            debug("sendjob: received %d bytes from printer", (int) n);
+d557 1
+a557 1
+            scanjob(buffer, n);
+d564 1
+a564 1
+               error("cannot read print job data");
+d579 2
+a580 2
+               error("Out of paper!");
+               state("+media-empty-error");
+d585 2
+a586 2
+               state("+offline-error");
+               notify("Printer is offline");
+d594 1
+a594 1
+               error("cannot write printer: %s", strerror(errno));
+d599 1
+a599 1
+               state("-media-empty-error");
+d603 2
+a604 2
+               state("-offline-error");
+               notify("Printer now online");
+d635 1
+a635 1
+      debug("Got %d bytes of unsolicited job output", len);
+d650 1
+a650 1
+            debug("psinput: PAGECOUNT %d", ps_pagecount);
+d657 1
+a657 1
+         else debug("psinput: got cookie %ld, expected %ld",
+d661 1
+a661 1
+         error("PrinterError: %s", ps_error);
+d665 1
+a665 1
+         error("Flushing: rest of job will be ignored");
+d683 1
+a683 1
+         debug("pjlinput: phase=%d COOKIE %ld", phase, pjl_cookie);
+d689 1
+a689 1
+         debug("pjlinput: phase=%d PAGECOUNT %ld", phase, pjl_pagecount);
+d694 1
+a694 1
+         debug("pjlinput: phase=%d JOB %ld", phase, pjl_jobnum);
+d701 1
+a701 1
+         debug("pjlinput: phase=%d EOJ %ld %ld", phase,
+d710 1
+a710 1
+         debug("pjlinput: phase=%d PAGE %ld", phase, pjl_curpage);
+d713 2
+a714 2
+         page(pages, 1); // tell the scheduler XXX
+         notify("Printed page %d", pjl_curpage);
+a720 15
+ * Scan print job data and try to figure out the number of
+ * virtual pages in the document. Store the current guess
+ * in the global variable jobpages.
+ *
+ * Note:
+ * All simple methods are just heuristics and so is this one.
+ *
+ * See pages.c for an example, handling PostScript DSC stuff.
+ */
+void scanjob(const char *buf, unsigned len)
+{
+   //fprintf(stderr, "scanjob: TODO\n"); // TODO
+}
+
+/*
+d725 3
+d736 1
+d757 2
+a759 2
+   p += printc(p, ' ');
+   p += (jobpages < 0) ? printc(p, '?') : printu(p, jobpages);
+d810 1
+a810 1
+static void parseURI(const char *deviceURI)
+d870 1
+a870 1
+static mode parseMode(const char *value, mode deflt)
+d883 1
+a883 1
+static int parseOnOff(const char *value, int deflt)
+d895 23
+d937 1
+a937 1
+   debug("praccaccess(%s to %s) = GRANT", username, acctname);
+d1009 53
+d1068 1
+a1068 1
+static void notify(const char *fmt, ...)
+d1091 1
+a1091 1
+static void page(long number, long copies)
+a1109 2
+ *
+ * XXX change to: state(const char *s) // varargs not needed!
+d1111 1
+a1111 1
+static void state(const char *fmt, ...)
+d1113 1
+a1113 9
+   char msg[256];
+
+   va_list ap;
+   va_start(ap, fmt);
+
+   vsnprintf(msg, sizeof msg, fmt, ap);
+   fprintf(stderr, "STATE: %s\n", msg);
+
+   va_end(ap);
+d1119 1
+a1119 1
+static void debug(const char *fmt, ...)
+d1136 1
+a1136 1
+static void error(const char *fmt, ...)
+d1155 1
+a1155 1
+static void die(int code, const char *fmt, ...)
+d1171 1
+a1171 1
+static void cancel(int signo)
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d8 2
+a9 2
+static char \
+rcsid[] = "$Id$";
+d449 1
+a449 1
+      jobpages *= copies; // XXX
+a450 3
+      amount = count * pagecost;
+
+      acctstr(info, sizeof info);
+d454 1
+a454 1
+         notify("account %s: error (%s)", acctname, info);
+d458 1
+a458 1
+         notify("account %s: debit %d (%s)", acctname, amount, info);
+d461 6
+d517 1
+d713 2
+a714 2
+ * Note: All simple methods are just heuristics and so is
+ *       this one.
+d987 3
+@

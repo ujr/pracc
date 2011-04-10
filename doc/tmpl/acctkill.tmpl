@@ -1,0 +1,31 @@
+<!-- Template for pracc.cgi/admin?op=delete -->
+<!-- Variables: TODO -->
+
+<h2>Delete Account</h2>
+
+{status?{status=ok?\
+<p class="success">Account <b>{acct} deleted</b></p>:\
+<p class="failure">Deletion failed: {error}</p>}:\
+
+<form method="POST" action="{SCRIPT}{PATH}">
+<input type="hidden" name="op" value="{op}">
+<table border="0" cellspacing="3"><tbody>
+<tr><td align="right">Account:</td>
+ <td>{acct?<b>{acct}</b> {gecos?({gecos}):}
+  <input type="hidden" name="acct" value="{acct}">:\
+  <a href="{SCRIPT}/accounts" class="btn">Choose</a>}</td></tr>
+<tr><td align="right">Confirm:</td>
+ <td><input type="checkbox" name="confirm" value="yes">
+  Yes, delete account {acct}</td></tr>
+<tr><td align="right">Reason:</td>
+ <td><input type="text" name="comment" value="{comment}">
+  (Optional)</td></tr>
+<tr><td></td>
+ <td><input type="submit" value="Delete Account"></td></tr>
+</tbody></table>
+</form>
+{error?<p class="failure">{error}</p>:}
+
+<hr>
+<p><b>Careful,</b> deleting an account cannot be undone.</p>}
+

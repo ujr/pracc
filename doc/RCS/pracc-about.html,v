@@ -1,0 +1,286 @@
+head	1.2;
+access;
+symbols;
+locks
+	ujr:1.2; strict;
+comment	@# @;
+
+
+1.2
+date	2008.04.05.17.07.32;	author ujr;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2008.01.17.16.28.26;	author ujr;	state Exp;
+branches;
+next	;
+
+
+desc
+@About the pracc system
+@
+
+
+1.2
+log
+@*** empty log message ***
+@
+text
+@<html><head><title>Printer Accounting</title>
+<style type="text/css">
+ body { margin:2pc }
+ h1, h2, h3 { font-family:sans-serif }
+ pre { margin:10px; padding:5px;
+       border:1px solid black; background-color:#ccc }
+</style>
+</head><body>
+
+<p><i>Written by Urs-Jakob R&uuml;etschi<br/>
+as part of the <b>pracc</b> project.</i></p>
+
+<h1>Printer Accounting</h1>
+
+<p>Printer accounting means to count who printed how much
+(and where and when). This information is useful for statistics
+and for charging printing costs to those who caused them.
+The unit of the counting is usually pages; some elaborate
+systems also include ink coverage.</p>
+
+<p>There are two principles for charging costs:</p>
+<ol>
+<li><b>Credit:</b> a user can always print but gets a bill
+ every once in a while; the bill could also go to the
+ organizational unit to which the user belongs.</li>
+<li><b>Debit:</b> a user can only print as long as there
+ is a minimal balance on some &quot;printing account&quot;,
+ if the account balance is below this value, printing is
+ denied.</li>
+</ol>
+<p>The debit principle is ideal for students, the credit
+principle is more appropriate for staff members.</p>
+
+<h2>The Pracc System</h2>
+
+<p>Pracc is the name of a collection of conventions and tools
+for printing with accounting. Specifically, pracc consists of</p>
+<ul>
+<li>a backend for CUPS (<a href="http://www.cups.org/">www.cups.org</a>)
+<li>a web interface for administration (called <i>pracc.cgi</i>),
+<li>a number of command-line tools for administration, and
+<li>a file format for the individual printing accounts.
+</ul>
+
+<p>Pracc maintains a <i>printing account</i> per user who is
+subject to printer accounting. Optionally, group accounts
+can also be created and used by pracc. Printing accounts are
+simple plain-text files, so-called <i>pracc files</i>. 
+For consistency, they should be modified only using the
+tools supplied with pracc. Each account works after the
+credit principle (unlimited printing) or the debit principle
+(printing only allowed until some minimal balance is reached).
+Accounts can be changed between the two billing principles.</p>
+
+<p>The CUPS backend replaces the standalone programs <i>netprint</i>
+and <i>print</i> of earlier versions. It sends print jobs to printers
+on the network using the &quot;AppSocket&quot; (aka &quot;JetDirect&quot;
+or &quot;Port 9100&quot;) protocol, which is supported by almost
+all network printers today. The backend only sends the print job
+if the job originator has enough credits. While printing,
+the backend tries to figure out how many pages are printed
+and charges the costs for those pages to the job originator's
+printing account.</p>
+
+<p>Details about pracc can be found in the following documents:</p>
+<ul>
+<li><a href="pracc-files.html">pracc files.html</a>:
+ the file format used to represent printing accounts</li>
+<li><a href="pracc-tools.html">pracc tools.html</a>:
+ command-line tools used to manipulate printing accounts</li>
+<li><a href="cupspracc.html">cupspracc.html</a>:
+ a page counting backend for CUPS</li>
+<li><a href="counting.html">counting.html</a>:
+ how pracc does pagecounting</li>
+<li><a href="lowlevel.html">lowlevel.html</a>:
+ documentation for the low-level support routines</li>
+<li><a href="praccapi.html">praccapi.html</a>:
+ documentation of pracc's C language API</li>
+<li><a href="security.html">security.html</a>:
+ the security concept of pracc</li>
+</ul>
+
+<h2>Technical Background on Printer Accounting</h2>
+
+<p>Printers have not been designed with accounting in mind.
+There is no standard protocol for sending print jobs
+to a printer <em>and</em> having the printer reply with the
+number of pages printed (or the amount of ink used).</p>
+
+<p>However, most printers can tell when it is time to replace
+the ink and how many pages they printed since having left the
+factory. The latter is implemented as a hardware register that
+is incremented for each page printed. It can be read using
+PostScript and/or PJL (but it cannot be changed other than
+by printing pages). This feature can be used for page counting.
+The PJL language, if supported by a printer, has a feature
+that reports the number of pages printed by a print job.</p>
+
+<p>Unfortunately, both methods of page counting have problems.
+When using PostScript to read the page counter there is no way
+of determining when a print job has finished printing. To work
+around this problem, the page counter is read repeatedly till
+it stabilises, but this tends to slow down printing.
+Further, timeout and network problems can afflict both methods
+by disrupting communication between host and printer before
+the final pagecount could be read. As a result, <b>printer
+accounting is never 100% accurate</b>. Bear this in mind.</p>
+
+<p>A problem specific to the &quot;debit&quot; approach to
+charging printing costs to users is that the resources used
+by a print job are available only after the job was printed,
+hence not at the time when we ought to decide whether or not
+this user should be allowed to print at all.</p>
+
+<p>So why not use a software to <b>count the pages in the print
+job?</b> Wouldn't that also fix the problems mentioned above?
+Commercial printer accounting solutions use this approach.
+But what seems to be a simple and obvious solution has
+serious problems: such software uses resources on
+the server (especially CPU cycles), is usually <u>easy to defeat</u>
+by the gifted user, is an <u>attractive way to break into a system</u>,
+and last but not least: the number of pages in a print job is
+not the number of pages actually printed. Since counting pages
+in a print job tends to count more pages than get printed
+(think of paper jams), you are bound to get complaints...</p>
+
+<p>My present implementation tries to determine both, the pages
+in the job and the pages actually printed, and uses whatever
+information is available when billing an account.</p>
+
+<div align="right"><i>ujr/2008-01-17</i></div>
+</body></html><!-- started December 2005 -->
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d17 3
+a19 4
+and for charging printing costs tho those who caused them.
+Several ways of measuring <i>how much</i> someone printed
+are conceivable, but counting <i>pages</i> is useful and
+commonly done.</p>
+d31 2
+a32 3
+<p>The first way of charging is ideal for people such
+as students, the second way is more appropriate for
+the staff of a company or school.</p>
+d36 8
+a43 6
+<p>Pracc names a collection of conventions and tools for printing
+with accounting. Specifically, it consists of a backend for CUPS
+(<a href="http://www.cups.org/">www.cups.org</a>) and a number of
+tools for maintaining printer accounts. The CUPS backend replaces
+the standalone programs <i>netprint</i> and <i>print</i> of earlier
+versions.</p>
+d47 4
+a50 4
+can also be created and used by pracc. These accounts are
+simple plain-text files, so-called <i>pracc files</i>, but
+they should only be modified using the tools supplied with
+pracc to ensure consistency. Each account works after the
+d55 5
+a59 11
+<ul>
+<li><a href="pracc-files.html"><b>pracc files</b></a>:
+ the file format used to represent printing accounts</li>
+<li><a href="pracc-tools.html"><b>pracc tools</b></a>:
+ the tools used to manipulate printing accounts</li>
+</ul>
+
+<p>The CUPS backend sends print jobs to to networked printers
+using the &quot;AppSocket&quot; (aka &quot;JetDirect&quot; or
+&quot;Port 9100&quot;) protocol, which is supported by most
+networked printers. The backend only sends the print job
+d62 1
+a62 1
+and charges the costs for those pages to the originator's
+d65 1
+d67 5
+a71 1
+<li><a href="cupspracc.html"><b>cupspracc</b></a>:
+d77 4
+a80 13
+</ul>
+
+<p>Pracc files and tools were designed to be easy to use
+in scripts and other programs such as web applications.
+Currently, three scripts are supplied with pracc and are
+in daily use at PHZ Luzern:</p>
+<ul>
+<li><a href="pracc-admin.html"><b>pracc-admin.pl</b></a>:
+ administration tool (for admins) (TODO)</li>
+<li><a href="pracc-report.html"><b>pracc-report.pl</b></a>:
+ shows account statements (for users)</li>
+<li>pracc-credit.pl:
+ add printing credits to an account</li>
+d86 1
+a86 1
+There is no standard and open protocol for sending print jobs
+d88 1
+a88 2
+number of pages printed (or the amount of ink used - but we
+will stick with page counting here).</p>
+d91 1
+a91 1
+the ink and how may pages they printed since having left the
+d102 2
+a103 2
+around this problem, the page counter till it stabilises, but
+this tends to massively slowing down printing.
+d119 1
+a119 1
+a whole bunch of problems: such software uses resources on
+d121 1
+a121 1
+by the gifted user, is <u>an attractive way to break into a system</u>,
+a130 35
+<h2>Using Pracc with CUPS and Samba</h2>
+
+<p>TODO</p>
+<p>It is useful to understand how printing with Samba works
+ (we assume <tt>printing = lprng</tt> in <i>smb.conf</i>;
+ printing with CUPS is different). When a user on a Samba
+ client prints a document, these actions are performed:</p>
+<ol>
+<li>Printer driver converts the document to a print job.
+ If a PostScript driver is used, the print job is a PostScript
+ file. If a PCL driver is used, the print job is PCL code,
+ wrapped in some PJL code.
+<li>The print job is copied to a spool directory on the
+ Samba server.
+<li>Samba invokes a program to send the spooled print job
+ to the printer.
+</ol>
+<p>To use pracc with Samba, specify pracc's <i>print</i>
+ program as the <b>print command</b> in <i>smb.conf</i>
+ and tell it where (printer) and what (job) to print:</p>
+<pre>print command = print %p %s &amp;&amp; rm %s</pre>
+<p>Since pracc's print command does not delete print jobs
+ after printing, we do this ourselves with <i>rm</i>, but
+ only if printing was succesful. If printing failed, an
+ administrator still has the job file around for analysis.
+ To prevent the file system from filling with failed print
+ jobs, we remove them every night with a simple cron job:</p>
+<pre>0 1 * * *  root  rm /var/spool/printjobs/*</pre>
+<p>While we are at it, note that the Windows Firewall causes
+ troubles with printing: Samba wants to open a connection
+ back to the client (that's weird but by Microsoft's design)
+ to push asynchronous status information about the queue.
+ The firewall in its standard configuration prohibits this.
+ As a result, printing won't work.</p>
+
+@

@@ -1,0 +1,62 @@
+<!-- Template for pracc.cgi/logs/pracclog -->
+<!-- Variables besides the standard ones: TODO -->
+
+{undefined?:\
+<script language="JavaScript" type="text/javascript">
+{;periodChanged.js}</script>}
+
+<h2>Accounting Log</h2>
+
+<form method="POST" action="{SCRIPT}/logs/pracc">
+<table border="0" cellpadding="3" cellspacing="0"><tbody>
+<tr><td align="right">Period:</td>{period?:{period=thismonth}}
+ <td><select name="period" size="1" id="period" onchange="periodChanged()">
+  <option value="" {period=?selected:}>Custom</option>
+  <option value="today" {period=today?selected:}>Today</option>
+  <option value="thisweek" {period=thisweek?selected:}>This Week</option>
+  <option value="thismonth" {period=thismonth?selected:}>This Month</option>
+  <option value="thisyear" {period=thisyear?selected:}>This Year</option>
+  <option value="lastmonth" {period=lastmonth?selected:}>Last Month</option>
+  <option value="lastyear" {period=lastyear?selected:}>Last Year</option>
+  <option value="all" {period=all?selected:}>All time</option>
+ </select></td><td></td></tr> 
+<tr><td align="right">From:</td>
+ <td><input type="text" name="tmin" value="{tmin}" id="tmin" size="15"></td>
+ <td>Format: <i>yyyy-mm-dd</i></td></tr>
+<tr><td align="right">Until:</td>
+ <td><input type="text" name="tmax" value="{tmax}" id="tmax" size="15"></td>
+ <td>Format: <i>yyyy-mm-dd</i></td></tr>
+<tr><td align="right">Account/s:</td>
+ <td><input type="text" name="filter" value="{filter}" size="15"></td>
+ <td>You may use wildcards <b>*</b> and <b>?</b></td></tr>
+<tr><td align="right">Type/s:</td>
+ <td><input type="text" name="types" value="{types}" size="15"></td>
+ <td>Enter <b>c</b> for credits only, leave blank for all types</td></tr>
+ <!--Nice-to-have: Checkboxes and JS to fill a hidden "types" field -->
+ <!--Types: init, credit, debit, reset, limit, note, error, purge, delete -->
+ <!--Each letter in types represents a record type: i c d r l n e p x -->
+<tr><td></td>
+ <td><input type="submit" value="Show Log"></td>
+ <td><input type="radio" name="format" value="html" checked="checked">as HTML
+  <input type="radio" name="format" value="csv">as CSV (Excel)</td></tr>
+</tbody></table></form>
+
+{undefined?:\
+<script language="JavaScript" type="text/javascript">
+ periodChanged();
+</script>}
+
+<!--Note: with pracclog, NR is known only afterwards-->
+<table border="0" cellpadding="3" cellspacing="2" class="listtbl"><tbody>
+<tr><th>#</th><th>Date</th><th>Time</th>
+ <th>User</th><th>Account</th><th>Action</th></tr>
+{pracclog#<tr><td align="right">{#}</td>
+ <td>{year}-{month}-{day}</td>
+ <td>{time}</td>
+ <td>{user}</td>
+ <td>{acct}</td> 
+ <td>{info}</td></tr>}
+</tbody></table>
+<p><b>{NR>0?{NR}:No}</b> {NR=1?entry:entries} found.
+ {NR>0?:Try using <b>*</b> in the account specification
+ or extending the date range (from/until).}</p>

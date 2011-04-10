@@ -1,0 +1,217 @@
+<html>
+<head>
+<title>Pracc API Documentation</title>
+<style type="text/css">
+ body { margin:2pc }
+ pre { margin:10px; padding:5px;
+       border:1px solid black; background-color:#ccc }
+ h1,h2,h3 { font-family: sans-serif }
+</style>
+</head>
+<body>
+
+<p><i>Written by Urs-Jakob R&uuml;etschi<br/>
+as part of the <b>pracc</b> project.</i></p>
+
+<h1>Pracc API Documentation</h1>
+
+<p>The pracc API is a set of functions for interfacing
+pracc files. They are used by all pracc tools and by the
+pracc CUPS backend. To use any of these functions, include
+the <i>pracc.h</i> header.</p>
+
+<p>Unless otherwise noted, all pracc API functions return
+<b>0</b> if successful and <b>-1</b> on error (with <i>errno</i>
+set to an indicative error value).</p>
+
+<p>Unless otherwise noted, each function <i>x</i> is contained
+in the <i>x</i>.c source file.</p>
+
+<pre>
+int <b>praccCreate</b>(const char *<i>acctname</i>, long <i>balance</i>, long <i>limit</i>, const char *<i>comment</i>, int <i>overwrite</i>);
+int <b>praccDelete</b>(const char *<i>acctname</i>);
+int <b>praccAppend</b>(const char *<i>acctname</i>, int <i>type</i>, long <i>value</i>, const char *<i>username</i>, const char *<i>comment</i>);
+int <b>praccSum</b>(const char *<i>acctname</i>, long *<i>balance</i>, long *<i>limit</i>, long *<i>credits</i>, long *<i>debits</i>, time_t *<i>lastused</i>);
+int <b>praccSumRange</b>(const char *<i>acctname</i>, time_t <i>tmin</i>, time_t <i>tmax</i>,
+  long *<i>balance</i>, long *<i>limit</i>, long *<i>credits</i>, long *<i>debits</i>, time_t *<i>lastused</i>);
+int <b>praccPurge</b>(const char *<i>acctname</i>, struct tai *<i>tx</i>, int <i>keepresets</i>, int <i>keeplimits</i>, int <i>keepnotes</i>, int <i>doit</i>, const char *<i>fntmp</i>);
+int <b>praccGrant</b>(const char *<i>acctname</i>, const char *<i>username</i>);
+</pre>
+
+<p>Function <b>praccCreate</b>() creates a pracc file for <i>acctname</i>
+with initial balance <i>balance</i> and initial limit <i>limit</i> and
+the optional comment string <i>comment</i>. If <i>overwrite</i> is true,
+an existing pracc file will be overwritten; otherwise an existing pracc
+file of the same name remains unchanged and is flagged as EEXIST error.</p>
+
+<p>Function <b>praccDelete</b>() deletes the pracc file for the
+account <i>acctname</i>.</p>
+
+<p>Function <b>praccAppend</b>() adds a record to the pracc file for
+<i>acctname</i>. The record is of the given <i>type</i> (<b>+</b> credit
+non-negative <i>value</i>, <b>-</b> debit non-negative <i>value</i>,
+<b>=</b> reset the account's balance to the given <i>value</i>,
+<b>$</b> set the account's limit to <i>value</i> or minus infinity
+if <i>value</i>=<tt>UNLIMITED</tt>, <b>!</b> add an error message,
+and <b>#</b> add a note) and includes the optional <i>comment</i>
+string. The <i>username</i> is mandatory and names the user that
+performed the action.</p>
+
+<p>Function <b>praccSum</b>() reads the pracc file for <i>acctname</i>,
+sums up all records and stores account information into the locations
+provided. Returns <b>0</b> if successful and <b>-1</b> on error
+with <i>errno</i> set.</p>
+
+<p>Function <b>praccSumRange</b>() is like praccSum() but restricts
+summation to the given time range. The returned balance and limit are
+those at the end of the specified range and the returned credits and
+debits are the sums within the specified range.</p>
+
+<p>Function <b>praccGrant</b>() checks if user <i>username</i> should
+be given access to account <i>acctname</i>. This function assumes that
+<i>username</i> has been authenticated! Return <b>0</b> if access
+should be granted, <b>1</b> if access should be denied, and <b>-1</b>
+if there was an error (in this case, <i>errno</i> gives details about
+the error).</p>
+
+<p>Function <b>praccPurge</b>() is not yet implemented.</p>
+
+<h3>Reading pracc files</h3>
+
+<p>The source file <i>praccRead.c</i> contains routines for reading
+sequentially through a pracc file, record-by-record. A pracc file
+entry is represented by a <tt>struct praccbuf</tt> (which also
+contains information about the connection to the pracc file):</p>
+
+<pre>
+int <i>type</i>;                // debit, credit, limit, etc.
+long <i>value</i>;              // associated value
+struct tai <i>taistamp</i>;     // timestamp of record entry
+char <i>username</i>[MAXNAME];  // user who created the record
+char <i>comment</i>[MAXNAME];   // record's comment field
+long <i>lineno</i>;
+const char *<i>fn</i>;
+FILE *<i>fp</i>;  /* <em>private</em> */
+</pre>
+
+<pre>
+int <b>praccOpen</b>(const char *<i>acctname</i>, struct praccbuf *<i>pracc</i>);
+int <b>praccRead</b>(struct praccbuf *<i>pracc</i>);
+int <b>praccClose</b>(struct praccbuf *<i>pracc</i>);
+</pre>
+
+<p>Use <b>praccOpen</b>() to connect initialise a given struct praccbuf
+for subsequent record reading from a given pracc file. Then, use
+<b>praccRead</b>() to read one record per call into the given struct
+praccbuf. When done, use <b>praccClose</b>() to close the pracc file.</p>
+
+<p>Note that <b>praccRead</b>() returns <b>1</b> if a record was
+successfully read, <b>0</b> if the end-of-file was encountered,
+and <b>-1</b> on any other error.</p>
+
+<h3>The pracc log file</h3>
+
+<p>All changes to pracc files, except those done by regular
+printing, should be noted in the common log file <i>pracc.log</i>
+using the <b>praccLogup</b>() function. It takes three arguments,
+the name of the user who did the change, the name of the account,
+upon which the change is done, and a description of the change.
+All three arguments are C strings.</p>
+
+<pre>
+int <b>praccLogup</b>(const char *<i>username</i>, const char *<i>acctname</i>, const char *<i>info</i>);
+</pre>
+
+<p>The source file <i>praccLogRead.c</i> contains routines
+for reading the common pracc log file record-by-record.
+The common pracc log records (<i>time, user, account, action</i>)
+tuples, stating which user acted at what time on which account.
+They are represented by a <tt>struct pracclog</tt> (which also
+represents the connection to the log file):</p>
+<pre>
+struct tai <i>taistamp</i>;
+char <i>username</i>[MAXNAME];
+char <i>acctname</i>[MAXNAME];
+char <i>intostr</i>[MAXNAME];
+long <i>lineno</i>;
+FILE *<i>fp</i>;  /* <em>private</em> */
+</pre>
+
+<pre>
+int <b>praccLogOpen</b>(struct pracclog *<i>logentry</i>);
+int <b>praccLogRead</b>(struct pracclog *<i>logentry</i>);
+int <b>praccLogClose</b>(struct pracclog *<i>logentry</i>);
+</pre>
+
+<p>Use <b>praccLogOpen</b>() to prepare the struct <b>pracclog</b>
+for subsequent calls to <b>praccLogRead</b>(), which reads one record
+per call. When done, use <b>praccLogClose</b>() to close the pracc log
+file. After a call to <b>praccLogRead</b>(), use the fields in the
+<b>pracclog</b> structure to access the log record's components.</p>
+
+<p>Note that <b>praccLogRead</b>() returns <b>1</b> if a record was
+successfully read, <b>0</b> if the end-of-file was encountered,
+and <b>-1</b> on any other error.</p>
+
+<h3>Miscellaneous</h3>
+
+<pre>
+char <b>praccAccountInfo</b>(const char *<i>acctname</i>, char *<i>buf</i>, int <i>size</i>);
+</pre>
+<p>Get information about the given account: its class and the owner's
+ full name (taken from the gecos field). The account's class is returned
+ as a single character: <b>P</b> personal account, <b>G</b> group account,
+ <b>D</b> the default account (as defined by <tt>PRACCDEFLT</tt> in
+ <i>pracc.h</i>), or <b>z</b> zombie account (no owner).
+ If the named account does not exist or if there is an error,
+ return <b>\0</b> with details in <i>errno</i>.</p>
+
+<pre>
+int <b>praccAssemble</b>(char *<i>buf</i>, int <i>type</i>, long <i>value</i>, struct tai *<i>taistamp</i>,
+  const char *<i>username</i>, const char *<i>comment</i>);
+</pre>
+<p>Assemble the individual fields of a pracc record as a pracc line
+ into the given buffer. The buffer must provide space for at least
+ <tt>MAXLINE</tt> characters. The <i>taistamp</i> and <i>username</i>
+ arguments must <em>not</em> be NULL. Return the number of characters
+ written to the buffer.</p>
+
+<pre>
+int <b>praccFormatInfo</b>(char *<i>buf</i>, const char *<i>info</i>, int <i>size</i>);
+int <b>praccFormatName</b>(char *<i>buf</i>, const char *<i>name</i>, int <i>size</i>);
+</pre>
+<p>Copy the given <i>info</i> string or user <i>name</i> into the given
+ buffer <i>buf</i>[<i>size</i>]. Only copy up to <i>size</i>-1 characters
+ or up to the first invalid character in the username. If the username
+ is truncated because the buffer is not large enough, this is flagged
+ with an exclamation mark.
+ Return the number of characters written to <i>buf</i>.</p>
+
+<pre>
+int <b>praccCheckName</b>(const char *<i>acctname</i>);
+</pre>
+<p>Check if the given <i>acctname</i> is a valid pracc account name.
+ Valid names consist of at most <tt>MAXNAME</tt> printable characters,
+ excluding blanks, slashes, and backslashes. Return <b>0</b> if valid,
+ <b>-1</b> if invalid.</p>
+
+<pre>
+char *<b>praccPath</b>(const char *<i>acctname</i>);
+</pre>
+<p>Return a pointer to an malloc(3)ed string that contains the full path
+ to the named account, or NULL if there is not enough memory to allocate
+ the string. It is the caller's responsibility to free this memory.</p>
+
+<pre>
+char *<b>praccTypeString</b>(char <i>type</i>);
+</pre>
+<p>Return a constant string describing the given pracc record <i>type</i>:
+ "debit" for <b>-</b>, "credit" for <b>+</b>, "reset" for <b>=</b>,
+ "limit" for <b>$</b>, "error" for <b>!</b>, and "note" for <b>#</b>.
+ For any other (unknown) <i>type</i>, NULL is returned.</p>
+
+<div><hr>
+Copyright (c) 2005-2008 by Urs-Jakob R&uuml;etschi</div>
+
+</body>
+</html>

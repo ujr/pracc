@@ -1,0 +1,121 @@
+<html><head><title>Anatomy of the Printing System</title>
+<link rel="stylesheet" type="text/css" href="pracc.css">
+<meta name="author" content="Urs-Jakob Ruetschi">
+</head><body><!-- hand-crafted html ;-) -->
+
+Urs-Jakob R&uuml;etschi<br>
+<a href="mailto:ujr@ict.pzm-luzern.ch">ujr@ict.pzm-luzern.ch</a>
+
+<h1>Anatomy of the Printing System</h1>
+
+<p>We need one special user:<br>
+ <b>pracc</b> to own accounting-related files (do <em>not</em> use lp)</p>
+<p>We need two special groups:<br>
+ <b>pracc</b> for accounting-related stuff (do <em>not</em> use lp)<br>
+ <b>print</b> to own printing-related stuff (you can use <b>lp</b>)</p>
+
+<p>All printing and accounting stuff is in <i>/var/print</i>
+ with one exception: <i>/etc/printers</i> is the config file.
+ It is useful if <i>/var/print/bin</i> is in your $PATH.</p>
+<pre>
+/var/print                     755 root:root    container for everything
+/var/print/bin                 775 root:root    print and pracc binaries
+/var/print/cgi                 775 root:root    web site, cgi scripts (optional)
+/var/print/doc                 775 root:root    print and pracc documentation
+/var/print/spool              1777 root:root    where Samba spools files
+&nbsp;
+/var/print/status             2775 root:print   printer log files (per printer)
+/var/print/status/PRINTER.log  660 root:print   log file for PRINTER
+&nbsp;
+/var/print/output             3775 root:print   print job output (per user)
+/var/print/output/USER.out     660 USER:print   prune (or divert to /dev/null)
+&nbsp;
+/var/print/pracc              2770 pracc:print  where pracc files reside
+/var/print/pracc/USER          660 pracc:print  pracc file for user USER
+/var/print/pracc.log           660 root:pracc   log of important pracc transactions
+</pre>
+
+<p>Samba stuff is located in <i>/var/samba</i>:</p>
+<pre>
+/var/samba                     775 root:root
+/var/samba/bin                 755 root:root    Samba-specific tools and scripts
+/var/samba/conf                775 root:root    Convenience: symlinks to Samba configs
+/var/samba/logs -&gt; /var/log/samba               Convenience: symlink to Samba logs
+/var/samba/shares              775 root:root    Samba shares:-
+/var/samba/shares/print$       775 root:Print Operators   \\server\print$ 
+/var/samba/shares/drivers     2775 root:Print Operators   \\server\drivers 
+</pre>
+<p>When Samba invokes the <i>print command</i>, it does so
+ as the user that is authenticated on that printer share.</p>
+
+<h3>Recurring Tasks</h3>
+<p>In principle, a print/pracc system does not need any recurring jobs.<br>
+ In practice, however, the following jobs may prove useful:</p>
+<pre>
+# <b>purge print spool queue</b>
+01 00 * * *  root  find /var/print/spool -exec rm '{}' \;
+&nbsp;
+# <b>kill pending connections: restart Samba</b>
+02 00 * * *  root  /etc/init.d/smb stop
+03 00 * * *  root  /etc/init.d/smb start
+&nbsp;
+# <b>set time</b> from a reliable time server
+04 00 * * *  root  /usr/sbin/ntpdate swisstime.ethz.ch &gt; /dev/null 2&gt;&amp;1
+&nbsp;
+# <b>correct permissions</b> (substitute <i>print</i>)
+# they are frequently forgotten on updates...
+05 * * * *  root  chgrp <i>print</i> /var/print/bin/print &amp;&amp; chmod 2775 /var/print/bin/print
+&nbsp;
+# <b>create monthly statements of printer usage etc</b>
+# 0 6 1 * *  root  /some/script/of/your/making
+# 5 6 1 * *  root  /another/script/you/provide
+</pre>
+
+<h3>Setting up Samba</h3>
+<p>By default, users have no account and this means free printing.
+ The most convenient way to create accounts is to use Samba's
+ <b>root preexec</b> feature:</p>
+<pre>root preexec = /var/print/bin/makepracc.sh %u</pre>
+<p>where <b>makepracc.sh</b> is a simple script that determines how much
+ initial credit and what limit a user <i>%u</i> should get and then creates
+ such an account using <a href="pracc-tools.html">pracc-init</a> with the
+ <b>-F</b> option.</p>
+<p>Printer shares should should look roughly like that:</p>
+<pre>[speedy-print]
+  comment = Our Speedy Printer
+  path = /var/print/spool
+  printable = yes
+  print command = /var/print/bin/print.sh %p %s
+  lpq command = /var/print/bin/pseudo-lpq.sh -P %p
+</pre>
+<p>where <b>print.sh</b> is a simple script, for example:</p>
+<pre>#!/bin/sh
+# To be used as Samba's <b>print command</b>: print the job,
+# remove it from disk if printing is successful, log everything
+# to <i>/tmp/print.log</i>, and do all that in the background.
+&nbsp;
+LOGFILE=/tmp/print.log
+PRINTER="$1"
+shift
+(/var/print/bin/print "$PRINTER" $* &amp;&amp; rm -f $*) &gt;&gt; $LOGFILE 2&gt;&amp;1 &amp;
+</pre>
+<p>There are many alternatives. You could generate a <i>/etc/printcap</i>
+ file and then use Samba's <b>load printers</b> feature. And if you don't
+ like the <b>print command</b> to be a script, you could simply use:</p>
+<pre>/var/print/bin/print %p %s &amp;&amp; rm -f %s</pre>
+
+<h3>Documentation</h3>
+<p>The printing system consists of a bunch of small software tools
+ that are documented individually:
+ <a href="../netprint/netprint.html">netprint</a> is the low-level
+ driver program that is invoked by <a href="print.html">print</a>
+ but is also useful individually, mainly for testing; print reads
+ its configuration from <i>/etc/printers</i>, but this config file
+ can also be inspected with <a href="printconf.html">printconf</a>.
+ Finally, accounting is done with the <a href="pracc-tools.html">
+ pracc tools</a> and makes use of <a href="pracc-files.html">pracc
+ files</a>. However, <a href="print.html">print</a> directly reads
+ and writes pracc files.</p>
+
+</body>
+</html>

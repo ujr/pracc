@@ -1,0 +1,28 @@
+1.2.0
+- TODO Auftrag PHZ: pages ins pc.log schreiben, GUI anpassen
+- TODO cupspracc: estimate(): jobscan gets more weight.
+- TODO cupspracc: don't truncate the pracc log file.
+- TODO Dokumentation anpassen.
+
+1.1.1
+Improvements and bugfixes, consistency:
+- daterange: renamed year => thisyear, month => thismonth, week => thisweek.
+- subst: default count = 99999 (instead of 10).
+- ui filters: no implicit asterisk appended (user must do so explicitly).
+- more code consistency in subst array processing
+- fold jobuser (argv[2]) nach lower case (we had upper case names at PHZ).
+
+1.1.0
+Added pracc.cgi, a web user interface for pracc administration.
+
+1.0.1
+Minor design changes to the backend and small bugfixes. 
+This version is the first beta release.
+
+1.0.0
+Pracc is now a backend for CUPS and supports group accounts
+(to implement billing codes). This version is in alpha state.
+
+** Add to the top of this file **
+The first line must contain only the current
+version number and is used in the Makefile.

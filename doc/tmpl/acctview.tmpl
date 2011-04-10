@@ -1,0 +1,72 @@
+<!-- Template for pracc.cgi/accounts/{acct} -->
+<!-- Variables: TODO -->
+
+{undefined?:\
+<script language="JavaScript" type="text/javascript">
+{;periodChanged.js}
+{;typeBoxes.js}</script>}
+
+<h2>Account {acct}{gecos? ({gecos}):}</h2>
+
+<p>This is account <b>{acct}</b>,
+ balance <b>{$balance}</b>,
+ limit <b>{$limit}</b>
+ <a class="btn" href="{SCRIPT}/admin?acct={acct}&op=edit">edit</a>
+ <a class="btn" href="{SCRIPT}/admin?acct={acct}&op=purge">purge</a>
+ <a class="btn" href="{SCRIPT}/admin?acct={acct}&op=delete">delete</a></p>
+
+{period?:{period=thismonth}}
+<form method="POST" action="{SCRIPT}/accounts/{acct}">
+<table border="0" cellpadding="2" cellspacing="2"><tbody>
+<tr><td align="right"><input type="submit" value="Show"></td>
+ <td><select name="period" size="1" id="period" onchange="periodChanged()">
+  <option value="" {period=?selected:}>Custom</option>
+  <option value="today" {period=today?selected:}>Today</option>
+  <option value="thisweek" {period=thisweek?selected:}>This Week</option>
+  <option value="thismonth" {period=thismonth?selected:}>This Month</option>
+  <option value="lastmonth" {period=lastmonth?selected:}>Last Month</option>
+  <option value="thisyear" {period=thisyear?selected:}>This Year</option>
+  <option value="lastyear" {period=lastyear?selected:}>Last Year</option>
+  <option value="7" {period=7?selected:}>Last 7 Days</option>
+  <option value="30" {period=30?selected:}>Last 30 Days</option>
+  <option value="all" {period=all?selected:}>All</option>
+ </select>
+ from <input type="text" name="tmin" value="{tmin}" size="10" id="tmin">
+ until <input type="text" name="tmax" value="{tmax}" size="10" id="tmax">
+ (<i>yyyy-mm-dd</i>)</td></tr>
+<tr><td align="right">Types:</td><td>
+ <input type="checkbox" id="cck" onchange="typesChanged()">Credit,
+ <input type="checkbox" id="dck" onchange="typesChanged()">Debit,
+ <input type="checkbox" id="rck" onchange="typesChanged()">Reset,
+ <input type="checkbox" id="lck" onchange="typesChanged()">Limit,
+ <input type="checkbox" id="eck" onchange="typesChanged()">Error
+ (none means all).
+ <input type="hidden" name="types" value="{types}" id="types">
+</td></tr>
+</tbody></table>
+</form><hr>
+
+{undefined?:<!-- Cause date fields to reflect period choice -->
+<script language="JavaScript" type="text/javascript">
+ setCheckboxesFromTypesField()
+ periodChanged()
+</script>}
+
+<!-- Note: with acct#, NR is known only afterwards -->
+<p>Entries for period <b>{tmin?{tmin}:?}</b> till <b>{tmax?{tmax}:?}</b></p>
+<table border="0" cellpadding="3" cellspacing="2" class="listtbl"><tbody>
+<tr><th>#</th><th>Datum</th><th>Zeit</th><th>Wer</th>
+ <th>Was</th><th>Betrag</th><th>Information</th></tr>
+{acct#<tr><td align="right">{#}</td>
+ <td>{year}-{month}-{day}</td>
+ <td>{time}</td>
+ <td>{user}</td>
+ <td>{type=+?<b>credit</b>:{type=-?debit:{type==?<b>reset</b>:\
+{type=$?<b>limit</b>:{type=!?<b>error</b>:{type=#?<b>note</b>:}}}}}}</td>
+ <td align="right">{$value}</td>
+ <td>{comment}</td></tr>}
+</tbody></table>
+<!-- Show warning if no entries found: -->
+{NR?{NR>0?:<p>No entries match your query</p>}:}
+{error?<p class="failure">{error}</p>:}
+

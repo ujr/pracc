@@ -1,0 +1,5 @@
+This is {FILENAME}, welcome.
+Include gugus w/o processing: {;gugus}
+Include gugus and process it: {:gugus}
+{a=99x}{b=99}{c=-99}{d=-99.0}{undefined?:\
+}Currency: {$TIME} ({TIME}) a={$a} b={$b} c={$c} d={$d}

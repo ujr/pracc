@@ -1,0 +1,342 @@
+<html>
+<head>
+<title>pracc Tools</title>
+<style type="text/css">
+ body { margin:2pc }
+ pre { margin:10px; padding:5px;
+       border:1px solid black; background-color:#ccc }
+ h1,h2,h3 { font-family:sans-serif }
+ th { background-color:#bbb; text-align:left }
+ td { background-color:#ddd }
+</style>
+<!--$Id: pracc-tools.html,v 1.6 2008/04/05 18:20:19 ujr Exp ujr $-->
+</head><body>
+
+<p><i>Written by Urs-Jakob R&uuml;etschi<br/>
+as part of the <b>pracc</b> project.</i></p>
+
+<h1>Pracc Tools, v2</h1>
+
+<ul>
+<li><b><a href="#init">pracc-init</a></b>: create initial pracc files</li>
+<li><b><a href="#edit">pracc-edit</a></b>: edit an account
+ (debit, credit, reset, etc.)</li>
+<li><b><a href="#view">pracc-view</a></b>: view a pracc file</li>
+<li><b><a href="#kill">pracc-kill</a></b>: delete a pracc file</li>
+<li><b><a href="#sum">pracc-sum</a></b>: compute account balance</li>
+<li><b><a href="#credit">pracc-credit</a></b>: add credit to an account
+ (using a voucher)</li>
+<li><b><a href="#purge">pracc-purge</a></b>: purge an account
+ (remove old lines)</li>
+<li><b><a href="#check">pracc-check</a></b>: check permissions and the like</li>
+<li><b><a href="#log">pracc-log</a></b>: interface to the common log file</li>
+</ul>
+
+<p>These are command-line tools for manipulating
+<a href="pracc-files.html">pracc files</a>.
+All tools have a <b>-V</b> option that prints the tool's name
+and version to standard output and then exits successfully.
+General exit codes are: <b>0</b> for success, <b>111</b> for
+temporary errors, and <b>127</b> for permanent errors.
+Tools that modify pracc files document their activity
+by appending a line to a <a href="#logfile">common log file</a>.</p>
+
+<a name="init"></a>
+<h2>pracc-init</h2>
+<p>Usage: <b>pracc-init</b> [-fF] <i>account</i> <i>balance</i> <i>limit</i>
+ {<i>info</i>}</p>
+<p>Create a pracc file for <i>account</i> with the given
+ initial <i>balance</i> (zero or greater) and <i>limit</i> (any
+ integer). A value of &quot;none&quot; (without the quotes) for
+ <i>limit</i> means no limit. Optional <i>info</i> arguments are
+ appended to the pracc file header line.</p>
+<p>If <b>-f</b> is specified, re-create the pracc file even if it
+ already exists.<br>
+ If <b>-F</b> is specified, quit successfully if the pracc file
+ already exists.<br>
+ Otherwise just complain and leave the existing file alone.</p>
+<p>Example of an initial pracc file with <i>balance</i>=500
+ and <i>limit</i>=9 for user <i>wimmer</i> (additional info:
+ Waldemar Immerfroh):</p>
+<pre>#pracc-v2-0-wimmer Waldemar Immerfroh
+$9 @4000000042cd8078 root minimum balance
+=500 @4000000042cd8078 root initial credit
+</pre>
+
+<a name="edit"></a>
+<h2>pracc-edit</h2>
+<p>Usage: <b>pracc-edit</b> <i>account</i> <i>action</i> <i>arg</i> {<i>info</i>}</p>
+<p>Perform <i>action</i> on <i>account</i>. The <i>action</i> is one of
+ debit, credit, reset, limit, note; it means to atomically append a line
+ of that type to the pracc file. Depending on <i>action</i>, <i>arg</i>
+ is an amount, a balance, or a limit. The special limit &quot;none&quot;
+ (without the quotes) makes the account unlimited.</p>
+<p>Must be root or in group <i>pracc</i> to use this tool.
+ Do <em>not</em> install it set-gid <i>pracc</i>!</p>
+<p>Usage examples and the corresponding lines that are appended:</p>
+<pre>
+# <b>pracc-edit</b> <i>wimmer</i> credit <i>500</i> new credits
++500 @4000000042d0691c root new credits
+# <b>pracc-edit</b> <i>wimmer</i> debit <i>500</i> storno
+-500 @4000000042d06951 root storno
+# <b>pracc-edit</b> <i>wimmer</i> reset <i>500</i> new balance
+=500 @4000000042d06a05 root new balance
+# <b>pracc-edit</b> <i>wimmer</i> limit none account now unlimited
+$* @4000000042d06a7b root account now unlimited
+# <b>pracc-edit</b> <i>wimmer</i> limit -1000000 new limit
+*-1000000 @4000000042d06ac3 root new limit
+# <b>pracc-edit</b> <i>wimmer</i> note merry x-mas
+# merry x-mas
+</pre>
+<p>Scripts like this one might be useful:</p>
+<pre>#!/bin/sh
+USAGE="Usage: <b>pracc-credit</b> account amount {info}"
+usage() { test "$*" &amp;&amp; echo $*; usage $USAGE; exit 127; }
+test -n "$1" &amp;&amp; ACCOUNT="$1" || usage "missing account"
+test -n "$2" &amp;&amp; AMOUNT="$2" || usage "missing amount"
+shift 2 &amp;&amp; pracc-edit "$ACCOUNT" credit "$AMOUNT" $*
+</pre>
+
+<a name="view"></a>
+<h2>pracc-view</h2>
+<p>Usage: <b>pracc-view</b> [<i>options</i>] <i>account</i></p>
+<p>Print the given <i>account</i> to standard output.
+ Errors in the pracc file are reported to standard error.
+ Use one or more of the following options to view only records
+ that match <em>all</em> of the restrictions specified:</p>
+<dl>
+<dt><b>-f</b> <i>date</i></dt>
+<dd>only show records from (and including) <i>date</i></dd>
+<dt><b>-u</b> <i>date</i></dt>
+<dd>only show records until (and including) <i>date</i></dd>
+<dt><b>-t</b> <i>type</i></dt>
+<dd>only show records of the given <i>type</i></dd>
+<!--<dt><b>-p</b> <i>period</i></dt>
+<dd>a convenience to set <b>-f</b> and <b>-u</b> to
+ frequently-used date ranges: if <i>period</i> is a
+ number <i>n</i>, then it means the last <i>n</i> days;
+ alternatively, it also be one of the keywords today,
+ week, month, or year, meaning this day or week or month
+ or year.</dd>-->
+</dl>
+<p>Dates are in ISO 8601 format: 2005-07-14 for example.<br>
+ Valid types are: debit, credit, reset, limit, note.<br>
+ Use <b>-t</b> more than once to select several types.</p>
+
+<a name="kill"></a>
+<h2>pracc-kill</h2>
+<p>Usage: <b>pracc-kill</b> [<b>-f</b>] <i>account</i> [<i>comment</i>]</p>
+<p>Delete the given <i>account</i> and note this fact, along
+ with any <i>comment</i> arguments, to the common log file.
+ Use <b>-f</b> to really delete the account, without this flag
+ just pretend.</p>
+
+<a name="sum"></a>
+<h2>pracc-sum</h2>
+<p>Usage: <b>pracc-sum</b> [<i>options</i>] <i>account</i></p>
+<p>Summarise the given <i>account</i> by printing to standard output
+ its balance <i>B</i>, limit <i>L</i>, sum of credits <i>Sc</i>,
+ sum of debits <i>Sd</i>, and the date/time of the account's last use.</p>
+<pre>acct <i>name</i> balance <i>B</i> limit <i>L</i> credits <i>Sc</i> debits <i>Sd</i> last <i>yyyy-mm-dd</i></pre>
+<p>Optionally, summarise only for a given time period;
+ default is for the whole account.</p>
+<dl>
+<dt><b>-f</b> <i>date</i></dt>
+<dd>Set start of period for summary: records older than <i>date</i>
+ are only used for computing the account's balance and limit, but
+ not for the credit and debit summary.</dd>
+<dt><b>-u</b> <i>date</i></dt>
+<dd>Set end of period for summary: records newer than <i>date</i>
+ are ignored when summarising the account.</dd>
+</dl>
+<p>Dates must be specified in yyyy-mm-dd format, e.g., 2004-12-24.</p>
+<p><b>Return</b> <b>0</b> if the balance is greater than the account's
+ limit; otherwise exit with status <b>1</b>. If there is an error,
+ return <b>111</b> (temporary error) or <b>127</b> (permanent).</p>
+
+<a name="credit"></a>
+<h2>pracc-credit (TODO)</h2>
+<p>Usage: <b>pracc-credit</b> <i>account</i> &lt; <i>voucher-file</i></p>
+<p>Add credits to the given <i>account</i> by reading a voucher
+ file from stdin, checking its validity, appending a credit record
+ to <i>account</i>, marking the voucher as used, and appending
+ a record to the common log file.</p>
+<ol>
+<li>find voucher in <i>pracc.ppc</i> (list of pre-paid credits)
+<li>append record to <i>pracc.log</i> (journaling)
+<li>mark voucher as used in <i>pracc.ppc</i>
+<li>append credit record to pracc file
+<li>don't crash between steps 3 and 4...
+</ol>
+
+<a name="purge"></a>
+<h2>pracc-purge (TODO)</h2>
+<p>Usage: <b>pracc-purge</b> [<i>options</i>] <i>account</i> <i>date</i></p>
+<p>Purge old records from the given <i>account</i>
+ without changing its balance or limit.
+ A record is old if it is <em>older</em> than <i>date</i>,
+ which must be specified in YYYY-MM-DD format,
+ e.g., 2006-01-01.</p>
+<p>It might be useful to keep old records of some types:<br>
+ Add <b>-l</b> to keep old limit records.<br>
+ Add <b>-r</b> to keep old reset records.<br>
+ Add <b>-n</b> to keep old note records.</p>
+<p>The purge process works by scanning through the pracc file
+ for <i>account</i>, skipping old records and copying non-old
+ records to a temporary file PRACCDIR/<i>account</i>.purge.
+ After skipping the last old record and before copying the
+ first non-old record to the temporary file, a copy of the
+ most recent limit record and a reset record with the current
+ balance is written to the temporary file. This way, the
+ account's balance and limit remain the same as they were
+ in the original file.
+ When done copying, the temporary file is moved over the
+ original pracc file, which completes the purge process.</p>
+<p>Add <b>-D</b> to only create the temporary file but not
+ move it over the original pracc file. This is mainly useful
+ for testing. Note that pracc-purge fails if the temporary
+ file already exists, so remember to delete it yourself.</p>
+<p>Note that comment lines do not have a timestamp. For purging,
+ they inherit the timestamp of the most recent line before with
+ a valid timestamp. Initial comment lines are never purged.</p>
+<p>Lines longer than <tt>MAXLINE</tt> (see pracc.h) are
+ truncated to that length.<br>
+ Syntactically incorrect lines are silently removed.</p>
+<p>This tool does not produce any output to stdout. Error messages
+ go to stderr.</p>
+ 
+<!--<dl>
+<dt><b>size</b> <i>N</i></dt>
+<dd>Purge however many lines are necessary to reduce the
+ pracc file's size to  no more than <i>N</i> bytes.</dd>
+<dt><b>days</b> <i>N</i></dt>
+<dd>Purge all lines that are older than <i>N</i> days.
+ (Each day is assumed to have 86400 seconds, which is
+ not true of all days.)</dd>
+<dt><b>date</b> <i>date</i></dt>
+<dd>Purge all lines older than <i>date</i>, which must
+ be specified in yyyy-mm-dd format, eg 2004-01-01.</dd>
+</dl>-->
+
+<a name="check"></a>
+<h2>pracc-check</h2>
+<p>Usage: <b>pracc-check</b> [<i>account</i>]</p>
+<p>Check the installation of the pracc system and report any
+ problems found to standard output. What constitutes a correct
+ installation depends on the <i>pracc.h</i> header file and is
+ defined below.</p>
+<p>If an optional <i>account</i> is specified, then this
+ account file is checked for syntactical correctness and
+ any errors found are reported to standard output.</p>
+<dl>
+<dt><tt>PRACCDIR</tt><dt>
+<dd>the directory where all pracc files reside;<br>
+ <i>/var/print/pracc/</i> is default</dd>
+<dt><tt>PRACCBIN</tt></dt>
+<dd>the directory where all pracc tools reside;<br>
+ <i>/var/print/bin/</i> is default</dd>
+<dt><tt>PRACCLOG</tt></dt>
+<dd>the full path of the <a href="#logfile">common log file</a>;<br>
+ <i>/var/print/pracc.log</i> is default</dd>
+<dt><tt>PRACCDEFLT</tt></dt>
+<dd>name of the default account;<br>
+ <i>default</i> is default</dd>
+<dt><tt>PRACCOWNER</tt></dt>
+<dd>the owner used for pracc files;<br>
+ <i>root</i> is default and fine</dd>
+<dt><tt>PRACCGROUP</tt></dt>
+<dd>the group used for pracc files;<br>
+ <i>lpadmin</i> is default but a dedicated group is better</dd>
+<dt><tt>PRACCADMIN</tt></dt>
+<dd>used by the web interface only:<br>
+ users of this group can perform administrative functions;<br>
+ <i>lpadmin</i> is default, but a dedicated group is better</dd>
+<dt><tt>PRACCDOC</tt></dt>
+<dd>used by the web interface only:<br>
+ directory that contains the templates, documents, etc.;<br>
+ <i>/var/print/doc/</i> is default</dd>
+<dt><tt>PRACCWEBUI</tt></dt>
+<dd>full path to the web interface CGI tool;<br>
+ <i>/var/print/cgi/pracc.cgi</i> is default</dd>
+</dl>
+<table border="0" cellspacing="2" cellpadding="2">
+<tbody>
+<tr><th>Type</th><th>Mode</th><th>Owner</th><th>Group</th><th>Resource</th><th>Notes</th></tr>
+<tr><td align="center">d</td><td align="right">2770</td>
+    <td><tt>PRACCOWNER</tt></td><td><tt>PRACCGROUP</tt></td>
+    <td><tt>PRACCDIR</tt>/</td><td>required</td></tr>
+<tr><td align="center">r</td><td align="right">660</td>
+    <td><tt>PRACCOWNER</tt></td><td><tt>PRACCGROUP</tt></td>
+    <td><tt>PRACCDIR/PRACCDEFLT</td><td>required</td></tr>
+<tr><td align="center">r</td><td align="right">660</td>
+    <td><tt>PRACCOWNER</tt></td><td><tt>PRACCGROUP</tt></td>
+    <td><tt>PRACCDIR</tt>/<i>account</i></td><td>optional</td></tr>
+<tr><td align="center">r</td><td align="right">660</td>
+    <td><tt>PRACCOWNER</tt></td><td><tt>PRACCGROUP</tt></td>
+    <td><tt>PRACCLOG</tt></td><td>required</td></tr>
+<tr><td align="center">d</td><td align="right"><i>any</i></td>
+    <td><i>any</i></td><td><i>any</i></td>
+    <td><tt>PRACCBIN/</tt></td><td>optional</td></tr>
+<tr><td align="center">r</td><td align="right">755</td>
+    <td><i>any</i></td><td><i>any</i></td>
+    <td><tt>PRACCBIN</tt>/<i>tool</i></td><td>optional</td></tr>
+<tr><td align="center">r</td><td align="right">2755</td>
+    <td><tt>PRACCOWNER</tt></td><td><tt>PRACCGROUP</tt></td>
+    <td><tt>PRACCBIN</tt>/pracc-credit</td><td>optional</td></tr>
+<tr><td align="center">d</td><td align="right">755</td>
+    <td><i>any</i></td><td><i>any</i></td>
+    <td><tt>PRACCDOC/</tt></td><td>required</td></tr>
+<tr><td align="center">d</td><td align="right"><i>any</i></td>
+    <td><i>any</i></td><td><i>any</i></td>
+    <td><tt>PRACCWEBUI</tt></td><td>required</td></tr>
+</tbody>
+</table>
+
+<a name="log"></a>
+<h2>pracc-log</h2>
+<p>Usage: <b>pracc-log</b> [<i>options</i>] [<i>account</i>]</p>
+<p>Print entries from the <a href="#logfile">common log file</a>
+ to standard output. If <i>account</i> is specified, print only
+ entries pertinent to that account. Use options to restrict output
+ to a certain range of dates. Malformed log lines are silently
+ skipped.</p>
+<dl>
+<dt><b>-f</b> <i>date</i></dt>
+<dd>only show entries from (and including) <i>date</i></dd>
+<dt><b>-u</b> <i>date</i></dt>
+<dd>only show entries until (and including) <i>date</i></dd>
+</dl>
+<p>Dates are in ISO 8601 format; for example, 2005-07-14
+ is the July 14, 2005.</p>
+
+<a name="logfile"></a>
+<h2>Log file</h2>
+<p>There is a common log file, where account modifications
+are recorded. By default, the log file is <i>/var/print/pracc.log</i>,
+but this can be changed at compile-time. Here is what the tools log:</p>
+<ul>
+<li>pracc-init: <i>timestamp</i> by <i>user</i> acct <i>account</i>:
+ init <i>amount</i> limit <i>limit</i> [overwrite]</li>
+<li>pracc-edit: <i>timestamp</i> by <i>user</i> acct <i>account</i>:
+ debit <i>amount</i></li>
+<li>pracc-edit: <i>timestamp</i> by <i>user</i> acct <i>account</i>:
+ credit <i>amount</i></li>
+<li>pracc-edit: <i>timestamp</i> by <i>user</i> acct <i>account</i>:
+ reset <i>balance</i></li>
+<li>pracc-edit: <i>timestamp</i> by <i>user</i> acct <i>account</i>:
+ limit <i>limit</i>
+<li>pracc-edit: <i>timestamp</i> by <i>user</i> acct <i>account</i>:
+ note added</li>
+<li>pracc-credit: <i>timestamp</i> by <i>user</i> acct <i>account</i>:
+ credit <i>amount</i> voucher <i>voucher's code</i></li>
+<li>pracc-purge: <i>timestamp</i> by <i>user</i> acct <i>account</i>:
+ purge to <i>date</i> <i>options</i></li>
+<li>pracc-kill: <i>timestamp</i> by <i>user</i> acct <i>account</i>:
+ delete balance=<i>N</i> limit=<i>M</i> <i>comment</i></li>
+</ul>
+
+<div align="right"><i>v1, ujr/2003-11-13</i></div>
+<div align="right"><i>v2, ujr/2005-06-18</i></div>
+<div align="right"><i>latest: 2006-03-31</i></div>
+</body>
+</html>

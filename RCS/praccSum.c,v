@@ -1,0 +1,69 @@
+head	1.1;
+access;
+symbols;
+locks
+	ujr:1.1; strict;
+comment	@ * @;
+
+
+1.1
+date	2008.03.24.15.01.41;	author ujr;	state Exp;
+branches;
+next	;
+
+
+desc
+@Summarise a pracc file.
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@#include "pracc.h"
+
+// TODO:
+// Return more info: lastused and total credits/debits
+// in given time period. Prototype:
+// sum(acct, dmin, dmax, *balance, *limit, *lastused, *credits, *debits)
+
+/*
+ * Scan through the pracc file for the given account
+ * and sum up its balance determine the current limit.
+ *
+ * Return 0 if successful, -1 on error (see errno).
+ */
+int praccSum(const char *acctname, long *balp, long *limp)
+{
+   struct praccbuf pracc;
+   long balance, limit, n;
+
+   if (praccOpen(acctname, &pracc) < 0) return -1;
+
+   balance = limit = 0;
+   while ((n = praccRead(&pracc)) > 0) {
+      long value = pracc.value;
+      switch (pracc.type) {
+         case '-': // debit
+            balance -= value;
+            break;
+         case '+': // credit
+            balance += value;
+            break;
+         case '=': // reset
+            balance = value;
+            break;
+         case '$': // limit
+            limit = value;
+            break;
+      }
+   }
+   (void) praccClose(&pracc);
+   if (balp) *balp = balance;
+   if (limp) *limp = limit;
+   return (n < 0) ? -1 : 0;
+}
+
+@

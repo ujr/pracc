@@ -1,0 +1,71 @@
+<html>
+<head>
+<title>Pracc: Security Concept</title>
+<style type="text/css">
+ body { margin:2pc }
+ pre { margin:10px; padding:5px;
+       border:1px solid black; background-color:#ccc }
+ h1,h2,h3 { font-family: sans-serif }
+</style>
+</head>
+<body>
+
+<p><i>Written by Urs-Jakob R&uuml;etschi<br/>
+as part of the <b>pracc</b> project.</i></p>
+
+<h1>The Pracc Security Concept</h1>
+
+<p>Pracc files are protected from arbitrary access by giving
+them a specific owner <tt>PRACCOWNER</tt> and a specific group
+<tt>PRACCGROUP</tt>. Pracc files have mode 0660; they need not
+be world-readable.</p>
+
+<p>Programs that need to access pracc files are: the <b>backend</b>,
+the <b>web interface</b> <i>pracc.cgi</i>, and a number of command
+line <b>tools</b>.
+
+<p>The web interface uses two system groups to control pracc
+file operations: users in the group <tt>PRACCPEEK</tt> can view
+all pracc files but cannot change anything; users in the group
+<tt>PRACCPOKE</tt> can perform all administrative actions:
+creating, deleting, purging, editing, and viewing accounts.</p>
+
+<h3>Suggested Setup</h3>
+
+<p>The pracc backend shall be run as <i>root</i> by the CUPS
+scheduler. This is achieved by installing the backend with
+mode 0700.</p>
+
+<p>For the web interface, there are two options: (1) add the
+user as which the web server runs to the group <tt>PRACCGROUP</tt>
+or (2) configure the web server such that it executes the pracc
+web interface <i>pracc.cgi</i> as user <tt>PRACCOWNER</tt> or
+as group <tt>PRACCGROUP</tt>.</p>
+
+<p>For the command line tools, no special measures have to be
+taken. It is assumed that only those users execute them, that
+already have appropriate permissions to access pracc files.</p>
+
+<h3>Configuration and Defaults</h3>
+
+<dl>
+<dt><tt>PRACCOWNER</tt> (default: <i>root</i>)</dt>
+<dd>Owner for pracc files. The default is fine.</dd>
+<dt><tt>PRACCGROUP</tt> (default: <i>lpadmin</i>)</dt>
+<dd>Group for pracc files.
+ Prefer a dedicated group over the default.</dd>
+<dt><tt>PRACCPEEK</tt> (default: <i>pracc-watch</i>)</dt>
+<dd>Group of users that are allowed to observe,
+ but not change, anything in the pracc system.</dd>
+<dt><tt>PRACCPOKE</tt> (default: <i>pracc-admin</i>)</dt>
+<dd>Group of users that are allowed to observe <em>and</em> change
+anything in the pracc system.</dd>
+</dl>
+
+<p>These values can be changed prior to compilation by editing
+the <i>Makefile</i> in the source directory. After installation,
+the <i>pracc-check</i> command line tool can be used to check
+if the actual file permissions correspond to those configured.</p>
+
+</body>
+</html>
