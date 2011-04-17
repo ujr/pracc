@@ -46,7 +46,7 @@ PRACCPEEK = pracc-watch
 CFLAGS = -s
 
 TOOLS = pracc-init pracc-edit pracc-view pracc-kill \
- pracc-sum pracc-purge pracc-check pracc-log
+ pracc-sum pracc-purge pracc-check pracc-log pracc-print
 
 all: backend tools gui
 backend: cupspracc
@@ -62,6 +62,7 @@ install: cupspracc pracc.cgi tools
 	install -o root -g root -m 755 pracc-sum $(PRACCBIN)
 	install -o root -g root -m 755 pracc-check $(PRACCBIN)
 	install -o root -g root -m 755 pracc-log $(PRACCBIN)
+	install -o root -g root -m 755 pracc-print $(PRACCBIN)
 	install -o root -g $(PRACCGROUP) -m 700 cupspracc $(BACKDIR)/pracc
 	install -o root -g root -m 755 pracc.cgi $(PRACCCGI)/pracc.cgi
 	cp -a doc/* $(PRACCDOC)
@@ -69,20 +70,35 @@ install: cupspracc pracc.cgi tools
 
 # Generate the pracc.h header:
 
-pracc.h: Makefile subst
-	./subst "VERSION=$(VERSION)" \
-	 "PRACCOWNER=$(PRACCOWNER)" \
-	 "PRACCGROUP=$(PRACCGROUP)" \
-	 "PRACCDEFLT=$(PRACCDEFLT)" \
-	 "PRACCLOG=$(PRACCLOG)" \
-	 "PRACCPCLOG=$(PRACCPCLOG)" \
-	 "PRACCDIR=$(PRACCDIR)" \
-	 "PRACCBIN=$(PRACCBIN)" \
-	 "PRACCDOC=$(PRACCDOC)" \
-	 "PRACCCGI=$(PRACCCGI)" \
-	 "PRACCPEEK=$(PRACCPEEK)" \
-	 "PRACCPOKE=$(PRACCPOKE)" \
-	 pracc.t > pracc.h
+pracc.h: Makefile
+	sed -e 's:{VERSION}:$(VERSION):g' \
+	    -e 's:{PRACCOWNER}:$(PRACCOWNER):g' \
+	    -e 's:{PRACCGROUP}:$(PRACCGROUP):g' \
+	    -e 's:{PRACCDEFLT}:$(PRACCDEFLT):g' \
+	    -e 's:{PRACCLOG}:$(PRACCLOG):g' \
+	    -e 's:{PRACCPCLOG}:$(PRACCPCLOG):g' \
+	    -e 's:{PRACCDIR}:$(PRACCDIR):g' \
+	    -e 's:{PRACCBIN}:$(PRACCBIN):g' \
+	    -e 's:{PRACCDOC}:$(PRACCDOC):g' \
+	    -e 's:{PRACCCGI}:$(PRACCCGI):g' \
+	    -e 's:{PRACCPEEK}:$(PRACCPEEK):g' \
+	    -e 's:{PRACCPOKE}:$(PRACCPOKE):g' \
+	    pracc.t > pracc.h
+
+#pracc.h: Makefile subst
+#	./subst "VERSION=$(VERSION)" \
+#	 "PRACCOWNER=$(PRACCOWNER)" \
+#	 "PRACCGROUP=$(PRACCGROUP)" \
+#	 "PRACCDEFLT=$(PRACCDEFLT)" \
+#	 "PRACCLOG=$(PRACCLOG)" \
+#	 "PRACCPCLOG=$(PRACCPCLOG)" \
+#	 "PRACCDIR=$(PRACCDIR)" \
+#	 "PRACCBIN=$(PRACCBIN)" \
+#	 "PRACCDOC=$(PRACCDOC)" \
+#	 "PRACCCGI=$(PRACCCGI)" \
+#	 "PRACCPEEK=$(PRACCPEEK)" \
+#	 "PRACCPOKE=$(PRACCPOKE)" \
+#	 pracc.t > pracc.h
 
 # The CUPS backend:
 
@@ -100,7 +116,8 @@ pjl.o: pjl.c pjl.h
 
 # Pracc tools:
 
-pracc-print: pracc-print.o delay.o pjl.o ps.o scanip4op.c scani.c scanu.c
+pracc-print: pracc-print.o delay.o pjl.o ps.o scanip4op.c scani.c scanu.c \
+	praccIdentify.c
 pracc-print.o: pracc-print.c delay.h pjl.h ps.h scan.h
 
 pracc-init: pracc-init.o common.a pracclib.a
@@ -231,7 +248,7 @@ taistore.o: taistore.c tai.h
 # Administration
 
 clean:
-	rm -f cupspracc $(TOOLS) pracc.cgi subst *.o common.a pracclib.a
+	rm -f cupspracc $(TOOLS) pracc.cgi subst *.o *.a
 
 tgz: clean
 	(cd ..; tar chzvf pracc-`date +%Y%m%d`.tgz pracc)

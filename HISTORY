@@ -1,10 +1,13 @@
 1.2.0
+- TODO Hinweis PHZ: download CVS im GUI gibt nur header, no records? Fix!
 - TODO Auftrag PHZ: pages ins pc.log schreiben, GUI anpassen
-- TODO cupspracc: estimate(): jobscan gets more weight.
-- TODO cupspracc: don't truncate the pracc log file.
 - TODO Dokumentation anpassen.
+- cupspracc: estimate(): jobscan gets more weight.
+- cupspracc: don't truncate the pracc log file.
+- Removed oldscan() and all its usages!
 - Removed pracc-ok (use pracc-sum instead).
 - All pracc-tools now provide a short help text (option -h).
+- Makefile: use sed to generate pracc.h from pracc.t (no longer subst).
 - Makefile: dist target generates pracc-VERSION.tgz (not pracc-vVERSION.tgz).
 - Rename VERSION to HISTORY. Add VERSION variable to Makefile.
 - Change from RCS to GIT. Drop $Id$ from *.c and *.h files.

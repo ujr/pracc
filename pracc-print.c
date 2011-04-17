@@ -271,14 +271,14 @@ help()
 }
 
 void
-usage(const char *s)
+usage(const char *err)
 {
-   if (s) fprintf(stderr, "%s: %s\n", me, s);
+   if (err) fprintf(stderr, "%s: %s\n", me, err);
 
    fprintf(stderr, "Usage: %s [options] ip:port [files...]\n", me);
    fprintf(stderr, "Try option -h for help and -V for identification\n");
 
-   exit(127);
+   exit(127); // FAILURE
 }
 
 int
