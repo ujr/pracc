@@ -1,7 +1,10 @@
-1.2.0
+1.2.1
+- Fix bug in cupspracc.c:parseURI (strdup).
 - TODO Hinweis PHZ: download CVS im GUI gibt nur header, no records? Fix!
 - TODO Auftrag PHZ: pages ins pc.log schreiben, GUI anpassen
 - TODO Dokumentation anpassen.
+
+1.2.0
 - cupspracc: estimate(): jobscan gets more weight.
 - cupspracc: don't truncate the pracc log file.
 - Removed oldscan() and all its usages!

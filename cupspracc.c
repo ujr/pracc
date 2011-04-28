@@ -218,7 +218,7 @@ int main(int argc, char *argv[], char *envp[])
    log_debug("DeviceURI: %s", devuri);
    log_debug("Parameter: acctmode=%d pagecost=%d wait0=%d wait1=%d",
       acctmode, pagecost, wait0, wait1);
-   log_debug("Jobscan: %s", jobscan ? jobscan : "(null)");
+   log_debug("Jobscan: [%s]", jobscan ? jobscan : "(null)");
    log_debug("Running as: uid=%d euid=%d gid=%d egid=%d pid=%d",
       getuid(), geteuid(), getgid(), getegid(), getpid());
 
@@ -228,7 +228,7 @@ int main(int argc, char *argv[], char *envp[])
     * work with that file, both for job scanning and printing.
     */
 
-   if (jobscan) {
+   if (jobscan && *jobscan) {
       if (jobfd == 0) {
          char fn[256];
          char buf[16384];
@@ -958,7 +958,7 @@ int logpc(long pc, const char *printer)
 void parseURI(const char *deviceURI)
 {
    char method[256];
-   char resource[1024];
+   char resource[2048];
    char *options;
    http_uri_status_t result;
    const char *name, *value;
@@ -973,12 +973,13 @@ void parseURI(const char *deviceURI)
    if (portnum == 0) portnum = 9100; // default: JetDirect
    portname[printu(portname, portnum)] = '\0';
 
-   if ((options = strchr(resource, '?')) != NULL) {
+   if ((options = strchr(resource, '?')) != NULL)
+   {
       *options++ = '\0';
-      while (*options) {
-      name = options;
-      while (*options && *options != '=' && *options != '&')
-         ++options;
+      while (*options)
+      {
+         name = options;
+         while (*options && *options != '=' && *options != '&') ++options;
          value = options++;
          if (*value == '=') {
             *(char*)value++ = '\0'; // overwrite '=' with NUL
@@ -986,7 +987,7 @@ void parseURI(const char *deviceURI)
                ++options;
             if (*options) *options++ = '\0';
          }
-         else *(char*)value = '\0';
+         else *(char*)value = '\0'; // empty string
 
          /* Process the name=value pair */
          if (!strcasecmp(name, "acct")) {
@@ -1014,7 +1015,7 @@ void parseURI(const char *deviceURI)
                wait1 = (int) number;
          }
          else if (!strcasecmp(name, "jobscan")) {
-            jobscan = value;
+            jobscan = strdup(value); // copy!
          }
       }
    }

@@ -1,8 +1,7 @@
 # Makefile for pracc project
-# $Id: Makefile,v 1.6 2008/04/14 19:16:38 ujr Exp ujr $
 
 # The release version of pracc. Do not modify!
-VERSION = 1.2.0
+VERSION = 1.2.1
 
 # ** Start Configuration:
 

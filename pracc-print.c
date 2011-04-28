@@ -9,6 +9,7 @@
 // 2010-12-21  2130-2330  coding
 // 2010-12-22  2200-2300  coding
 // 2011-01-01  1500-..    testing mit dem brother HL-2150N
+// 2011-04-28  2330-2350  testing against netcat
 
 #include <assert.h>
 #include <errno.h>
@@ -181,7 +182,8 @@ main(int argc, char *argv[], char *envp[])
       if (wait0 < 0) wait0 = DEFLT_WAIT0_PS;
       if (wait1 < 0) wait1 = DEFLT_WAIT1_PS;
 
-      logup(DEBUG, "Page counting using PostScript, wait0=%d, wait1=%d", wait0, wait1);
+      logup(DEBUG, "Page counting using PostScript, wait0=%d, wait1=%d",
+                   wait0, wait1);
    }
 
    if (pcmode == PCMODE_PJL)
@@ -247,6 +249,9 @@ main(int argc, char *argv[], char *envp[])
          getmodestr(pcmode), pages, pc1, pc2);
 
    // TODO - append pc.log record ?
+   //        Present format is:  @timestamp pagecount printer [comment]
+   //        Desired new format: @timestamp pc1 pc2 pages printer [comment]
+   //        If any of the figures is unknown, -1 is logged.
 
    return 0; // ok
 }
