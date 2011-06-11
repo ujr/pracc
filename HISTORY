@@ -1,8 +1,9 @@
+1.2.2
+- WebGUI /user: CSV download, allow custom date ranges.
+- TODO Auftrag PHZ: pages ins pc.log schreiben, GUI anpassen
+
 1.2.1
 - Fix bug in cupspracc.c:parseURI (strdup).
-- TODO Hinweis PHZ: download CVS im GUI gibt nur header, no records? Fix!
-- TODO Auftrag PHZ: pages ins pc.log schreiben, GUI anpassen
-- TODO Dokumentation anpassen.
 
 1.2.0
 - cupspracc: estimate(): jobscan gets more weight.

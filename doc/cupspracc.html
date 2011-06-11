@@ -284,15 +284,14 @@ including a description of the PS and PJL methods.</p>
  append an accounting record with type=<i>type</i> and amount=<i>d</i>.</p>
 
 <p>Both <i>m</i> and <i>n</i> are determined by heuristics
-and may be wrong or unknown. The function <i>f</i> returns
-an estimate for the pages actually printed, based on <i>m</i>
-and <i>n</i>:</p>
+and may be wrong or unknown. Pracc estimates the pages actually printed
+based on <i>m</i> and <i>n</i>:</p>
 <pre>
 <b>if</b> (<i>m</i> &lt; 0 &amp;&amp; <i>n</i> &lt; 0) <b>return</b> -1; // unknown
 <b>if</b> (<i>m</i> &lt; 0) <b>return</b> <i>n</i>;
 <b>if</b> (<i>n</i> &lt; 0) <b>return</b> <i>m</i>;
-<b>if</b> (<i>acctmode</i> == PJL) <b>return</b> <i>n</i>; // highly confident in PJL page count
-<b>return</b> (<i>m</i> &lt; <i>n</i>) ? <i>n</i> : (<i>m</i>+<i>n</i>)/2;
+<b>if</b> (<i>m</i> &lt; <i>n</i>) <b>return</b> <i>n</i>;
+<b>return</b> (<i>m</i>+<i>n</i>)/2;
 </pre>
 
 

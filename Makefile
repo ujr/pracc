@@ -1,7 +1,7 @@
 # Makefile for pracc project
 
 # The release version of pracc. Do not modify!
-VERSION = 1.2.1
+VERSION = 1.2.2
 
 # ** Start Configuration:
 
@@ -84,21 +84,6 @@ pracc.h: Makefile
 	    -e 's:{PRACCPOKE}:$(PRACCPOKE):g' \
 	    pracc.t > pracc.h
 
-#pracc.h: Makefile subst
-#	./subst "VERSION=$(VERSION)" \
-#	 "PRACCOWNER=$(PRACCOWNER)" \
-#	 "PRACCGROUP=$(PRACCGROUP)" \
-#	 "PRACCDEFLT=$(PRACCDEFLT)" \
-#	 "PRACCLOG=$(PRACCLOG)" \
-#	 "PRACCPCLOG=$(PRACCPCLOG)" \
-#	 "PRACCDIR=$(PRACCDIR)" \
-#	 "PRACCBIN=$(PRACCBIN)" \
-#	 "PRACCDOC=$(PRACCDOC)" \
-#	 "PRACCCGI=$(PRACCCGI)" \
-#	 "PRACCPEEK=$(PRACCPEEK)" \
-#	 "PRACCPOKE=$(PRACCPOKE)" \
-#	 pracc.t > pracc.h
-
 # The CUPS backend:
 
 cupspracc: cupspracc.o pjl.o ps.o scans.o printsn.o pracclib.a
@@ -151,10 +136,10 @@ pracc.cgi: pracc.cgi.o subst.o symtab.o cgi.o datetools.c common.a \
         ui_acct.o ui_accts.o ui_pclog.o ui_pracclog.o ui_report.o \
         tailocal.o pracclib.a
 
-# Subst MUST NOT depend on pracc.h, not even transitively!
-subst: subst.c symtab.h scan.h
-	cc -D STANDALONE -D VERSION='"$(VERSION)"' -o $@ \
-	subst.c symtab.c progname.c scani.c scanu.c
+## Subst MUST NOT depend on pracc.h, not even transitively!
+#subst: subst.c symtab.h scan.h
+#	cc -D STANDALONE -D VERSION='"$(VERSION)"' -o $@ \
+#	subst.c symtab.c progname.c scani.c scanu.c
 
 pclog: ui_pclog.c symtab.h symtab.c pracc.h common.h getln.h tai.h
 	cc -D TESTING -o $@ ui_pclog.c symtab.c getln.c scani.c scanu.c \
@@ -247,7 +232,7 @@ taistore.o: taistore.c tai.h
 # Administration
 
 clean:
-	rm -f cupspracc $(TOOLS) pracc.cgi subst *.o *.a
+	rm -f cupspracc $(TOOLS) pracc.cgi *.o *.a
 
 tgz: clean
 	(cd ..; tar chzvf pracc-`date +%Y%m%d`.tgz pracc)

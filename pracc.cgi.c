@@ -71,7 +71,7 @@ int parsetype(const char *s, char *type);
 void instdate(struct tm *tmp);
 void instint(const char *name, long value);
 void initdates(const char *defltperiod);
-void setdate(const char *name, time_t t);
+char *strdate(char *buf, int bufsize, time_t t);
 int isCsvRequested(void);
 
 long getfirst();
@@ -88,7 +88,8 @@ static void dumpsym(struct symbol *sym)
 struct symtab syms; // global symbol store
 const char *myname; // basename of this program
 
-int main(int argc, char **argv)
+int
+main(int argc, char **argv)
 {
    const char *user;
    const char *path;
@@ -145,7 +146,8 @@ int main(int argc, char **argv)
  * As a side effect, the user's role is installed
  * in the symbol table as ROLE=user|peek|poke.
  */
-void authorise(const char *user, const char *path)
+void
+authorise(const char *user, const char *path)
 {
    int canpeek, canpoke;
 
@@ -169,7 +171,6 @@ void authorise(const char *user, const char *path)
     * group PRACCPOKE required for pracc.cgi/admin
     * group PRACCPEEK required for everything else
     */
-
    canpoke = hasgroup(user, PRACCPOKE);
    canpeek = hasgroup(user, PRACCPEEK) || canpoke;
 
@@ -178,7 +179,8 @@ void authorise(const char *user, const char *path)
    if (cgiPathPrefix(path, "/user")) {
       return; // OK
    }
-   else if (cgiPathPrefix(path, "/admin")) {
+
+   if (cgiPathPrefix(path, "/admin")) {
       if (canpoke) return; // OK
    }
    else { // any other path requires PRACCPEEK
@@ -191,7 +193,8 @@ void authorise(const char *user, const char *path)
    exit(0);
 }
 
-static int hasgroup(const char *user, const char *group)
+static int
+hasgroup(const char *user, const char *group)
 {
    struct group *gr;
    char **pp;
@@ -221,10 +224,10 @@ static int hasgroup(const char *user, const char *group)
  * (Not yet implemented because only personal account, not group
  * accounts, can be viewed at this time.)
  */
-int doUser(const char *suffix)
+int
+doUser(const char *suffix)
 {
    const char *acctname;
-   char *types;
    char class;
 
    install("SECTION", "user");
@@ -237,10 +240,23 @@ int doUser(const char *suffix)
    if (lookup("types", 0) == 0)
       install("types", ""); // all types
    
-   cgiStartHTML(TITLE);
-   if (class) cgiCopyTemplate("user.tmpl");
-   else cgiError("No accounting for %s?", acctname);
-   cgiEndHTML();
+   if (isCsvRequested()) {
+      time_t tmin = getmintime();
+      time_t tmax = getmaxtime();
+      char *types = lookup("types", "");
+
+      cgiStartCSV("PrintAccount.csv");
+
+      if (acct_dump(stdout, acctname, tmin, tmax, types) < 0) {
+         fprintf(stdout, "#Error: %s\n", strerror(errno));
+      }
+   }
+   else {
+      cgiStartHTML(TITLE);
+      if (class) cgiCopyTemplate("user.tmpl");
+      else cgiError("No accounting for %s?", acctname);
+      cgiEndHTML();
+   }
 
    return 0; // OK
 }
@@ -255,7 +271,8 @@ int doUser(const char *suffix)
  *
  * If there is no valid op specified, show the admin.tmpl page.
  */
-int doAdmin(const char *suffix)
+int
+doAdmin(const char *suffix)
 {
    const char *op = lookup("op", "");
 
@@ -286,7 +303,8 @@ int doAdmin(const char *suffix)
    return 0; // OK
 }
 
-int doAccounts(const char *suffix)
+int
+doAccounts(const char *suffix)
 {
    install("SECTION", "accounts");
 
@@ -319,7 +337,8 @@ int doAccounts(const char *suffix)
    return 0; // OK
 }
 
-int doReports(const char *suffix)
+int
+doReports(const char *suffix)
 {
    install("SECTION", "reports");
 
@@ -343,7 +362,8 @@ int doReports(const char *suffix)
    return 0; // OK
 }
 
-int doLogs(const char *suffix)
+int
+doLogs(const char *suffix)
 { 
    install("SECTION", "logs");
 
@@ -365,7 +385,8 @@ int doLogs(const char *suffix)
    return 0; // OK
 }
 
-void doLogsPracc()
+void
+doLogsPracc()
 {
    if (isCsvRequested()) {
       time_t tmin, tmax;
@@ -389,7 +410,8 @@ void doLogsPracc()
    }
 }
 
-void doLogsPagecount()
+void
+doLogsPagecount()
 {
    if (isCsvRequested()) {
       time_t tmin, tmax;
@@ -411,7 +433,8 @@ void doLogsPagecount()
    }
 }
 
-int doVars(const char *suffix)
+int
+doVars(const char *suffix)
 {
    install("SECTION", "vars");
 
@@ -420,7 +443,8 @@ int doVars(const char *suffix)
    cgiEndHTML();
 }
 
-int doCreateAccount(void)
+int
+doCreateAccount(void)
 {
    char *value, *limit, *acct;
    long thevalue, thelimit;
@@ -479,7 +503,8 @@ int doCreateAccount(void)
    return 0; // OK
 }
 
-int doEditAccount(void)
+int
+doEditAccount(void)
 {
    char *acct, *type, *value, *comment;
    int badacct, badtype, badvalue, badcomment;
@@ -553,7 +578,8 @@ int doEditAccount(void)
    return 0; // OK
 }
 
-int doPurgeAccount(void)
+int
+doPurgeAccount(void)
 {
    cgiStartHTML(TITLE);
    errno = 0;
@@ -563,7 +589,8 @@ int doPurgeAccount(void)
    return 0; // OK
 }
 
-int doDeleteAccount(void)
+int
+doDeleteAccount(void)
 {
    char *acctname;
    char *who, *comment;
@@ -601,8 +628,8 @@ int doDeleteAccount(void)
    return 0; // OK
 }
 
-/* Gutschriften */
-int doCredits(void)
+int
+doCredits(void)
 {
    char *acct, *value;
    char class;
@@ -660,26 +687,15 @@ int doCredits(void)
    return 0; // OK
 }
 
-int doAccountViewer(const char *acctname)
+int
+doAccountViewer(const char *acctname)
 {
    time_t tmin, tmax;
    const char *period;
 
    assert(acctname);
 
-   period = lookup("period", "");
-   if (streq(period, "")) {
-      if (parsedate(lookup("tmin", ""), &tmin)); else tmin = -1;
-      if (parsedate(lookup("tmax", ""), &tmax)); else tmax = -1;
-      if (tmax >= 0) tmax += 86399; // 23:59:59
-   }
-   else daterange(period, &tmin, &tmax);
-
-   if ((tmin < 0) || (tmax < 0))
-      daterange("month", &tmin, &tmax);
-
-   setdate("tmin", tmin);
-   setdate("tmax", tmax);
+   initdates("thisyear");
 
    (void) getacctinfo(acctname, 0, 0);
 
@@ -690,7 +706,8 @@ int doAccountViewer(const char *acctname)
    return 0; // OK
 }
 
-int doCreateChecks(void)
+int
+doCreateChecks(void)
 {
    cgiStartHTML(TITLE);
    errno = 0;
@@ -711,7 +728,8 @@ int doCreateChecks(void)
  * In this case, free() would invalidate value and the
  * following strdup() would be meaningless!
  */
-void install(const char *name, const char *value)
+void
+install(const char *name, const char *value)
 {
    struct symbol *sym;
 
@@ -727,7 +745,8 @@ void install(const char *name, const char *value)
    else cgiError("Symbol install failed");
 }
 
-void installf(const char *name, const char *format, ...)
+void
+installf(const char *name, const char *format, ...)
 {
    va_list ap;
    char buf[256];
@@ -744,7 +763,8 @@ void installf(const char *name, const char *format, ...)
    va_end(ap);
 }
 
-char *lookup(const char *name, const char *deflt)
+char *
+lookup(const char *name, const char *deflt)
 {
    struct symbol *sym;
 
@@ -768,7 +788,8 @@ char *lookup(const char *name, const char *deflt)
  *  acct -- entries in a single account
  *  report -- list with info on selected accounts
  */
-void array_init(const char *name)
+void
+array_init(const char *name)
 {
    if (streq(name, "accts")) {
       array_init_accts();
@@ -787,17 +808,13 @@ void array_init(const char *name)
    }
 }
 
-void array_init_accts()
+void
+array_init_accts()
 {
    long first = getfirst();
    long count = getcount();
    char *filter = lookup("filter", "");
    
-   // Implicit asterisk on non-empty filter:
-   //if (filter[0] && !strpbrk(filter, "*?")) {
-   //   snprintf(str, sizeof(str), "%s*", filter);
-   //   filter = str;
-   //}
    if (accts_init(first, count, filter) < 0)
       install("error", strerror(errno));
    else {
@@ -806,7 +823,8 @@ void array_init_accts()
    }
 }
 
-void array_init_pclog()
+void
+array_init_pclog()
 {
    long first = getfirst();
    long count = getcount();
@@ -833,7 +851,8 @@ void array_init_pclog()
    }
 }
 
-void array_init_pracclog()
+void
+array_init_pracclog()
 {
    long first = getfirst();
    long count = getcount();
@@ -856,7 +875,8 @@ void array_init_pracclog()
    }
 }
 
-void array_init_acct()
+void
+array_init_acct()
 {
    long first = getfirst();
    long count = getcount();
@@ -879,7 +899,8 @@ void array_init_acct()
    }
 }
 
-void array_init_report()
+void
+array_init_report()
 {
    long first = getfirst();
    long count = getcount();
@@ -911,7 +932,8 @@ void array_init_report()
  * Return 0 if ok, 1 if no such index,
  * and -1 on any other error (with errno set).
  */
-int array_load(const char *name, int index)
+int
+array_load(const char *name, int index)
 {
    char buf[32];
    int r;
@@ -1021,7 +1043,8 @@ int array_load(const char *name, int index)
    return r;
 }
 
-void sendfile(const char *vn)
+void
+sendfile(const char *vn)
 {
    char path[1024];
    char *type = cgiGuessMimeType(vn);
@@ -1054,7 +1077,8 @@ void sendfile(const char *vn)
  *
  * Return the account class, 0 if no such account.
  */
-char getacctinfo(const char *acctname, long *bp, long *lp)
+char
+getacctinfo(const char *acctname, long *bp, long *lp)
 {
    long balance, limit;
    time_t lastused;
@@ -1098,7 +1122,8 @@ char getacctinfo(const char *acctname, long *bp, long *lp)
  * Month and day with a leading zero of < 10.
  * Time in "military" HHMM format.
  */
-void instdate(struct tm *tmp)
+void
+instdate(struct tm *tmp)
 {
    char buf[32];
 
@@ -1124,7 +1149,8 @@ void instdate(struct tm *tmp)
  * Install name=value where value is a long integer
  * that will be rendered as a decimal integer.
  */
-void instint(const char *name, long value)
+void
+instint(const char *name, long value)
 {
    char buf[16];
 
@@ -1161,7 +1187,8 @@ void instint(const char *name, long value)
  * or two decimal digits. Store 100*N+M in the value pointer.
  * Return the number of characters parsed or 0 on error.
  */
-int parseamount(const char *s, long *value)
+int
+parseamount(const char *s, long *value)
 {
    const char *p = s;
    long N = 0, M = 0;
@@ -1189,7 +1216,8 @@ int parseamount(const char *s, long *value)
  * Parse the given string for an account record type.
  * Return the number of characters parsed or 0 on error.
  */
-int parsetype(const char *s, char *type)
+int
+parsetype(const char *s, char *type)
 {
    if (!s || !*s) return 0;
 
@@ -1220,38 +1248,57 @@ int parsetype(const char *s, char *type)
    return 0;
 }
 
-void initdates(const char *defltperiod)
+void
+initdates(const char *defltperiod)
 {
+   char buf[32];
    time_t tmin, tmax;
    const char *period;
-
    period = getperiod(&tmin, &tmax, defltperiod);
 
-   setdate("tmin", tmin);
-   setdate("tmax", tmax);
+   install("tmin", strdate(buf, sizeof(buf), tmin));//setdate("tmin", tmin);
+   install("tmax", strdate(buf, sizeof(buf), tmax));//setdate("tmax", tmax);
    install("period", period);
 }
 
-void setdate(const char *name, time_t t)
+char *
+strdate(char *buf, int bufsize, time_t t)
 {
-   char buf[32];
    struct tm *tmp;
 
-   assert(name);
+   assert(buf != NULL);
+   assert(bufsize > 0);
 
    if (!(tmp = localtime(&t))) strcpy(buf, "?");
-   else strftime(buf, sizeof(buf), "%Y-%m-%d", tmp);
-   install(name, buf);
+   else strftime(buf, bufsize, "%Y-%m-%d", tmp);
+
+   return buf;
 }
 
-int isCsvRequested()
+//void
+//setdate(const char *name, time_t t)
+//{
+//   char buf[32];
+//   struct tm *tmp;
+//
+//   assert(name);
+//
+//   if (!(tmp = localtime(&t))) strcpy(buf, "?");
+//   else strftime(buf, sizeof(buf), "%Y-%m-%d", tmp);
+//
+//   install(name, buf);
+//}
+
+int
+isCsvRequested()
 {
    return !strcasecmp(lookup("format", ""), "CSV");
 }
 
 /* Symbol table lookup utilities */
 
-long getfirst()
+long
+getfirst()
 {
    char *s = lookup("first", "");
    if (s[0]) {
@@ -1262,7 +1309,8 @@ long getfirst()
    return 1; // default
 }
 
-long getcount(long deflt)
+long
+getcount(long deflt)
 {
    char *s = lookup("count", "");
    if (s[0]) {
@@ -1273,32 +1321,35 @@ long getcount(long deflt)
    return 99999; // default
 }
 
-time_t getmintime()
+time_t
+getmintime()
 {
    time_t tmin;
-
-   if (parsedate(lookup("tmin", 0), &tmin))
+   if (parsedate(lookup("tmin", 0), &tmin)) {
       return tmin;
+   }
 
    return -1; // no time
 }
 
-time_t getmaxtime()
+time_t
+getmaxtime()
 {
    time_t tmax;
-
-   if (parsedate(lookup("tmax", 0), &tmax))
+   if (parsedate(lookup("tmax", 0), &tmax)) {
       return tmax + 86399; // 23:59:59, end of day
+   }
 
    return -1; // no time
 }
 
-char *getperiod(time_t *tminp, time_t *tmaxp, const char *deflt)
+char *
+getperiod(time_t *tminp, time_t *tmaxp, const char *deflt)
 {
    time_t tmin, tmax;
    const char *period = lookup("period", "");
 
-   // Get explicity dates or date period:
+   // Get explicit dates or date period:
    if (streq(period, "")) {
       tmin = getmintime();
       tmax = getmaxtime();

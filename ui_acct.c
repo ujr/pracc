@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <errno.h>
 #include <string.h>
 #include <time.h>
@@ -64,7 +65,7 @@ long acct_count(void)
  * Return 0 if ok, 1 if no more entries,
  * and -1 on any other error (with errno set).
  */
-int acct_get(int index, time_t *t, char *type, long *value,
+int acct_get(int index, time_t *tstamp, char *type, long *value,
              char **user, char **comment)
 {
    int n;
@@ -83,7 +84,7 @@ int acct_get(int index, time_t *t, char *type, long *value,
       if (entrycount < firstindex) continue;
       if (entrycount > lastindex) return 1;
 
-      if (t) *t = praccbuf.tstamp;
+      if (tstamp) *tstamp = praccbuf.tstamp;
       if (type) *type = praccbuf.type;
       if (value) *value = praccbuf.value;
       if (user) *user = praccbuf.username;
@@ -95,3 +96,57 @@ int acct_get(int index, time_t *t, char *type, long *value,
    return (n < 0) ? -1 : 1;
 }
 
+int
+acct_dump(FILE *out, const char *acctname,
+          time_t tmin, time_t tmax, const char *types)
+{
+   int r, n, i;
+   time_t tstamp;
+   char type;
+   long value;
+   char *user;
+   char *comment;
+   double floatValue;
+
+   assert(out != NULL);
+
+   r = acct_init(0, 999999, acctname, tmin, tmax, types);
+   if (r < 0) return FAIL; // see errno
+
+   // Emit the header line:
+   fprintf(out, "#Date\tTime\tUser\tWhat\tValue\tInformation\n");
+
+   while (1) {
+      r = acct_get(0, &tstamp, &type, &value, &user, &comment);
+      if (r != OK) {
+         if (r < 0 && errno != 0) {
+            fprintf(out, "#Error processing: %s\n", strerror(errno));
+         }
+         // else if r > 0: no more pracc records
+         break;
+      }
+
+      char datestr[32], timestr[32], *typestr;
+      struct tm *tmp = localtime(&tstamp); 
+
+      if (tmp) {
+         strftime(datestr, sizeof(datestr), "%Y-%m-%d", tmp);
+         strftime(timestr, sizeof(timestr), "%H:%M", tmp);
+      }
+      else {
+         snprintf(datestr, sizeof(datestr), "YYYY-mm-dd");
+         snprintf(timestr, sizeof(timestr), "HHMM");
+      }
+
+      if (!(typestr = praccTypeString(type))) {
+         typestr = "unknown";
+      }
+
+      floatValue = value/100; // Rappen -> Franken
+
+      fprintf(out, "%s\t%s\t%s\t%s\t%.02f\t%s\n",
+              datestr, timestr, user, typestr, floatValue, comment);
+   }
+
+   return OK;
+}

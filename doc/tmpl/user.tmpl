@@ -10,6 +10,23 @@
   Record types: + credit, - debit, = reset, $ limit, ! error.
 -->
 
+<script language="JavaScript" type="text/javascript">
+/* Update tmin/tmax based on the period choice */
+function periodChanged() {
+  var tmin = document.getElementById("tmin");
+  var tmax = document.getElementById("tmax");
+  var period = document.getElementById("period");
+  var value = period.options[period.selectedIndex].value;
+  if (value == "") {
+    tmin.disabled = tmax.disabled = false
+  }
+  else {
+    tmin.value = tmax.value = "";
+    tmin.disabled = tmax.disabled = true
+  }
+}
+</script>
+
 <h2>Druck-Konto {acct} {gecos? ({gecos}):}</h2>
 
 {diff>0?\
@@ -23,8 +40,8 @@ Neues Druck-Guthaben kann auf der Kanzlei erworben werden.</p>}
 <form method="POST" action="{SCRIPT}/user">
 <table border="0" cellpadding="3" cellspacing="0"><tbody>
 <tr><td align="right"><b>Auszug:</b></td>
- <td><select name="period" size="1">
-  <option value="all" {period=all?selected:}>Alles</option>
+ <td><select name="period" size="1" id="period" onchange="periodChanged()">
+  <option value="" {period=?selected:}>Speziell</option>
   <option value="today" {period=today?selected:}>Heute</option>
   <option value="thisweek" {period=thisweek?selected:}>Diese Woche</option>
   <option value="thismonth" {period=thismonth?selected:}>Dieser Monat</option>
@@ -33,14 +50,27 @@ Neues Druck-Guthaben kann auf der Kanzlei erworben werden.</p>}
   <option value="lastyear" {period=lastyear?selected:}>Letztes Jahr</option>
   <option value="7" {period=7?selected:}>Letzte 7 Tage</option>
   <option value="30" {period=30?selected:}>Letzte 30 Tage</option>
- </select> <input type="submit" value="zeigen"></td></tr>
+  <option value="all" {period=all?selected:}>Alles</option>
+ </select>
+ von <input type="text" name="tmin" value="{tmin}" size="10" id="tmin">
+ bis <input type="text" name="tmax" value="{tmax}" size="10" id="tmax">
+ (z.B. 2011-06-13)
+ <input type="submit" value="zeigen"></td></tr>
 <tr><td align="right">mit:</td>
  <td><input type="radio" name="types" value="-" {types=-?checked:}>Ausdrucken
   <input type="radio" name="types" value="+" {types=+?checked:}>Gutschriften
   <input type="radio" name="types" value="" {types=?checked:}>allen
    Aktionen</td></tr>
+<tr><td align="right">Format:</td>
+ <td><input type="radio" name="format" value="html" checked>HTML
+  <input type="radio" name="format" value="csv">CSV (Excel)</td></tr>
 </tbody></table>
 </form><hr>
+
+<!-- Cause date fields to reflect period choice -->
+<script language="JavaScript" type="text/javascript">
+  periodChanged();
+</script>
 
 <p><b>Kontoauszug</b> von <span id="tmin">{tmin}</span>
  bis <span id="tmax">{tmax}</span></p>

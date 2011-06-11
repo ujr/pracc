@@ -30,6 +30,9 @@ pre { background-color:#cba; padding:4px;
        border-right:1px solid #786; border-bottom:1px solid #786 }
 .oplnk { font-weight:bold; color:#432 }
 .lead { font-weight:bold; color:#432 }
+/* Disabled button */
+.disbtn { background-color:#ccc; font-weight:bold; padding:3px; color:#653;
+          border-bottom:1px solid #546; border-right:1px solid #456 }
 
 /* Floating boxes */
 .fltbox { float: right; width: 15pc;
