@@ -45,7 +45,7 @@ static int addname(struct symtab *syms, const char *name)
    return OK;
 }
 
-static void addacct(struct symbol *sym)
+static void addacct(struct symbol *sym, void *data)
 {
    long b, l, c, d;
    time_t t;
@@ -135,7 +135,7 @@ int report_init(long first, long count, time_t tmin, time_t tmax,
 
    /* Gather info for each account and sum up */
    total_credits = total_debits = 0;
-   symeach(&hash, addacct); // this defines replen
+   symeach(&hash, NULL, addacct); // this defines replen
 
    /* Shrink list to actual size and sort */
    replist = realloc(replist, replen * sizeof(struct acctinfo));

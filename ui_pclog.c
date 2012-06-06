@@ -20,7 +20,7 @@
 static struct symbol *pclog_array = 0;
 static unsigned long pclog_length = 0;
 
-static void copysym(struct symbol *sym)
+static void copysym(struct symbol *sym, void *data)
 {
    static int i = 0;
 
@@ -61,7 +61,7 @@ int pclog_init(long first, long count, time_t tmin, time_t tmax,
    if (filter && (filter[0] == '\0')) filter = 0;
 
    if (pclog_array) {
-      copysym(0); // reset index counter
+      copysym(NULL, NULL); // reset index counter
       for (i = 0; i < pclog_length; i++) {
          free((void *) pclog_array[i].name);
          free((void *) pclog_array[i].sval);
@@ -98,7 +98,7 @@ int pclog_init(long first, long count, time_t tmin, time_t tmax,
       while (*p && !isspace(*p)) ++p;
       *p = '\0';
 
-//fprintf(stderr, "pclog_init(): Parsed line: %ld %s\n", pc, printer);//DEBUG
+fprintf(stderr, "pclog_init(): Parsed line: %ld %s\n", pc, printer);//DEBUG
 
       /* Filter by date and name */
 
@@ -121,7 +121,7 @@ int pclog_init(long first, long count, time_t tmin, time_t tmax,
       else {
          char *p = strdup(printer);
          if (!p) return FAIL;
-//fprintf(stderr, "pclog_init(): First seen printer %s\n", p);//DEBUG
+fprintf(stderr, "pclog_init(): First seen printer %s\n", p);//DEBUG
          sym = symput(&hash, p);
          if (!sym) return FAIL;
          sym->i0 = 1; // counter
@@ -138,7 +138,7 @@ int pclog_init(long first, long count, time_t tmin, time_t tmax,
    pclog_length = symcount(&hash);
    pclog_array = calloc(pclog_length, sizeof(struct symbol));
    if (!pclog_array) return FAIL;
-   symeach(&hash, copysym);
+   symeach(&hash, NULL, copysym);
    qsort(pclog_array, pclog_length, sizeof(struct symbol), symcomp);
 
    symkill(&hash);
@@ -305,7 +305,7 @@ int main(int argc, char **argv)
    r = pclog_dump(stdout, tmin, tmax, filter);
    if (r < 0) {
       fprintf(stderr, "%s: reading %s failed: %s\n",
-              me, PRACCLOG, strerror(errno));
+              me, PRACCPCLOG, strerror(errno));
       return 111;
    }
 

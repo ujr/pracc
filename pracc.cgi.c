@@ -80,7 +80,7 @@ time_t getmintime();
 time_t getmaxtime();
 char *getperiod(time_t *tminp, time_t *tmaxp, const char *deflt);
 
-static void printsym(struct symbol *sym)
+static void printsym(struct symbol *sym, void *data)
 { if (sym && sym->sval) printf(" %s=%s$\n", sym->name, sym->sval); }
 static void dumpsym(struct symbol *sym)
 { if (sym && sym->sval) fprintf(stderr, " %s=%s$\n", sym->name, sym->sval); }
@@ -774,7 +774,7 @@ lookup(const char *name, const char *deflt)
    if (sym) return (sym->sval) ? (char *) sym->sval : (char *) deflt;
 
    if (streq(name, "symtab")) symdump(&syms, stdout);
-   if (streq(name, "symdump")) symeach(&syms, printsym);
+   if (streq(name, "symdump")) symeach(&syms, NULL, printsym);
 
    return (char *) deflt;
 }

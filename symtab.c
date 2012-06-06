@@ -129,7 +129,10 @@ static int grow(struct symtab *st, int increment)
    return 0; // OK
 }
 
-void symeach(struct symtab *st, void (*func)(struct symbol *sym))
+void
+symeach(
+   struct symtab *st, void *data,
+   void (*func)(struct symbol *sym, void *data))
 {
    int i, n = 0;
 
@@ -138,7 +141,7 @@ void symeach(struct symtab *st, void (*func)(struct symbol *sym))
    if (st->bucks) for (i = 0; i < st->size; i++) {
       struct symbol *sym = st->bucks[i];
       while (sym) {
-         if (func) (*func)(sym);
+         if (func) (*func)(sym, data);
          sym = sym->next; ++n;
       }
    }

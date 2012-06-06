@@ -367,7 +367,7 @@ static char *stredup(const char *s)
    exit(111);
 }
 
-static void dumpsym(struct symbol *s)
+static void dumpsym(struct symbol *s, void *data)
 { if (s && s->sval) printf("%s=%s$\n", s->name, s->sval); }
 
 char *lookup(const char *name, const char *deflt)
@@ -384,7 +384,7 @@ char *lookup(const char *name, const char *deflt)
       return "";
    }
    if (!strcmp(name, "symdump")) {
-      symeach(&syms, dumpsym);
+      symeach(&syms, NULL, dumpsym);
       return "";
    }
 

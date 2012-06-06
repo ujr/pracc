@@ -24,7 +24,8 @@ void symkill(struct symtab *st);
 struct symbol *symget(struct symtab *st, const char *name);
 struct symbol *symput(struct symtab *st, const char *name);
 
-void symeach(struct symtab *st, void (*func)(struct symbol *sym));
+void symeach(struct symtab *st, void *data,
+             void (*func)(struct symbol *sym, void *data));
 int symcount(struct symtab *st);
 void symdump(struct symtab *st, FILE *fp);
 
