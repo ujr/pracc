@@ -44,8 +44,8 @@ PRACCPEEK = pracc-watch
 # Remove symtab and reloc info (smaller binary)
 CFLAGS = -s
 
-TOOLS = pracc-init pracc-edit pracc-view pracc-kill \
- pracc-sum pracc-purge pracc-check pracc-log pracc-print
+TOOLS = pracc-init pracc-edit pracc-view pracc-kill pracc-sum \
+ pracc-purge pracc-check pracc-log pracc-pclog pracc-print
 
 all: backend tools gui
 backend: cupspracc
@@ -61,6 +61,7 @@ install: cupspracc pracc.cgi tools
 	install -o root -g root -m 755 pracc-sum $(PRACCBIN)
 	install -o root -g root -m 755 pracc-check $(PRACCBIN)
 	install -o root -g root -m 755 pracc-log $(PRACCBIN)
+	install -o root -g root -m 755 pracc-pclog $(PRACCBIN)
 	install -o root -g root -m 755 pracc-print $(PRACCBIN)
 	install -o root -g $(PRACCGROUP) -m 700 cupspracc $(BACKDIR)/pracc
 	install -o root -g root -m 755 pracc.cgi $(PRACCCGI)/pracc.cgi
@@ -128,22 +129,21 @@ pracc-check.o: pracc-check.c common.h pracc.h print.h streq.h
 pracc-log: pracc-log.o printstm.o tailocal.o common.a pracclib.a
 pracc-log.o: pracc-log.c common.h pracc.h scan.h streq.h tai.h
 
+pracc-pclog: pracc-pclog.o pclog.o symtab.o common.a pracclib.a
+pracc-pclog.o: pracc-pclog.c common.h pclog.h pracc.h
+
 # Pracc Web GUI
 
 pracc.cgi.o: pracc.cgi.c pracc.h symtab.h cgi.h datetools.h \
         ui_acct.h ui_accts.h ui_pclog.h ui_pracclog.h ui_report.h
 pracc.cgi: pracc.cgi.o subst.o symtab.o cgi.o datetools.c common.a \
         ui_acct.o ui_accts.o ui_pclog.o ui_pracclog.o ui_report.o \
-        tailocal.o pracclib.a
+        pclog.o tailocal.o pracclib.a
 
 ## Subst MUST NOT depend on pracc.h, not even transitively!
 #subst: subst.c symtab.h scan.h
 #	cc -D STANDALONE -D VERSION='"$(VERSION)"' -o $@ \
 #	subst.c symtab.c progname.c scani.c scanu.c
-
-pclog: ui_pclog.c symtab.h symtab.c pracc.h common.h getln.h tai.h
-	cc -D TESTING -o $@ ui_pclog.c symtab.c getln.c scani.c scanu.c \
-	scandate.c taiscan.c taifmt.c taistore.c tailocal.c common.a
 
 accts: ui_accts.c pracc.h tai.h
 	cc -D TESTING -o $@ ui_accts.c pracclib.a common.a
@@ -156,6 +156,7 @@ ui_report.o: ui_report.c ui_report.h pracc.h symtab.h
 
 datetools.o: datetools.c datetools.h scan.h
 cgi.o: cgi.c cgi.h pracc.h
+pclog.o: pclog.c getln.h pclog.h pracc.h symtab.h tai.h
 subst.o: subst.c pracc.h scan.h symtab.h
 symtab.o: symtab.c symtab.h
 
