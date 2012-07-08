@@ -13,6 +13,8 @@
 #include "scan.h"
 #include "symtab.h"
 
+#define streq(s,t) (strcmp((s),(t)) == 0)
+
 extern void install(const char *name, const char *value);
 extern char *lookup(const char *name, const char *deflt);
 
@@ -126,7 +128,7 @@ void subst(FILE *in, FILE *out, char term, int num, int level)
          switch (c) {
             case '}':
                if (!out) break;
-               if (!strcmp(name, "#")) // iteration number
+               if (streq(name, "#")) // iteration number
                   fprintf(out, "%d", num);
                else if (name[0] == '$') { // currency
                   long number;
@@ -209,7 +211,7 @@ void subst(FILE *in, FILE *out, char term, int num, int level)
 
                if (c == '?') { // comparison
                   char buf[16], *s;
-                  if (strcmp(name, "#") == 0) {
+                  if (streq(name, "#")) {
                      snprintf(buf, sizeof(buf), "%d", num);
                      s = buf;
                   }
@@ -379,11 +381,11 @@ char *lookup(const char *name, const char *deflt)
    s = symget(&syms, name);
    if (s) return (char *) (s->sval ? s->sval : deflt);
 
-   if (!strcmp(name, "symtab")) {
+   if (streq(name, "symtab")) {
       symdump(&syms, stdout);
       return "";
    }
-   if (!strcmp(name, "symdump")) {
+   if (streq(name, "symdump")) {
       symeach(&syms, NULL, dumpsym);
       return "";
    }

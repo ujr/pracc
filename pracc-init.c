@@ -14,7 +14,8 @@
 #include "pracc.h"
 #include "print.h"
 #include "scan.h"
-#include "streq.h"
+
+#define streq(s,t) (strcmp((s),(t)) == 0)
 
 void setbalance(const char *s);
 void setlimit(const char *s);

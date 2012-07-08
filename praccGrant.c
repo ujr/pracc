@@ -12,6 +12,8 @@
 
 #include "hasgroup.h"
 
+#define streq(s,t) (strcmp((s),(t)) == 0)
+
 /*
  * Check if access to a pracc file should be granted or denied.
  * Pracc files have owner:group = root:pracc, so ordinary users
@@ -100,12 +102,12 @@ int praccGrant(const char *username, const char *acctname)
  * or a group account to which the user has access.
  */
 
-   if (strcmp(username, acctname) == 0) return GRANT; // personal account
+   if (streq(username, acctname)) return GRANT; // personal account
 
    pgr = getgrnam(acctname);
    if (!pgr) return DENY; // not ERROR
    for (pp = pgr->gr_mem; *pp; pp++) {
-      if (strcmp(*pp, username) == 0) return GRANT; // group account
+      if (streq(*pp, username)) return GRANT; // group account
    }
 
 /*

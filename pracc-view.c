@@ -4,6 +4,7 @@
 
 /* TODO: get TZ in mktime and localtime right! */
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,7 +13,9 @@
 #include "common.h"
 #include "pracc.h"
 #include "scan.h"
-#include "streq.h"
+
+#define OUT_OF_MEMORY (NULL)
+#define streq(s,t) (strcmp((s),(t)) == 0)
 
 void addtype(const char *s);
 void setdate(const char *s, time_t *t);
@@ -87,9 +90,10 @@ int main(int argc, char **argv)
 
 void addtype(const char *s)
 { /* add type s to list of types to show */
-   if (!linetypes)
-      if (!(linetypes = strdup("......")))
-         die(111, "strdup");
+   if (!linetypes) {
+      linetypes = strdup("......");
+      assert(linetypes != OUT_OF_MEMORY);
+   }
 
    if (streq(s, "debit")) linetypes[0] = '-';
    else if (streq(s, "credit")) linetypes[1] = '+';

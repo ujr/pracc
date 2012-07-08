@@ -12,6 +12,8 @@
 #include "pracc.h"
 #include "scan.h"
 
+#define streq(s,t) (strcmp((s),(t)) == 0)
+
 char *me;
 char *acctname;
 time_t datemin = 0;
@@ -60,7 +62,7 @@ int main(int argc, char **argv)
    while ((n = praccLogRead(&pl)) > 0) {
       if (pl.tstamp < datemin) continue;
       if ((pl.tstamp > datemax) && (datemax > datemin)) continue;
-      if (acctname && strcmp(acctname, pl.acctname)) continue;
+      if (acctname && !streq(acctname, pl.acctname)) continue;
 
       tmp = localtime(&pl.tstamp);
       if (tmp) putbuf(stdout, buf, printstm(buf, tmp));

@@ -49,7 +49,7 @@ enum {                       // States of a PJL job:
    PJL_STATE_DONE            // -after 2nd pagecount arrived
 };
 
-enum {
+enum { // TODO Reverse? FATAL=0 DEBUG=4, should make code simpler
    DEBUG = 0,
    INFO  = 1,
    WARN  = 2,

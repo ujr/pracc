@@ -23,6 +23,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -30,7 +31,8 @@
 #include "common.h"
 #include "pracc.h"
 #include "print.h"
-#include "streq.h"
+
+#define streq(s,t) (strcmp((s),(t)) == 0)
 
 int check(char *home, char *sub, char *fn,
           int type, int uid, int gid, int mode, int opt);

@@ -106,13 +106,13 @@ pracc-print: pracc-print.o delay.o pjl.o ps.o scanip4op.c scani.c scanu.c \
 pracc-print.o: pracc-print.c delay.h pjl.h ps.h scan.h
 
 pracc-init: pracc-init.o common.a pracclib.a
-pracc-init.o: pracc-init.c common.h pracc.h print.h scan.h streq.h
+pracc-init.o: pracc-init.c common.h pracc.h print.h scan.h
 
 pracc-edit: pracc-edit.o common.a pracclib.a
-pracc-edit.o: pracc-edit.c common.h pracc.h print.h scan.h streq.h
+pracc-edit.o: pracc-edit.c common.h pracc.h print.h scan.h
 
 pracc-view: pracc-view.o printstm.o tailocal.o common.a pracclib.a
-pracc-view.o: pracc-view.c common.h pracc.h scan.h streq.h
+pracc-view.o: pracc-view.c common.h pracc.h scan.h
 
 pracc-kill: pracc-kill.o common.a pracclib.a
 pracc-kill.o: pracc-kill.c common.h pracc.h print.h
@@ -124,10 +124,10 @@ pracc-purge: pracc-purge.o common.a pracclib.a
 pracc-purge.o: pracc-purge.c common.h pracc.h print.h scan.h tai.h
 
 pracc-check: pracc-check.o printsn.o common.a pracclib.a
-pracc-check.o: pracc-check.c common.h pracc.h print.h streq.h
+pracc-check.o: pracc-check.c common.h pracc.h print.h
 
 pracc-log: pracc-log.o printstm.o tailocal.o common.a pracclib.a
-pracc-log.o: pracc-log.c common.h pracc.h scan.h streq.h tai.h
+pracc-log.o: pracc-log.c common.h pracc.h scan.h tai.h
 
 pracc-pclog: pracc-pclog.o pclog.o symtab.o common.a pracclib.a
 pracc-pclog.o: pracc-pclog.c common.h pclog.h pracc.h
