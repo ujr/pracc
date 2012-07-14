@@ -17,6 +17,8 @@ as part of the <b>pracc</b> project.</i></p>
 
 <h1>Pracc Tools, v2</h1>
 
+<p>Command-line tools to work with Pracc.</p>
+
 <ul>
 <li><b><a href="#init">pracc-init</a></b>: create initial pracc files</li>
 <li><b><a href="#edit">pracc-edit</a></b>: edit an account
@@ -30,16 +32,18 @@ as part of the <b>pracc</b> project.</i></p>
  (remove old lines)</li>
 <li><b><a href="#check">pracc-check</a></b>: check permissions and the like</li>
 <li><b><a href="#log">pracc-log</a></b>: interface to the common log file</li>
+<li><b><a href="#pclog">pracc-pclog</a></b>: analyse the <i>pc.log</i> file</li>
 </ul>
 
-<p>These are command-line tools for manipulating
-<a href="pracc-files.html">pracc files</a>.
-All tools have a <b>-V</b> option that prints the tool's name
-and version to standard output and then exits successfully.
-General exit codes are: <b>0</b> for success, <b>111</b> for
-temporary errors, and <b>127</b> for permanent errors.
-Tools that modify pracc files document their activity
-by appending a line to a <a href="#logfile">common log file</a>.</p>
+<p>All tools have a <b>-V</b> and a <b>-h</b> option;
+<b>-V</b> shows the tool's name and version, <b>-h</b> shows
+a short help message; both print to standard output and then
+exit successfully.</p>
+<p>All tools use these exit codes: <b>0</b> for success, <b>111</b> for
+temporary errors, and <b>127</b> for permanent errors.</p>
+<p>Tools that modify <a href="pracc-files.html">pracc files</a>
+document their activity by appending a line to the
+<a href="#logfile"><i>pracc.log</i></a> file.</p>
 
 <a name="init"></a>
 <h2>pracc-init</h2>
@@ -119,7 +123,7 @@ shift 2 &amp;&amp; pracc-edit "$ACCOUNT" credit "$AMOUNT" $*
  week, month, or year, meaning this day or week or month
  or year.</dd>-->
 </dl>
-<p>Dates are in ISO 8601 format: 2005-07-14 for example.<br>
+<p>Dates are in <i>yyyy-mm-dd</i> format, e.g., 2005-07-15.<br>
  Valid types are: debit, credit, reset, limit, note.<br>
  Use <b>-t</b> more than once to select several types.</p>
 
@@ -149,7 +153,7 @@ shift 2 &amp;&amp; pracc-edit "$ACCOUNT" credit "$AMOUNT" $*
 <dd>Set end of period for summary: records newer than <i>date</i>
  are ignored when summarising the account.</dd>
 </dl>
-<p>Dates must be specified in yyyy-mm-dd format, e.g., 2004-12-24.</p>
+<p>Dates are in <i>yyyy-mm-dd</i> format, e.g., 2005-07-15.</p>
 <p><b>Return</b> <b>0</b> if the balance is greater than the account's
  limit; otherwise exit with status <b>1</b>. If there is an error,
  return <b>111</b> (temporary error) or <b>127</b> (permanent).</p>
@@ -175,8 +179,8 @@ shift 2 &amp;&amp; pracc-edit "$ACCOUNT" credit "$AMOUNT" $*
 <p>Purge old records from the given <i>account</i>
  without changing its balance or limit.
  A record is old if it is <em>older</em> than <i>date</i>,
- which must be specified in YYYY-MM-DD format,
- e.g., 2006-01-01.</p>
+ which must be specified in <i>yyyy-mm-dd</i> format,
+ e.g., 2005-07-15.</p>
 <p>It might be useful to keep old records of some types:<br>
  Add <b>-l</b> to keep old limit records.<br>
  Add <b>-r</b> to keep old reset records.<br>
@@ -306,8 +310,23 @@ shift 2 &amp;&amp; pracc-edit "$ACCOUNT" credit "$AMOUNT" $*
 <dt><b>-u</b> <i>date</i></dt>
 <dd>only show entries until (and including) <i>date</i></dd>
 </dl>
-<p>Dates are in ISO 8601 format; for example, 2005-07-14
- is the July 14, 2005.</p>
+<p>Dates are in <i>yyyy-mm-dd</i> format, e.g., 2005-07-15.</p>
+
+<a name="pclog"></a>
+<h2>pracc-pclog</h2>
+<p>Usage: <b>pracc-pclog</b> [<i>options</i>] [<i>printer</i>]</p>
+<p>Read the <i>pc.log</i> file and write statistics per printer
+ to standard output. If no <i>printer</i> argument is specified,
+ look at all printers that have entries in <i>pc.log</i>.</p>
+<dl>
+<dt><b>-f</b> <i>date</i></dt>
+<dd>only show entries from (and including) <i>date</i></dd>
+<dt><b>-u</b> <i>date</i></dt>
+<dd>only show entries until (and including) <i>date</i></dd>
+<dt><i>printer</i></dt>
+<dd>only look at printers matching <i>printer</i> (wildcards)</dd>
+</dl>
+<p>Dates are in <i>yyyy-mm-dd</i> format, e.g., 2005-07-15.</p>
 
 <a name="logfile"></a>
 <h2>Log file</h2>
@@ -337,6 +356,6 @@ but this can be changed at compile-time. Here is what the tools log:</p>
 
 <div align="right"><i>v1, ujr/2003-11-13</i></div>
 <div align="right"><i>v2, ujr/2005-06-18</i></div>
-<div align="right"><i>latest: 2006-03-31</i></div>
+<div align="right"><i>latest: 2012-07-14</i></div>
 </body>
 </html>
