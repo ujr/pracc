@@ -33,6 +33,7 @@ as part of the <b>pracc</b> project.</i></p>
 <li><b><a href="#check">pracc-check</a></b>: check permissions and the like</li>
 <li><b><a href="#log">pracc-log</a></b>: interface to the common log file</li>
 <li><b><a href="#pclog">pracc-pclog</a></b>: analyse the <i>pc.log</i> file</li>
+<li><b><a href="#scan">pracc-scan</a></b>: scan print job for pages</li>
 </ul>
 
 <p>All tools have a <b>-V</b> and a <b>-h</b> option;
@@ -328,6 +329,33 @@ shift 2 &amp;&amp; pracc-edit "$ACCOUNT" credit "$AMOUNT" $*
 </dl>
 <p>Dates are in <i>yyyy-mm-dd</i> format, e.g., 2005-07-15.</p>
 
+<a name="scan"></a>
+<h2>pracc-scan</h2>
+<p>Usage: <b>pracc-scan</b> [<i>options</i>] [<i>file</i>]</p>
+<p>Scan a print job file for its page count and information like
+duplex printing, paper size, etc. Known job formats are:
+PJL, PCL5, PCLXL (aka PCL6), and PostScript. If <i>file</i>
+is not specified, read from standard input.</p>
+<h4>Historical note:</h4>
+<p>This is a wrapper around <b>joblex</b>, a &quot;lexer&quot;
+for print jobs, originally written in about 2007 and since
+extended to support PCL XL. Presently, it produces one line
+to standard output with this format (# stands for a number):</p>
+<pre># pages=# sheets=# copies=# duplex=# color=# struct=foo</pre>
+<p>Example:</p>
+<pre>5 pages=5 sheets=3 copies=1 duplex=1 color=-1 struct=UJ6UJU</pre>
+<p>Joblex believes that this job prints 1 copy of a duplex job,
+resulting in 5 printed pages on 3 sheets of paper; joblex has
+no idea if this is a color or monochrome job (color=-1). The
+print job consists of a UEL (U), some PJL (J), PCL XL (6),
+followed by UEL @PJL UEL (UJU).</p>
+<p>The first number is always the same as pages and for compatibility
+with cupspracc (which reads the first number of the first line of
+a job scanner's output).</p>
+<p>Presently, color=1 represents @PJL PLANESINUSE = 3 (color) and
+color=0 represents @PJL SET PLANESINUSE = 1 (monochrome).
+It seems that many black-and-white jobs have @PJL SET PLANESINUSE = 3.</p>
+
 <a name="logfile"></a>
 <h2>Log file</h2>
 <p>There is a common log file, where account modifications
@@ -356,6 +384,6 @@ but this can be changed at compile-time. Here is what the tools log:</p>
 
 <div align="right"><i>v1, ujr/2003-11-13</i></div>
 <div align="right"><i>v2, ujr/2005-06-18</i></div>
-<div align="right"><i>latest: 2012-07-14</i></div>
+<div align="right"><i>latest: 2012-09-03</i></div>
 </body>
 </html>

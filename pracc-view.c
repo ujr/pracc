@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "common.h"
 #include "pracc.h"
@@ -25,9 +26,9 @@ char *me;
 char *acctname;
 time_t datemin = 0;
 time_t datemax = 0;
-char *linetypes = 0;
-
-int main(int argc, char **argv)
+char *linetypes = 0; 
+int
+main(int argc, char **argv)
 {
    struct praccbuf pracc;
    char buf[256];
@@ -40,7 +41,7 @@ int main(int argc, char **argv)
    me = progname(argv);
    if (!me) return 127; // no arg0
 
-   opterr = 0; // prevent stupid getopt output
+   opterr = 0; // prevent getopt output
    while ((c = getopt(argc, argv, "f:t:u:hV")) > 0) switch (c) {
       case 't': addtype(optarg); break;
       case 'f': setdate(optarg, &datemin); break;

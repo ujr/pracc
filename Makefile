@@ -45,7 +45,7 @@ PRACCPEEK = pracc-watch
 CFLAGS = -s
 
 TOOLS = pracc-init pracc-edit pracc-view pracc-kill pracc-sum \
- pracc-purge pracc-check pracc-log pracc-pclog pracc-print
+ pracc-purge pracc-check pracc-log pracc-pclog pracc-print pracc-scan
 
 all: backend tools gui
 backend: cupspracc
@@ -63,6 +63,7 @@ install: cupspracc pracc.cgi tools
 	install -o root -g root -m 755 pracc-log $(PRACCBIN)
 	install -o root -g root -m 755 pracc-pclog $(PRACCBIN)
 	install -o root -g root -m 755 pracc-print $(PRACCBIN)
+	install -o root -g root -m 755 pracc-scan $(PRACCBIN)
 	install -o root -g $(PRACCGROUP) -m 700 cupspracc $(BACKDIR)/pracc
 	install -o root -g root -m 755 pracc.cgi $(PRACCCGI)/pracc.cgi
 	cp -a doc/* $(PRACCDOC)
@@ -105,6 +106,11 @@ pracc-print: pracc-print.o delay.o pjl.o ps.o scanip4op.c scani.c scanu.c \
 	praccIdentify.c
 pracc-print.o: pracc-print.c delay.h pjl.h ps.h scan.h
 
+pracc-scan: pracc-scan.o joblex.o pcl5.o pclxl.o pclxlutil.o common.a \
+	praccIdentify.o
+	cc -lm -o pracc-scan pracc-scan.o joblex.o pcl5.o pclxl.o pclxlutil.o common.a praccIdentify.o
+pracc-scan.o: pracc-scan.c joblex.h pcl5.h pclxl.h pracc.h common.h
+
 pracc-init: pracc-init.o common.a pracclib.a
 pracc-init.o: pracc-init.c common.h pracc.h print.h scan.h
 
@@ -139,11 +145,6 @@ pracc.cgi.o: pracc.cgi.c pracc.h symtab.h cgi.h datetools.h \
 pracc.cgi: pracc.cgi.o subst.o symtab.o cgi.o datetools.c common.a \
         ui_acct.o ui_accts.o ui_pclog.o ui_pracclog.o ui_report.o \
         pclog.o tailocal.o pracclib.a
-
-## Subst MUST NOT depend on pracc.h, not even transitively!
-#subst: subst.c symtab.h scan.h
-#	cc -D STANDALONE -D VERSION='"$(VERSION)"' -o $@ \
-#	subst.c symtab.c progname.c scani.c scanu.c
 
 accts: ui_accts.c pracc.h tai.h
 	cc -D TESTING -o $@ ui_accts.c pracclib.a common.a
@@ -194,6 +195,13 @@ praccSum.o: praccSum.c pracc.h
 praccTypeString.o: praccTypeString.c pracc.h
 praccAccountInfo.o: praccAccountInfo.c pracc.h
 
+# joblex:
+
+joblex:	joblex.l pcl5.o pclxl.o pclxlutil.o
+	lex  -t joblex.l > joblex.c
+	cc   -c -o joblex.o joblex.c
+#	cc   joblex.o pcl5.o pclxl.o pclxlutil.o -lm -o joblex
+
 # Utilities:
 
 common.a: putln.o putfmt.o putbuf.o die.o progname.o
@@ -210,6 +218,10 @@ putbuf.o: putbuf.c
 
 delay.o: delay.c delay.h
 hasgroup.o: hasgroup.c hasgroup.h
+
+pcl5.o: pcl5.c pcl5.h
+pclxl.o: pclxl.c pclxl.h
+pclxlutil.o: pclxlutil.c pclxl.h
 
 prints.o: prints.c print.h
 printu.o: printu.c print.h
@@ -243,11 +255,3 @@ dist: clean
 	 --exclude .git --exclude RCS --exclude legacy --exclude test pracc)
 #	(V=`head -1 VERSION`; cd ..; tar chzvf pracc-v$$V.tgz \
 #	 --exclude RCS --exclude legacy --exclude test pracc)
-
-## Conversion from old pracc files to the current (2008) format
-#
-#conv:	conv.c pracc.h getln.h tai.h
-#	cc -o conv conv.c oldscan.c getln.c scani.c scanu.c scans.c \
-#	scanpat.c scantime.c scandate.c taiscan.c taifmt.c taistore.c \
-#	praccAssemble.c praccFormatName.c praccFormatInfo.c printu.c printi.c
-

@@ -1,31 +1,44 @@
- /* Count pages in print jobs. Urs Jakob Ruetschi 2008 */
+ /* Count pages in print jobs. Urs Jakob Ruetschi 2008-2012 */
+ // TODO Parse PCL5 in a subroutine (like PCL6); restore duplex/copies
+ // TODO Pass lineno to debug() statements
 %{
+#include <assert.h>
 #include <errno.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
-const char *me;
-long vpages = 0; // assumption
-long copies = 1; // assumption
-long lineno = 1;
-int verbose = 0;
+#include "joblex.h"
 
-char lang[32], *langptr = lang;
-const char *langend = lang + sizeof(lang) - 1;
+//long vpages = 0; // assumption
+//long copies = 1; // assumption
+static long lineno = 1;
+static int verbose = 0;
+static struct printer printer;
 
-int atend = 0;  // set to 1 on %%Pages: (atend)
-int gotit = 0;  // set to 1 if pages determined
+static char lang[32], *langptr = lang;
+static const char *langend = lang + sizeof(lang) - 1;
 
-char first;     // parametrized char of a PCL seq
-char group;     // group char of a PCL param seq
-long value;     // value of a PCL param seq
+static int atend = 0;  // set to 1 on %%Pages: (atend)
+static int gotit = 0;  // set to 1 if pages determined
 
-void addlang(char l);
-void skip(long nbytes);
-void dopcl(int first, int group, long value, int param);
-void debug(const char *fmt, ...);
+static char first;     // parametrized char of a PCL seq
+static char group;     // group char of a PCL param seq
+static long value;     // value of a PCL param seq
+
+static void addlang(char l);
+static void skip(long nbytes);
+static void dopcl(int first, int group, long value, int param);
+static void pjlvar(const char *text);
+
+static int parse_int(const char *s, int len);
+static int parse_bool(const char *s, int len);
+static int parse_duplex(const char *s, int len);
+
+//#define max(x,y) ((x)>(y)?(x):(y))
 %}
 
 ESC     \x1B
@@ -35,6 +48,7 @@ UEL     {ESC}%-12345X
 NUMBER  [[:digit:]]+
 ATEND   "(atend)"
 ENTER   @PJL{WS}+ENTER{WS}+LANGUAGE{WS}*={WS}*
+SET     @PJL{WS}+SET{WS}+
 
  /*
   * PCL character ranges: two-charachter escape sequences TC,
@@ -49,7 +63,7 @@ zC      [\x60-\x7E]
 ZC      [\x40-\x5E]
 PCLNUM  [-+]?([[:digit:]]{0,5}\.)?[[:digit:]]{1,5}
 
-%s PJL PJL_ENTER
+%s PJL PJL_ENTER PJL_SET
 %s PS PS_PAGES PS_PAGE
 %s PCL PCL_PARAM PCL_HPGL
 %s PCLXL
@@ -61,18 +75,19 @@ PCLNUM  [-+]?([[:digit:]]{0,5}\.)?[[:digit:]]{1,5}
   */
 
 {UEL}                { BEGIN(INITIAL); addlang('U');
-                       debug("saw plain UEL, enter INITIAL"); }
+                       debug("Got plain UEL, enter INITIAL"); }
 {UEL}/@PJL           { BEGIN(PJL); addlang('U'); addlang('J');
-                       debug("saw UEL@PJL, enter PJL"); }
+                       debug("Got UEL@PJL, enter PJL"); }
 <INITIAL>^%!         { BEGIN(PS); addlang('P');
-                       debug("saw %!, enter PS"); }
+                       debug("Got %!, enter PS"); }
 <INITIAL>^@PJL       { BEGIN(PJL); addlang('J');
-                       debug("saw ^@PJL, enter PJL"); }
+                       debug("Got ^@PJL, enter PJL"); }
 <INITIAL>{ESC}       { BEGIN(PCL); addlang('5');
-                       debug("saw plain ESC, enter PCL"); }
+                       debug("Got plain ESC, enter PCL"); }
+                       /* TODO Ok? Will parse binary files and give huge pc */
 
  /*
-  * Rules for PostScript: look for %%Pages comments and %%[Page: N]%%
+  * PostScript: look for %%Pages comments and %%[Page: N]%%
   * messages (Windows PS drivers often include code that generates
   * these but omit DSC %%Pages comments).
   *
@@ -84,34 +99,40 @@ PCLNUM  [-+]?([[:digit:]]{0,5}\.)?[[:digit:]]{1,5}
   */
 
 <PS>%%Pages:{WS}*    { if (!gotit) BEGIN(PS_PAGES); }
-<PS_PAGES>{ATEND}    { atend = 1; debug("saw %%%%Pages: (atend)"); }
+<PS_PAGES>{ATEND}    { atend = 1; debug("Got %%%%Pages: (atend)"); }
 <PS_PAGES>{NUMBER}   { long n = atol(yytext);
-                       if (vpages < n) vpages = n;
+                       if (printer.pages < n) printer.pages = n;
                        if (!atend) gotit = 1;
-                       debug("saw %%%%Pages: %d", n); }
+                       debug("Got %%%%Pages: %d", n); }
 <PS_PAGES>.|\n       { BEGIN(PS); }
 
 <PS>\(%%\[Page:{WS}*{NUMBER}\]%%\) { if (!gotit) {
                        atend = 1; BEGIN PS_PAGE; yyless(9); }}
 <PS_PAGE>{WS}*{NUMBER} { long n = atol(yytext);
-                       if (vpages < n) vpages = n;
-                       debug("saw (%%%%[Page: %d]%%%%)" ,n); }
+                       if (printer.pages < n) printer.pages = n;
+                       debug("Got (%%%%[Page: %d]%%%%)", n); }
 <PS_PAGE>.|\n        { BEGIN PS; }
                     
  /*
-  * In PJL mode, we just look for @PJL ENTER LANGUAGE
-  * to determine which language follows next...
+  * In PJL mode, we look for @PJL ENTER LANGUAGE
+  * and interesting @PJL SET name = value stuff
   */
 
 <PJL>{ENTER}         { BEGIN(PJL_ENTER); }
 <PJL_ENTER>POSTSCRIPT{WS}*$  { BEGIN(PS); addlang('P');
-                       debug("saw PJL ENTER, enter PS"); }
+                       debug("Got PJL ENTER, enter PS"); }
 <PJL_ENTER>PCL{WS}*\r?$ { BEGIN(PCL); addlang('5');
-                       debug("saw PJL ENTER, enter PCL"); }
+                       debug("Got PJL ENTER, enter PCL");
+                       //pcl5_parse(&printer); BEGIN(PJL);
+                     }
 <PJL_ENTER>PCLXL{WS}*\r?$  { BEGIN(PCLXL); addlang('6');
-                       debug("saw @PJL ENTER, enter PCLXL"); }
+                       debug("Got @PJL ENTER, enter PCLXL");
+                       pclxl_parse(&printer, stderr, verbose);
+                     }
 <PJL_ENTER>.*        { BEGIN(INITIAL); addlang('?');
-                       debug("saw @PJL ENTER LANGUAGE = %s", yytext); }
+                       debug("Got @PJL ENTER LANGUAGE = %s", yytext); }
+<PJL>{SET}           { BEGIN(PJL_SET); }
+<PJL_SET>.*\r?       { BEGIN(PJL); pjlvar(yytext); }
 
  /*
   * In PCL mode, we completely parse the PCL stuff, assign values
@@ -121,28 +142,35 @@ PCLNUM  [-+]?([[:digit:]]{0,5}\.)?[[:digit:]]{1,5}
   * but cannot find any reference in the PCL specification...
   */
 
-<PCL>{FF}            { ++vpages; debug("FF ends page %ld", vpages); }
+<PCL>{FF}            { printer.pages += printer.copies;
+                       printer.sheets += printer.duplex
+                          ? (float) printer.copies/2 : printer.copies;
+                       debug("Got PCL FF (page eject), increment pages"); }
 
 <PCL>{ESC}%-1B       { debug("Stand-alone plotter mode (?)"); }
-<PCL>{ESC}%[0-9]*B   { BEGIN PCL_HPGL; debug("enter HPGL mode"); }
+<PCL>{ESC}%[0-9]*B   { BEGIN(PCL_HPGL); debug("Enter HPGL mode"); }
 <PCL_HPGL>.|\n       { /* ignore HP-GL/2 */ }
-<PCL_HPGL>{ESC}%[0-9]*A { BEGIN PCL; debug("enter PCL mode (after HPGL)"); }
-<PCL>{ESC}%[0-9]*A   { debug("enter PCL mode (w/o previous HPGL mode)"); }
+<PCL_HPGL>{ESC}%[0-9]*A { BEGIN(PCL); debug("Enter PCL mode (after HPGL)"); }
+<PCL>{ESC}%[0-9]*A   { debug("Enter PCL mode (w/o previous HPGL mode)"); }
 
-<PCL>{ESC}           { debug("unexpected ESC at top level"); }
+<PCL>{ESC}           { debug("Unexpected ESC at top level"); }
+<PCL>{ESC}E          { debug("Got PCL Ec E (reset printer), reset copies and duplex");
+                       printer.copies = printer.init_copies;
+                       printer.duplex = printer.init_duplex; }
 <PCL>{ESC}{TC}       { /* ignore PCL two-char command */
                        debug("{ESC %c}", yytext[1]); }
 <PCL>{ESC}{PC}{GC}   { first = yytext[1];
                        group = yytext[2];
                        value = 0; // default
-                       BEGIN PCL_PARAM; }
+                       BEGIN(PCL_PARAM); }
 <PCL_PARAM>{PCLNUM}  { const char *p = yytext;
                        if ((*p == '-') || (*p == '+')) ++p;
                        value = atol(p); /* trunc float */ }
 <PCL_PARAM>{zC}      { dopcl(first, group, value, yytext[0]); }
 <PCL_PARAM>{ZC}      { dopcl(first, group, value, yytext[0]);
                        BEGIN(PCL); }
-<PCL_PARAM>{ESC}     { yyless(0); BEGIN(PCL); debug("early ESC in param"); }
+<PCL_PARAM>{ESC}     { yyless(0); BEGIN(PCL);
+                       debug("Early ESC in param"); }
 <PCL_PARAM>.         { /* ignore anything else */ }
 <PCL>.               { /* ignore anything else */ }
  /*<PCL>{ESC}\*p{NUMBER}[XY]\x80{FF} { ++magic; }*/
@@ -159,43 +187,38 @@ PCLNUM  [-+]?([[:digit:]]{0,5}\.)?[[:digit:]]{1,5}
 
 %%
 
-int main(int argc, char **argv)
+//int main(int argc, char **argv)
+//{
+//   yylex();
+//   addlang(0); // terminate!
+//
+//   printf("%ld vpages=%ld copies=%ld struct=%s\n",
+//          vpages*copies, vpages, copies, lang);
+//
+//   return 0; // SUCCESS
+//}
+
+void
+joblex(FILE *fp, struct printer *pp, int verbosity)
 {
-   if (argv && *argv) me = *argv++;
-   else return 127; // no arg0?
-
-   if (*argv && !strcmp(*argv, "-v")) ++argv, verbose = 1;
-
-   if (*argv) {
-      const char *fn = *argv++;
-      if (!(yyin = fopen(fn, "r"))) {
-         fprintf(stderr, "%s: open %s: %s\n", me, fn, strerror(errno));
-         return 111;
-      }
-   }
-   else yyin = stdin;
-
-   if (*argv) {
-      fprintf(stderr, "Usage: %s [-v] [jobfile]\n", me);
-      fprintf(stderr, "Read stdin if no jobfile; -v is verbose\n");
-      return 127;
-   }
-
-   //yyout = fopen("/dev/null", "w");
+   lineno = 1;
+   yyin = fp;
+   printer = *pp;
+   verbose = verbosity;
    yylex();
-   addlang(0); // terminate!
-
-   if (verbose) fprintf(stderr, "\n");
-   printf("%ld vpages=%ld copies=%ld struct=%s\n",
-          vpages*copies, vpages, copies, lang);
-   //if (magic > 0) printf("magic=%ld\n", magic);
-
-   return 0; // SUCCESS
+   addlang(0); // terminate
+   *pp = printer;
+   strncpy(pp->structure, lang, sizeof(pp->structure));
 }
 
-int yywrap(void) { return 1; }
+int
+yywrap(void)
+{
+   return 1; // cause scanner to report end-of-file
+}
 
-void addlang(char l)
+void
+addlang(char l)
 {
    if (l) { // append language code
       if (langptr < langend) *langptr++ = l;
@@ -208,10 +231,9 @@ void addlang(char l)
 
 void dopcl(int first, int group, long value, int param)
 {
-   if (verbose) debug("{ESC %c %c %ld %c}",
-      first, group, value, param);
+//   if (verbose) debug("{ESC %c %c %ld %c}", first, group, value, param);
 
-   //if (0x60 <= param && param <= 0x7E) param -= 0x20;
+   if (0x60 <= param && param <= 0x7E) param -= 0x20;
    switch (PCLCODE(first,group,param)) {
    case PCLCODE('&','b','W'): // i/o config data
    case PCLCODE('&','p','X'): // transparent data
@@ -219,33 +241,45 @@ void dopcl(int first, int group, long value, int param)
    case PCLCODE('(','f','W'): // symbol set definition
    case PCLCODE(')','s','W'): // font descriptor data
    case PCLCODE('(','s','W'): // character/descriptor data
-   case PCLCODE('*','c','W'): // pattenr data
+   case PCLCODE('*','c','W'): // pattepr data
    case PCLCODE('*','b','V'): // raster data (a plane)
    case PCLCODE('*','b','W'): // raster data (a row)
    case PCLCODE('*','v','W'): // CID (Configure Image Data)
    case PCLCODE('*','m','W'): // dither matrix data
    case PCLCODE('*','l','W'): // color lookup table data
    case PCLCODE('*','i','W'): // viewing illuminant data
-      debug("skipping %ld bytes of %c%c#%c data",
-            value, first&255, group&255, param&255);
+      debug("Got PCL %d%d3%c, skipping %ld bytes",
+            first&255, group&255, param&255, value);
       skip(value);
       break;
    case PCLCODE('&','l','X'):
-      copies = value;
-      debug("set PCL copies = %ld", copies);
+      printer.copies = value; // affects current and subsequent pages
+      debug("Got PCL &l%ldX, set copies = %d", value, printer.copies);
+      break;
+   case PCLCODE('&','l','S'):
+      switch (value) {
+      case 0: // simplex
+      case 1: // duplex, long edge binding
+      case 2: // duplex, short edge binding
+         printer.duplex = value > 0;
+         debug("Got PCL &l%ldS, set duplex := %d", value, printer.duplex);
+         break;
+      default: // all other values are to be ignored
+         break;
+      }
       break;
    default: // ignore
       break;
    }
 }
 
-void skip(long nbytes)
+void
+skip(long nbytes)
 {
 #if 1
    while (nbytes-- > 0) {
       int c = input();
       if (c == EOF) break;
-      //fprintf(stderr, " %ld\n", nbytes);
    }
 #else
    if (fseek(yyin, nbytes, SEEK_CUR) == 0) yyrestart(yyin);
@@ -253,13 +287,106 @@ void skip(long nbytes)
 #endif
 }
 
-void debug(const char *fmt, ...)
+void
+pjlvar(const char *text)
 {
-   va_list ap;
-   va_start(ap, fmt);
-   if (!verbose) return;
-   fprintf(stderr, "Line %ld: ", lineno);
-   vfprintf(stderr, fmt, ap);
-   fprintf(stderr, "\n");
-   va_end(ap);
+   // Format of text: "name{WS}*={WS}*value{WS*}\r?"
+   // Look for these PJL environment variables:
+   // COPIES      1..999   num of uncollated copies (each page)
+   // DUPLEX      ON|OFF   default duplex mode (job may override)
+   // PAPER       A4|LETTER|CUSTOM|etc.  physical media size
+   // PLANESINUSE 1|3      1=monochrome, 3=color
+   // QTY         1..999   num of collated copies (entire job)
+
+   char *p;
+   const char *name, *value;
+   int namelen, valuelen;
+
+   // Trim trailing white space from text (\r causes ugly debug output):
+   p = (char *) text + strlen(text) - 1;
+   while (p > text && isspace(*p)) *p-- = '\0';
+
+   if (p = strchr(text, '='))
+   {
+      value = p+1; // skip the "="
+      name = text;
+
+      // Trim leading and trailing space on name:
+      while (isspace(*name)) ++name;
+      for (--p; isspace(*p) && p > name; --p);
+      namelen = p - name + 1;
+
+      // Trim leading space on value (trailing space removed above):
+      while (isspace(*value)) ++value;
+      valuelen = strlen(value);
+
+      if (strncasecmp(name, "PLANESINUSE", namelen) == 0) {
+         int i = parse_int(value, valuelen);
+         printer.color = i > 1;
+         debug("Got @PJL SET %s, set color := %d", text, printer.color);
+      }
+      else if (strncasecmp(name, "DUPLEX", namelen) == 0) {
+         printer.duplex = parse_duplex(value, valuelen);
+         debug("Got @PJL SET %s, set duplex := %d", text, printer.duplex);
+      }
+      else if (strncasecmp(name, "COPIES", namelen) == 0) {
+         printer.copies = parse_int(value, valuelen);
+         debug("Got @PJL SET %s, set copies := %d", text, printer.copies);
+      }
+      else if (strncasecmp(name, "QTY", namelen) == 0) {
+         printer.copies = parse_int(value, valuelen);
+         debug("Got @PJL SET %s, set copies := %d", text, printer.copies);
+      }
+      else if (strncasecmp(name, "PAPER", namelen) == 0) {
+         // TODO set format
+         debug("Got @PJL SET %s, ignore for now", text, value);
+      }
+   }
+   // else: not a valid assignment, ignore
 }
+
+static int
+parse_int(const char *s, int len)
+{
+   char buf[128];
+   strncpy(buf, s, len);
+   return atoi(buf);
+}
+
+static int // 0 = false, 1 = true
+parse_bool(const char *s, int len)
+{
+   if (strncasecmp(s, "ON", len) == 0) return 1;
+   if (strncasecmp(s, "OFF", len) == 0) return 0;
+   if (strncasecmp(s, "YES", len) == 0) return 1;
+   if (strncasecmp(s, "NO", len) == 0) return 0;
+   if (strncasecmp(s, "TRUE", len) == 0) return 1;
+   if (strncasecmp(s, "FALSE", len) == 0) return 0;
+
+   return 0; // default
+}
+
+static int // 0 = simplex, 1 = duplex
+parse_duplex(const char *s, int len)
+{
+   return parse_bool(s, len);
+}
+
+// Required by the PCLXL parser:
+// On each invocation, return next input byte, or EOF on end-of-file
+
+int
+pclxl_input()
+{
+   int c = input();
+   if (c == '\n') ++lineno;
+   return c;
+}
+
+int pcl5_input()
+{
+   int c = input();
+   if (c == '\n') ++lineno;
+   return c;
+}
+
