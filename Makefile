@@ -108,7 +108,6 @@ pracc-print.o: pracc-print.c delay.h pjl.h ps.h scan.h
 
 pracc-scan: pracc-scan.o joblex.o pcl5.o pclxl.o pclxlutil.o common.a \
 	praccIdentify.o
-	cc -lm -o pracc-scan pracc-scan.o joblex.o pcl5.o pclxl.o pclxlutil.o common.a praccIdentify.o
 pracc-scan.o: pracc-scan.c joblex.h pcl5.h pclxl.h pracc.h common.h
 
 pracc-init: pracc-init.o common.a pracclib.a

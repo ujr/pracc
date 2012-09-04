@@ -1,4 +1,4 @@
-/* PCL 5 Parser, (c) 2012 Urs-Jakob Ruetschi */
+/* Parser for PCL 5, (c) 2012 Urs-Jakob Ruetschi */
 
 /*
  Two types of Escape Sequences:
@@ -55,11 +55,29 @@
 #include <stdio.h>
 
 #include "pcl5.h"
+#include "joblex.h"
 
 #define BUG_INVALID_STATE 0
 
 #define PCL5_INPUT pcl5_input // return next byte or EOF on end-of-file
 #define PCLPARM(x,y,z) (65536*((x)&255) + 256*((y)&255) + ((z)&255))
+
+enum
+pcl5_parse_state {
+  INITIAL = 0, ESCAPE = 1, PARAMETRIC = 2, GROUP = 3
+};
+
+const char *
+pcl5_get_state_name(enum pcl5_parse_state state)
+{
+   switch (state) {
+      case INITIAL:    return "INITIAL";
+      case ESCAPE:     return "ESCAPE";
+      case PARAMETRIC: return "PARAMETRIC";
+      case GROUP:      return "GROUP";
+      default:         return "UNKNOWN";
+   }
+}
 
 static void
 pcl5_skip_bytes(int nbytes)
@@ -77,11 +95,12 @@ pcl5_do_char(struct printer *prt, int c)
 
    switch (c) {
    case 0x0C: // Form Feed
-      debug("Got PCL FF (Form Feed), increment pages");
-      copies = prt->copies;
-      duplex = prt->duplex;
-      prt->pages += copies;
-      prt->sheets += (duplex ? (float) copies/2 : copies);
+      debug("Got PCL FF (Form Feed)");
+      joblex_printer_eject(prt);
+      //copies = prt->copies;
+      //duplex = prt->duplex;
+      //prt->pages += copies;
+      //prt->sheets += (duplex ? (float) copies/2 : copies);
       break;
    default: // ignore
       break;
@@ -93,9 +112,10 @@ pcl5_do_cmd1(struct printer *prt, int c)
 {
    switch (c) {
    case 'E': // Printer Reset Command
-      debug("Got PCL Ec E (Printer Reset), reset copies and duplex");
-      prt->copies = prt->init_copies;
-      prt->duplex = prt->init_duplex;
+      debug("Got PCL Ec E (Printer Reset)");
+      joblex_printer_reset(prt);
+      //prt->copies = prt->init_copies;
+      //prt->duplex = prt->init_duplex;
       break;
    default: // ignore
       break;
@@ -128,22 +148,26 @@ pcl5_do_cmd2(struct printer *prt, int first, int group, int param, double value)
    case PCLPARM('&','l','A'):
       debug("Got PCL Ec &l%ldA (Paper Size), ignore for now", number);
       debug("(2=Letter, 26=A4, 27=A3, 101=custom; see HP docs)");
+      //TODO joblex_printer_set_pagesize(prt, pcl5_get_paper_size(number));
       break;
    case PCLPARM('&','l','S'):
       switch (number) {
       case 0: // simplex
       case 1: // duplex, long edge binding
       case 2: // duplex, short edge binding
-         prt->duplex = number > 0;
          debug("Got PCL Ec &l%ldS (Simplex/Duplex), set duplex := %d",
-               number, prt->duplex);
+               number, number);
+         //prt->duplex = number > 0;
+         joblex_printer_set_duplex(prt, number);
          break;
       }
       break;
    case PCLPARM('&','l','X'):
-      prt->copies = (int) number; // affects current and subsequent pages
+      // Affects current and subsequent pages
       debug("Got PCL Ec &l%ldX (Number of Copies), set copies := %d",
-            number, prt->copies);
+            number, (int) number);
+      //prt->copies = (int) number;
+      joblex_printer_set_copies(prt, (int) number);
       break;
    default: // ignore
       break;
@@ -193,17 +217,14 @@ pcl5_read_number(int c, double *number)
 static void
 pcl5_unexpected(struct printer *prt, int c, int state)
 {
-   debug("Got unexpected '%c' (%d) in PCL state %d", c, c, state);
+   const char *stateName = pcl5_get_state_name(state);
+   debug("Got unexpected '%c' (%d) in PCL state %s", c, c, stateName);
 }
 
-enum
-pcl5_parse_state {
-  INITIAL = 0, ESCAPE, PARAMETRIC, GROUP
-};
-
-void
-pcl5_parse(struct printer *prt)
+int
+pcl5_parse(struct printer *prt, FILE *logfp, int verbose)
 {
+   // XXX logfp & verbose presently not used
    enum pcl5_parse_state state;
    int c, cc, first, group, quit, hpgl;
    double value;
@@ -279,4 +300,6 @@ pcl5_parse(struct printer *prt)
             break;
       }
    }
+
+   return quit < 0 ? quit : 0;
 }

@@ -4,7 +4,6 @@
 
 #include <assert.h>
 #include <errno.h>
-#include <math.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -18,6 +17,7 @@
 //#define OUT_OF_MEMORY (NULL)
 
 static void usage(const char *err);
+static int ceil(float f);
 
 const char *me;
 int verbose = 0;   // 0=silent, 1=info, 2=debug
@@ -75,10 +75,21 @@ main(int argc, char **argv)
    joblex(fp, &printer, verbose);
 
    printf("%d pages=%d sheets=%d copies=%d duplex=%d color=%d struct=%s\n",
-          printer.pages, printer.pages, (int) ceilf(printer.sheets),
+          printer.pages, printer.pages, ceil(printer.sheets),
           printer.copies, printer.duplex, printer.color, printer.structure);
 
    return OK;
+}
+
+static int
+ceil(float f)
+{
+   // Not exactly the math ceil(), but what
+   // we need to compute the sheets printed.
+   if (f <= 0) return 0;
+   int i = (int) f;
+   if (i < f) i += 1;
+   return i;
 }
 
 void
@@ -94,7 +105,7 @@ usage(const char *err)
    exit(err ? 127 : OK);
 }
 
-void
+void // required by joblex.h
 debug(const char *fmt, ...)
 {
    va_list ap;
@@ -103,6 +114,19 @@ debug(const char *fmt, ...)
 
    va_start(ap, fmt);
    vfprintf(stderr, fmt, ap);
-   //if (lineno > 0) fprintf(stderr, " (line %ld)\n", lineno);
+   //if (lineno > 0) fprintf(stderr, " (line %ld)\n", lineno); else
+   fprintf(stderr, "\n");
    va_end(ap);
+}
+
+void // required by joblex.h
+fatal(const char *fmt, ...)
+{
+   va_list ap;
+
+   va_start(ap, fmt);
+   vfprintf(stderr, fmt, ap);
+   fprintf(stderr, "\n");
+   va_end(ap);
+   exit(111); // give up => TODO report an estimate (pracc-scan must never fail)
 }

@@ -1,4 +1,4 @@
-/* PCL XL Parser, (c) 2012 Urs-Jakob Ruetschi */
+/* Parser for PCL XL, (c) 2012 Urs-Jakob Ruetschi */
 
 #include <assert.h>
 #include <math.h>
@@ -16,17 +16,6 @@
 
 #include "pclxl.h"
 #include "joblex.h"
-
-static void
-die(const char *fmt, ...)
-{
-   va_list ap;
-   va_start(ap, fmt);
-   vfprintf(stderr, fmt, ap);
-   fprintf(stderr, "\n");
-   va_end(ap);
-   exit(1);
-}
 
 enum pclxl_endian {
    PCLXL_ENDIAN_UNKNOWN = 0,
@@ -284,7 +273,7 @@ pclxl_read_number(int type, enum pclxl_endian endian)
       {
          value = PCLXL_INPUT();
          if (value == EOF)
-            die("Unexpected end-of-file while reading a number");
+            fatal("Unexpected end-of-file while reading a number");
          result.number.raw[i] = (unsigned char) value;
       }
       break;
@@ -293,7 +282,7 @@ pclxl_read_number(int type, enum pclxl_endian endian)
       {
          value = PCLXL_INPUT();
          if (value == EOF)
-            die("Unexpected end-of-file while reading a number");
+            fatal("Unexpected end-of-file while reading a number");
          result.number.raw[i] = (unsigned char) value;
       }
       break;
@@ -346,7 +335,7 @@ pclxl_skip_array(int type, enum pclxl_endian endian)
       size = value.number.uint32;
       break;
    default:
-      die("Invalid data type for array size: %d", sizetype);
+      fatal("Invalid data type for array size: %d", sizetype);
    }
 
    for (i = 0; i < size; i++)
@@ -371,14 +360,14 @@ pclxl_skip_data(int type, enum pclxl_endian endian)
       nbytes = value.number.uint32;
       break;
    default:
-      die("Invalid data length tag: %d", type);
+      fatal("Invalid data length tag: %d", type);
    }
 
    for (i = 0; i < nbytes; i++)
    {
       int value = PCLXL_INPUT();
       if (value == EOF)
-         die("Unexpected end-of-file while reading embedded data");
+         fatal("Unexpected end-of-file while reading embedded data");
    }
 }
 
@@ -535,6 +524,8 @@ pclxl_parse(struct printer *prt, FILE *logfp, int verbose)
    endian = PCLXL_ENDIAN_UNKNOWN;
    memset(&novalue, 0, sizeof(novalue));
    pclxl_stack_init(&stack, PCLXL_STACK_SIZE);
+
+   // TODO Don't modify prt directly, use joblex_printer_foo() instead
 
    while (!quit)
    {

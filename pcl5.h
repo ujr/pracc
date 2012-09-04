@@ -5,6 +5,6 @@
 
 #include "joblex.h"
 
-extern void pcl5_parse(struct printer *prt);
+extern int pcl5_parse(struct printer *prt, FILE *logfp, int verbose);
 
 #endif // _PCL5_H_

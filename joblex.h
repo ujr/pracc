@@ -16,6 +16,7 @@ struct printer {
 extern void joblex(FILE *fp, struct printer *printer, int verbosity);
 
 extern void debug(const char *fmt, ...);
-// TODO debug(int lineno, const char *fmt, ...);
+extern void fatal(const char *fmt, ...);
+// TODO pass in a line number or byte offset (for better error reporting)
 
 #endif // _JOBLEX_H_
