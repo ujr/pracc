@@ -96,11 +96,7 @@ pcl5_do_char(struct printer *prt, int c)
    switch (c) {
    case 0x0C: // Form Feed
       debug("Got PCL FF (Form Feed)");
-      joblex_printer_eject(prt);
-      //copies = prt->copies;
-      //duplex = prt->duplex;
-      //prt->pages += copies;
-      //prt->sheets += (duplex ? (float) copies/2 : copies);
+      joblex_printer_endpage(prt, -1, -1);
       break;
    default: // ignore
       break;
@@ -114,8 +110,6 @@ pcl5_do_cmd1(struct printer *prt, int c)
    case 'E': // Printer Reset Command
       debug("Got PCL Ec E (Printer Reset)");
       joblex_printer_reset(prt);
-      //prt->copies = prt->init_copies;
-      //prt->duplex = prt->init_duplex;
       break;
    default: // ignore
       break;
@@ -148,7 +142,7 @@ pcl5_do_cmd2(struct printer *prt, int first, int group, int param, double value)
    case PCLPARM('&','l','A'):
       debug("Got PCL Ec &l%ldA (Paper Size), ignore for now", number);
       debug("(2=Letter, 26=A4, 27=A3, 101=custom; see HP docs)");
-      //TODO joblex_printer_set_pagesize(prt, pcl5_get_paper_size(number));
+      //TODO joblex_printer_set_pagesize(prt, pcl5_get_page_size(number));
       break;
    case PCLPARM('&','l','S'):
       switch (number) {
@@ -157,7 +151,6 @@ pcl5_do_cmd2(struct printer *prt, int first, int group, int param, double value)
       case 2: // duplex, short edge binding
          debug("Got PCL Ec &l%ldS (Simplex/Duplex), set duplex := %d",
                number, number);
-         //prt->duplex = number > 0;
          joblex_printer_set_duplex(prt, number);
          break;
       }
@@ -166,7 +159,6 @@ pcl5_do_cmd2(struct printer *prt, int first, int group, int param, double value)
       // Affects current and subsequent pages
       debug("Got PCL Ec &l%ldX (Number of Copies), set copies := %d",
             number, (int) number);
-      //prt->copies = (int) number;
       joblex_printer_set_copies(prt, (int) number);
       break;
    default: // ignore

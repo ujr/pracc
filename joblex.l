@@ -13,8 +13,6 @@
 
 #define MAX(a,b) ((a)>(b)?(a):(b))
 
-//long vpages = 0; // assumption
-//long copies = 1; // assumption
 static long lineno = 1;
 static int verbose = 0;
 static struct printer *printer;
@@ -29,7 +27,7 @@ static char first;     // parametrized char of a PCL seq
 static char group;     // group char of a PCL param seq
 static long value;     // value of a PCL param seq
 
-static void addlang(char l);
+//static void addlang(char l);
 static void skip(long nbytes);
 static void dopcl(int first, int group, long value, int param);
 static void pjlvar(const char *text);
@@ -37,6 +35,9 @@ static void pjlvar(const char *text);
 static int parse_int(const char *s, int len);
 static int parse_bool(const char *s, int len);
 static int parse_duplex(const char *s, int len);
+
+void joblex_printer_set_lang(struct printer *pp, char lang);
+
 %}
 
 ESC     \x1B
@@ -72,15 +73,21 @@ PCLNUM  [-+]?([[:digit:]]{0,5}\.)?[[:digit:]]{1,5}
   * Switching between languages: PJL, PS, PCL, and PCLXL.
   */
 
-{UEL}                { BEGIN(INITIAL); addlang('U');
+{UEL}                { BEGIN(INITIAL); //addlang('U');
+                       joblex_printer_set_lang(printer, 'U');
                        debug("Got plain UEL, enter INITIAL"); }
-{UEL}/@PJL           { BEGIN(PJL); addlang('U'); addlang('J');
+{UEL}/@PJL           { BEGIN(PJL); //addlang('U'); addlang('J');
+                       joblex_printer_set_lang(printer, 'U');
+                       joblex_printer_set_lang(printer, 'J');
                        debug("Got UEL@PJL, enter PJL"); }
-<INITIAL>^%!         { BEGIN(PS); addlang('P');
+<INITIAL>^%!         { BEGIN(PS); //addlang('P');
+                       joblex_printer_set_lang(printer, 'P');
                        debug("Got %!, enter PS"); }
-<INITIAL>^@PJL       { BEGIN(PJL); addlang('J');
+<INITIAL>^@PJL       { BEGIN(PJL); //addlang('J');
+                       joblex_printer_set_lang(printer, 'J');
                        debug("Got ^@PJL, enter PJL"); }
-<INITIAL>{ESC}       { BEGIN(PCL); addlang('5');
+<INITIAL>{ESC}       { BEGIN(PCL); //addlang('5');
+                       joblex_printer_set_lang(printer, '5');
                        debug("Got plain ESC, enter PCL");
                        pcl5_parse(printer); BEGIN(INITIAL); }
                        /* TODO Ok? Will parse arbitrary binary files as PCL
@@ -119,18 +126,22 @@ PCLNUM  [-+]?([[:digit:]]{0,5}\.)?[[:digit:]]{1,5}
   */
 
 <PJL>{ENTER}         { BEGIN(PJL_ENTER); }
-<PJL_ENTER>POSTSCRIPT{WS}*$  { BEGIN(PS); addlang('P');
+<PJL_ENTER>POSTSCRIPT{WS}*$  { BEGIN(PS); //addlang('P');
+                       joblex_printer_set_lang(printer, 'P');
                        debug("Got PJL ENTER, enter PS"); }
-<PJL_ENTER>PCL{WS}*\r?$ { BEGIN(PCL); addlang('5');
+<PJL_ENTER>PCL{WS}*\r?$ { BEGIN(PCL); //addlang('5');
+                       joblex_printer_set_lang(printer, '5');
                        debug("Got PJL ENTER, enter PCL");
                        pcl5_parse(printer, stderr, verbose);
                        BEGIN(PJL); // back to PJL (pcl5_parse stops after UEL)
                      }
-<PJL_ENTER>PCLXL{WS}*\r?$  { BEGIN(PCLXL); addlang('6');
+<PJL_ENTER>PCLXL{WS}*\r?$  { BEGIN(PCLXL); //addlang('6');
+                       joblex_printer_set_lang(printer, '6');
                        debug("Got @PJL ENTER, enter PCLXL");
                        pclxl_parse(printer, stderr, verbose);
                      }
-<PJL_ENTER>.*        { BEGIN(INITIAL); addlang('?');
+<PJL_ENTER>.*        { BEGIN(INITIAL); //addlang('?');
+                       joblex_printer_set_lang(printer, '?');
                        debug("Got @PJL ENTER LANGUAGE = %s", yytext); }
 <PJL>{SET}           { BEGIN(PJL_SET); }
 <PJL_SET>.*\r?       { BEGIN(PJL); pjlvar(yytext); }
@@ -195,8 +206,8 @@ joblex(FILE *fp, struct printer *pp, int verbosity)
    printer = pp;
    verbose = verbosity;
    yylex();
-   addlang(0); // terminate
-   strncpy(pp->structure, lang, sizeof(pp->structure));
+   //addlang(0); // terminate
+   //strncpy(pp->structure, lang, sizeof(pp->structure));
 }
 
 int
@@ -205,15 +216,15 @@ yywrap(void)
    return 1; // cause scanner to report end-of-file
 }
 
-void
-addlang(char l)
-{
-   if (l) { // append language code
-      if (langptr < langend) *langptr++ = l;
-      else if (langptr > lang) langptr[-1] = '!'; // too long
-   }
-   else *langptr = '\0'; // terminate
-}
+//void
+//addlang(char l)
+//{
+//   if (l) { // append language code
+//      if (langptr < langend) *langptr++ = l;
+//      else if (langptr > lang) langptr[-1] = '!'; // too long
+//   }
+//   else *langptr = '\0'; // terminate
+//}
 
 #define PCLCODE(x,y,z) (65536*(x&255) + 256*(y&255) + (z&255))
 
@@ -384,17 +395,32 @@ pcl5_input()
 }
 
 void
+joblex_printer_init(struct printer *pp)
+{
+   pp->copies = pp->init_copies = 1;
+   pp->duplex = pp->init_duplex = 0;
+   pp->format = -1; // unknown
+   pp->color = -1; // unknown
+   pp->pages = 0;
+   pp->sheets = 0;
+   memset(pp->structure, '\0', sizeof(pp->structure));
+}
+
+void
 joblex_printer_reset(struct printer *pp)
 {
    pp->copies = pp->init_copies;
    pp->duplex = pp->init_duplex;
+   pp->format = pp->init_format;
 }
 
 void
-joblex_printer_eject(struct printer *pp)
+joblex_printer_endpage(struct printer *pp, int duplex, int copies)
 {
-   int copies = pp->copies;
-   int duplex = pp->duplex;
+   // PCL XL: BeginPage/EndPage duplex&copies override PJL settings;
+   // here the duplex and copies parameters are negative if missing.
+   if (duplex < 0) duplex = pp->duplex;
+   if (copies < 0) copies = pp->copies;
 
    pp->pages += copies;
    pp->sheets += (duplex ? (float) copies/2 : copies);
@@ -413,7 +439,19 @@ joblex_printer_set_copies(struct printer *pp, int copies)
 }
 
 void
-joblex_printer_set_papersize(struct printer *pp, int papersize)
+joblex_printer_set_pagesize(struct printer *pp, float pagesize)
 {
-   // TODO
+   // TODO record current pagesize (ie, area in mm^2); on endpage(), sum up.
+}
+
+void
+joblex_printer_set_lang(struct printer *pp, char lang)
+{
+   int len = strlen(pp->structure);
+   if (len+1 < sizeof(pp->structure)) {
+      pp->structure[len] = lang;
+   }
+   else {
+      pp->structure[sizeof(pp->structure)-1] = '!';
+   }
 }

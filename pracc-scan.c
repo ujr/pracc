@@ -64,16 +64,12 @@ main(int argc, char **argv)
       return 127;
    }
 
-   printer.copies = printer.init_copies = 1;
-   printer.duplex = printer.init_duplex = 0;
-   printer.format = -1; // unknown
-   printer.color = -1; // unknown
-   printer.pages = 0;
-   printer.sheets = 0;
-   printer.structure[0] = '\0';
+   joblex_printer_init(&printer);
 
    joblex(fp, &printer, verbose);
 
+   // Really needed: pages=%d sheets=%d color=%d paper=%d nup=%d struct=%s\n
+   //                                   -1/0/1   A4/A3/etc       UJU6U
    printf("%d pages=%d sheets=%d copies=%d duplex=%d color=%d struct=%s\n",
           printer.pages, printer.pages, ceil(printer.sheets),
           printer.copies, printer.duplex, printer.color, printer.structure);
