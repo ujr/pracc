@@ -17,7 +17,7 @@
 //#define OUT_OF_MEMORY (NULL)
 
 static void usage(const char *err);
-static int ceil(float f);
+static int ceiling(float f);
 
 const char *me;
 int verbose = 0;   // 0=silent, 1=info, 2=debug
@@ -68,17 +68,16 @@ main(int argc, char **argv)
 
    joblex(fp, &printer, verbose);
 
-   // Really needed: pages=%d sheets=%d color=%d paper=%d nup=%d struct=%s\n
-   //                                   -1/0/1   A4/A3/etc       UJU6U
-   printf("%d pages=%d sheets=%d copies=%d duplex=%d color=%d struct=%s\n",
-          printer.pages, printer.pages, ceil(printer.sheets),
-          printer.copies, printer.duplex, printer.color, printer.structure);
+   //                          -1/0/1  A4/A3/.. nup/dup/booklet UJU6U
+   printf("pages=%d sheets=%d color=%d paper=%s layout=%s struct=%s\n",
+          printer.pages, ceiling(printer.sheets), printer.color,
+          printer.init_paper, printer.layout, printer.structure);
 
    return OK;
 }
 
 static int
-ceil(float f)
+ceiling(float f)
 {
    // Not exactly the math ceil(), but what
    // we need to compute the sheets printed.

@@ -27,7 +27,6 @@ static char first;     // parametrized char of a PCL seq
 static char group;     // group char of a PCL param seq
 static long value;     // value of a PCL param seq
 
-//static void addlang(char l);
 static void skip(long nbytes);
 static void dopcl(int first, int group, long value, int param);
 static void pjlvar(const char *text);
@@ -35,9 +34,6 @@ static void pjlvar(const char *text);
 static int parse_int(const char *s, int len);
 static int parse_bool(const char *s, int len);
 static int parse_duplex(const char *s, int len);
-
-void joblex_printer_set_lang(struct printer *pp, char lang);
-
 %}
 
 ESC     \x1B
@@ -206,8 +202,6 @@ joblex(FILE *fp, struct printer *pp, int verbosity)
    printer = pp;
    verbose = verbosity;
    yylex();
-   //addlang(0); // terminate
-   //strncpy(pp->structure, lang, sizeof(pp->structure));
 }
 
 int
@@ -215,16 +209,6 @@ yywrap(void)
 {
    return 1; // cause scanner to report end-of-file
 }
-
-//void
-//addlang(char l)
-//{
-//   if (l) { // append language code
-//      if (langptr < langend) *langptr++ = l;
-//      else if (langptr > lang) langptr[-1] = '!'; // too long
-//   }
-//   else *langptr = '\0'; // terminate
-//}
 
 #define PCLCODE(x,y,z) (65536*(x&255) + 256*(y&255) + (z&255))
 
@@ -321,24 +305,27 @@ pjlvar(const char *text)
 
       if (strncasecmp(name, "PLANESINUSE", namelen) == 0) {
          int i = parse_int(value, valuelen);
-         printer->color = i > 1;
+         joblex_printer_set_color(printer, i > 1);
          debug("Got @PJL SET %s, set color := %d", text, printer->color);
       }
       else if (strncasecmp(name, "DUPLEX", namelen) == 0) {
-         printer->duplex = parse_duplex(value, valuelen);
-         debug("Got @PJL SET %s, set duplex := %d", text, printer->duplex);
+         int duplex = parse_duplex(value, valuelen);
+         joblex_printer_init_duplex(printer, duplex);
+         debug("Got @PJL SET %s, init duplex := %d", text, printer->duplex);
       }
       else if (strncasecmp(name, "COPIES", namelen) == 0) {
-         printer->copies = parse_int(value, valuelen);
-         debug("Got @PJL SET %s, set copies := %d", text, printer->copies);
+         int copies = parse_int(value, valuelen);
+         joblex_printer_init_copies(printer, copies);
+         debug("Got @PJL SET %s, init copies := %d", text, printer->copies);
       }
       else if (strncasecmp(name, "QTY", namelen) == 0) {
-         printer->copies = parse_int(value, valuelen);
-         debug("Got @PJL SET %s, set copies := %d", text, printer->copies);
+         int copies = parse_int(value, valuelen);
+         joblex_printer_init_copies(printer, copies);
+         debug("Got @PJL SET %s, init copies := %d", text, printer->copies);
       }
       else if (strncasecmp(name, "PAPER", namelen) == 0) {
-         // TODO set paperSize
-         debug("Got @PJL SET %s, ignore for now", text, value);
+         joblex_printer_init_paper(printer, strdup(value));
+         debug("Got @PJL SET %s, init paper := %s", text, printer->paper);
       }
       else if (strncasecmp(name, "LAYOUT", namelen) == 0) {
          // TODO set duplex and evtl paperSize
@@ -399,10 +386,11 @@ joblex_printer_init(struct printer *pp)
 {
    pp->copies = pp->init_copies = 1;
    pp->duplex = pp->init_duplex = 0;
-   pp->format = -1; // unknown
-   pp->color = -1; // unknown
+   pp->paper = pp->init_paper = 0;   // unknown
    pp->pages = 0;
    pp->sheets = 0;
+   pp->color = -1;    // unknown
+   pp->layout = "?";  // unknown
    memset(pp->structure, '\0', sizeof(pp->structure));
 }
 
@@ -411,7 +399,7 @@ joblex_printer_reset(struct printer *pp)
 {
    pp->copies = pp->init_copies;
    pp->duplex = pp->init_duplex;
-   pp->format = pp->init_format;
+   pp->paper = pp->init_paper;
 }
 
 void
@@ -427,9 +415,27 @@ joblex_printer_endpage(struct printer *pp, int duplex, int copies)
 }
 
 void
+joblex_printer_set_color(struct printer *pp, int color)
+{
+   pp->color = color;
+}
+
+void
+joblex_printer_init_duplex(struct printer *pp, int duplex)
+{
+   pp->duplex = pp->init_duplex = duplex > 0;
+}
+
+void
 joblex_printer_set_duplex(struct printer *pp, int duplex)
 {
    pp->duplex = duplex > 0;
+}
+
+void
+joblex_printer_init_copies(struct printer *pp, int copies)
+{
+  pp->copies = pp->init_copies = MAX(0, copies);
 }
 
 void
@@ -439,9 +445,16 @@ joblex_printer_set_copies(struct printer *pp, int copies)
 }
 
 void
-joblex_printer_set_pagesize(struct printer *pp, float pagesize)
+joblex_printer_init_paper(struct printer *pp, const char *name)
 {
-   // TODO record current pagesize (ie, area in mm^2); on endpage(), sum up.
+   pp->paper = pp->init_paper = (char *) name;
+}
+
+void
+joblex_printer_set_paper(struct printer *pp, const char *name)
+{
+   pp->paper = (char *) name;
+   // TODO Want some extra logic if name != init_paper; if no init_paper, set it
 }
 
 void

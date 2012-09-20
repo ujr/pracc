@@ -119,6 +119,7 @@ pcl5_do_cmd1(struct printer *prt, int c)
 static void
 pcl5_do_cmd2(struct printer *prt, int first, int group, int param, double value)
 {
+   char *name;
    long number = (long) value;
 
    switch (PCLPARM(first, group, param)) {
@@ -140,9 +141,14 @@ pcl5_do_cmd2(struct printer *prt, int first, int group, int param, double value)
       pcl5_skip_bytes(number);
       break;
    case PCLPARM('&','l','A'):
-      debug("Got PCL Ec &l%ldA (Paper Size), ignore for now", number);
-      debug("(2=Letter, 26=A4, 27=A3, 101=custom; see HP docs)");
-      //TODO joblex_printer_set_pagesize(prt, pcl5_get_page_size(number));
+      //debug("(2=Letter, 26=A4, 27=A3, 101=custom; see HP docs)");
+      if (papersize_lookup_pcl5(number, &name, 0, 0)){
+         debug("Got PCL Ec &l%ldA (Paper Size), setting %s", number, name);
+         joblex_printer_set_paper(prt, name);
+      }
+      else {
+         debug("Got PCL Ec &l%ldA (Paper Size), UNKNOWN, IGNORE", number);
+      }
       break;
    case PCLPARM('&','l','S'):
       switch (number) {

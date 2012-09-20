@@ -93,7 +93,7 @@ pclxl_stack_find(struct pclxl_stack *sp, int attrid)
    {
       if (sp->slots[i].attrid == attrid)
       {
-         return &sp->slots[i];
+         return &(sp->slots[i]);
       }
    }
    return 0; // not found
@@ -122,7 +122,7 @@ pclxl_stack_pop(struct pclxl_stack *sp)
    struct pclxl_attr *slot;
    slot = &(sp->slots[sp->top--]);
 
-   // Paranoia: override popped slot with zeros
+   // Paranoia: overwrite popped slot with zeros
    memset(slot, 0, sizeof(struct pclxl_attr));
 }
 
@@ -975,21 +975,26 @@ pclxl_get_page_duplex(struct pclxl_stack *sp)
    return -1; // not specified; use PJL setting
 }
 
-float
-pclxl_get_page_size(struct pclxl_stack *sp)
+const char *
+pclxl_get_media_size(struct pclxl_stack *sp)
 {
+   char *name = NULL; // assume not specified
    struct pclxl_attr *attr = pclxl_stack_find(sp, PCLXL_ATTR_MEDIA_SIZE);
    if (attr != NULL)
    {
+      int key;
       switch (attr->type) {
-      case PCLXL_TAG_UBYTE: return attr->value.number.ubyte;
+      case PCLXL_TAG_UBYTE:
+         key = attr->value.number.ubyte;
+         papersize_lookup_pcl6(key, &name, 0, 0);
+         break;
       // TODO Support for "named" formats (UBTYE_ARRAY)
       }
    }
 
    // TODO Support for CUSTOM_MEDIA_SIZE with CUSTOM_MEDIA_SIZE_UNITS
 
-   return -1; // not specified; use PJL setting or previous MEDIA_SIZE??
+   return name;
 }
 
 int
@@ -1017,13 +1022,11 @@ pclxl_parse(struct printer *prt, FILE *logfp, int verbose)
    struct pclxl_stack stack;
    enum pclxl_endian endian;
    int op, quit = 0, copies, duplex;
-   float pagesize;
+   const char *papersize;
 
    endian = PCLXL_ENDIAN_UNKNOWN;
    memset(&novalue, 0, sizeof(novalue));
    pclxl_stack_init(&stack, PCLXL_STACK_SIZE);
-
-   // TODO Don't modify prt directly, use joblex_printer_foo() instead
 
    while (!quit)
    {
@@ -1055,8 +1058,8 @@ pclxl_parse(struct printer *prt, FILE *logfp, int verbose)
       case PCLXL_TAG_BEGIN_PAGE:
          if (verbose == 1) pclxl_logop(logfp, op, &stack);
          duplex = pclxl_get_page_duplex(&stack);
-         pagesize = pclxl_get_page_size(&stack);
-         // TODO Special duplex/eject logic if pagesize != last_pagesize ??
+         papersize = pclxl_get_media_size(&stack);
+         // TODO Special duplex/eject logic if papersize != last_papersize ??
          break;
       case PCLXL_TAG_END_PAGE:
          if (verbose == 1) pclxl_logop(logfp, op, &stack);
@@ -1064,7 +1067,7 @@ pclxl_parse(struct printer *prt, FILE *logfp, int verbose)
          // With PCL XL, copies may be 0, meaning to not print this page.
          // BeginPage's duplex and EndPage's copies override the
          // PJL DUPLEX and COPIES variables (PCL XL ref, Appendix I).
-         joblex_printer_set_pagesize(prt, pagesize);
+         joblex_printer_set_paper(prt, papersize);
          joblex_printer_endpage(prt, duplex, copies);
          break;
 
