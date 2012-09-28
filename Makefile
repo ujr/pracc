@@ -200,6 +200,16 @@ joblex:	joblex.l pcl5.o pclxl.o papersize.o
 	cc   -c -o joblex.o joblex.c
 #	cc   joblex.o pcl5.o pclxl.o -lm -o joblex
 
+# Unit tests:
+
+config_test: config_test.c config.h strbuf.h scan.h
+	cc -o config_test config_test.c config.c strbuf.c scani.c scanu.c
+	@./config_test || echo "Unit test for config FAILED"
+
+strbuf_test: strbuf_test.c strbuf.h
+	cc -o strbuf_test strbuf_test.c strbuf.c
+	@./strbuf_test || echo "Unit test for strbuf FAILED"
+
 # Utilities:
 
 common.a: putln.o putfmt.o putbuf.o die.o progname.o

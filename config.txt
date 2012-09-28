@@ -1,0 +1,30 @@
+
+Parser for ini-style config files
+=================================
+
+Example:
+---
+# comments start with has or semicolon
+; and last until the end of the line
+name = value ; global, ie, no section
+[section]
+foo = bar
+flag
+[section "Quux"]
+foo = this is another foo
+bar = "Value with #;\n nasty characters"
+---
+
+Variable names and section names will be lower-cased.
+Subsection names (in double quotes) keep original casing.
+Values keep original casing.
+Values can be in double quotes; then they may contain
+the comment chars (# and ;) or any of a few common escapes
+like \n (newline) or \t (tab).
+
+The API is designed to parse through the entire file
+and call a provided callback for each name = value pair.
+The name will be qualified with section and subsection (if any)
+as "section.Subsection.name"; the value may be NULL, which
+shall be interpreted as true.
+
