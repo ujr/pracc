@@ -18,6 +18,7 @@
 
 static void usage(const char *err);
 static int ceiling(float f);
+static void configure(const char *key, const char *value, void *data);
 
 const char *me;
 int verbose = 0;   // 0=silent, 1=info, 2=debug
@@ -37,9 +38,12 @@ main(int argc, char **argv)
    me = progname(argv);
    if (!me) return 127; // no arg0
 
+   joblex_printer_init(&printer);
+
    opterr = 0; // prevent getopt output
-   while ((c = getopt(argc, argv, "hqvV")) > 0) switch (c) {
+   while ((c = getopt(argc, argv, "hp:qvV")) > 0) switch (c) {
       case 'h': usage(0); return OK; // show help
+      case 'p': printer.name = optarg; break;
       case 'q': verbose = 0; break; // be quiet
       case 'v': verbose += 1; break; // more verbose
       case 'V': return praccIdentify("pracc-scan");
@@ -64,7 +68,7 @@ main(int argc, char **argv)
       return 127;
    }
 
-   joblex_printer_init(&printer);
+   config_parse_file(PRACCCONFIG, configure, &printer);
 
    joblex(fp, &printer, verbose);
 
@@ -74,6 +78,28 @@ main(int argc, char **argv)
           printer.init_paper, printer.layout, printer.structure);
 
    return OK;
+}
+
+static void
+configure(const char *key, const char *value, void *data)
+{
+   struct printer *printer = (struct printer *) data;
+   const char *name = printer->name;
+   int index;
+
+//fprintf(stderr, "%s=%s$\n", key, value);
+
+   index = config_match_sect(key, "printer", name);
+   if (index > 0) {
+      if (config_match_name(key+index, "canDuplex")) {
+         int flag = config_get_bool(key, value);
+         joblex_printer_can_duplex(printer, flag);
+      }
+      else if (config_match_name(key+index, "canColor")) {
+         int flag = config_get_bool(key, value);
+         joblex_printer_can_color(printer, flag);
+      }
+   }
 }
 
 static int
@@ -98,6 +124,18 @@ usage(const char *err)
    fprintf(fp, "Options: -q quiet, -v increase verbosity, -V identify\n");
    fprintf(fp, "Read standard input if no jobfile is specified.\n");
    exit(err ? 127 : OK);
+}
+
+void // required by config.h
+die(int code, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   fprintf(stderr, "%s: ", me);
+   vfprintf(stderr, fmt, ap);
+   fprintf(stderr, "\n");
+   va_end(ap);
+   exit(code);
 }
 
 void // required by joblex.h

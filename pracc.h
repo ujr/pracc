@@ -10,6 +10,7 @@
 #define PRACCGROUP "lpadmin" // group for pracc files (dedicated group)
 #define PRACCDEFLT "default" // default account name
 
+#define PRACCCONFIG "/etc/pracc.conf"
 #define PRACCLOG "/var/print/pracc.log" // accounting log file
 #define PRACCPCLOG "/var/print/pc.log" // pagecount log
 

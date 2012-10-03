@@ -20,6 +20,8 @@ PRACCGROUP = lpadmin
 # Name of the default account:
 PRACCDEFLT = default
 
+# The config file:
+PRACCCONFIG = /etc/pracc.conf
 # The accounting log file:
 PRACCLOG = /var/print/pracc.log
 # The pagecount log file:
@@ -47,9 +49,12 @@ CFLAGS = -s
 TOOLS = pracc-init pracc-edit pracc-view pracc-kill pracc-sum \
  pracc-purge pracc-check pracc-log pracc-pclog pracc-print pracc-scan
 
+TESTS = config_test strbuf_test
+
 all: backend tools gui
 backend: cupspracc
 tools: $(TOOLS)
+tests: $(TESTS)
 gui: pracc.cgi
 
 install: cupspracc pracc.cgi tools
@@ -71,11 +76,12 @@ install: cupspracc pracc.cgi tools
 
 # Generate the pracc.h header:
 
-pracc.h: Makefile
+pracc.h: Makefile pracc.t
 	sed -e 's:{VERSION}:$(VERSION):g' \
 	    -e 's:{PRACCOWNER}:$(PRACCOWNER):g' \
 	    -e 's:{PRACCGROUP}:$(PRACCGROUP):g' \
 	    -e 's:{PRACCDEFLT}:$(PRACCDEFLT):g' \
+	    -e 's:{PRACCCONFIG}:$(PRACCCONFIG):g' \
 	    -e 's:{PRACCLOG}:$(PRACCLOG):g' \
 	    -e 's:{PRACCPCLOG}:$(PRACCPCLOG):g' \
 	    -e 's:{PRACCDIR}:$(PRACCDIR):g' \
@@ -106,8 +112,9 @@ pracc-print: pracc-print.o delay.o pjl.o ps.o scanip4op.c scani.c scanu.c \
 	praccIdentify.c
 pracc-print.o: pracc-print.c delay.h pjl.h ps.h scan.h
 
-pracc-scan: pracc-scan.o joblex.o pcl5.o pclxl.o papersize.o common.a praccIdentify.o
-pracc-scan.o: pracc-scan.c joblex.h pcl5.h pclxl.h papersize.h pracc.h common.h
+pracc-scan: pracc-scan.o joblex.o pcl5.o pclxl.o papersize.o common.a \
+	praccIdentify.o config.o strbuf.o scani.o scanu.o
+pracc-scan.o: pracc-scan.c joblex.h pcl5.h pclxl.h papersize.h pracc.h common.h config.h
 
 pracc-init: pracc-init.o common.a pracclib.a
 pracc-init.o: pracc-init.c common.h pracc.h print.h scan.h
@@ -202,12 +209,12 @@ joblex:	joblex.l pcl5.o pclxl.o papersize.o
 
 # Unit tests:
 
-config_test: config_test.c config.h strbuf.h scan.h
-	cc -o config_test config_test.c config.c strbuf.c scani.c scanu.c
+config_test: config_test.c config.c config.h strbuf.h scan.h
+	cc -g -o config_test config_test.c config.c strbuf.c scani.c scanu.c
 	@./config_test || echo "Unit test for config FAILED"
 
 strbuf_test: strbuf_test.c strbuf.h
-	cc -o strbuf_test strbuf_test.c strbuf.c
+	cc -g -o strbuf_test strbuf_test.c strbuf.c
 	@./strbuf_test || echo "Unit test for strbuf FAILED"
 
 # Utilities:
@@ -253,10 +260,10 @@ taistore.o: taistore.c tai.h
 # Administration
 
 clean:
-	rm -f cupspracc $(TOOLS) pracc.cgi *.o *.a
+	rm -f cupspracc $(TOOLS) $(TESTS) pracc.cgi *.o *.a
 
 tgz: clean
-	(cd ..; tar chzvf pracc-`date +%Y%m%d`.tgz pracc)
+	(cd ..; tar chzvf pracc-`date +%Y%m%d`.tgz --exclude test pracc)
 
 dist: clean
 	(cd ..; tar chzvf pracc-$(VERSION).tgz \

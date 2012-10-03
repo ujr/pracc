@@ -4,6 +4,8 @@
 #include <stdio.h>
 
 struct printer { // TODO Rename struct joblex_printer
+   const char *name;
+   int can_color, can_duplex;
    int copies, init_copies; // default: 1
    int duplex, init_duplex; // -1=unknown, 0=simplex, 1=duplex
    char *paper, *init_paper;// -1=unknown, avg area of media

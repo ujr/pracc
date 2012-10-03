@@ -10,6 +10,7 @@
 #define PRACCGROUP "{PRACCGROUP}" // group for pracc files (dedicated group)
 #define PRACCDEFLT "{PRACCDEFLT}" // default account name
 
+#define PRACCCONFIG "{PRACCCONFIG}"
 #define PRACCLOG "{PRACCLOG}" // accounting log file
 #define PRACCPCLOG "{PRACCPCLOG}" // pagecount log
 

@@ -384,6 +384,8 @@ pcl5_input()
 void
 joblex_printer_init(struct printer *pp)
 {
+   pp->can_color = 0;
+   pp->can_duplex = 0;
    pp->copies = pp->init_copies = 1;
    pp->duplex = pp->init_duplex = 0;
    pp->paper = pp->init_paper = 0;   // unknown
@@ -392,6 +394,24 @@ joblex_printer_init(struct printer *pp)
    pp->color = -1;    // unknown
    pp->layout = "?";  // unknown
    memset(pp->structure, '\0', sizeof(pp->structure));
+}
+
+void
+joblex_printer_can_color(struct printer *pp, int can_color)
+{
+   pp->can_color = can_color;
+   if (!can_color) {
+      pp->color = 0;
+   }
+}
+
+void
+joblex_printer_can_duplex(struct printer *pp, int can_duplex)
+{
+   pp->can_duplex = can_duplex;
+   if (!can_duplex) {
+      pp->duplex = pp->init_duplex = 0;
+   }
 }
 
 void
@@ -417,19 +437,25 @@ joblex_printer_endpage(struct printer *pp, int duplex, int copies)
 void
 joblex_printer_set_color(struct printer *pp, int color)
 {
-   pp->color = color;
+   if (pp->can_color) {
+     pp->color = color;
+   }
 }
 
 void
 joblex_printer_init_duplex(struct printer *pp, int duplex)
 {
-   pp->duplex = pp->init_duplex = duplex > 0;
+   if (pp->can_duplex) {
+      pp->duplex = pp->init_duplex = duplex > 0;
+   }
 }
 
 void
 joblex_printer_set_duplex(struct printer *pp, int duplex)
 {
-   pp->duplex = duplex > 0;
+   if (pp->can_duplex) {
+      pp->duplex = duplex > 0;
+   }
 }
 
 void
