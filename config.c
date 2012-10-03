@@ -342,6 +342,52 @@ config_parse_file(const char *fn, config_cb_t cb, void *data)
    return ret;
 }
 
+int
+config_match_sect(const char *key, const char *sect, const char *sub)
+{
+   // key has the form section.name or section.SubSection.name
+   const char *base = key;
+
+   // Ignore case when comparing section:
+   while (*key && *sect) {
+      char kk = tolower(*key++);
+      char ss = tolower(*sect++);
+      if (kk != ss) return 0;
+   }
+
+   if (*key++ != '.') return 0;
+
+   // SubSection part is optional:
+   if (sub && *sub) {
+      // Honor case when comparing SubSection:
+      for (; *key && *sub; key++, sub++) {
+         if (*key != *sub) return 0;
+      }
+      if (*key++ != '.') return 0;
+   }
+   else {
+      // Key must not have a SubSection:
+      const char *p = key;
+      while (*p) if (*p++ == '.') return 0;
+   }
+
+   return key - base; // #chars matched
+}
+
+int
+config_match_name(const char *key, const char *name)
+{
+   while (*key && *name) {
+      char kk = tolower(*key++);
+      char nn = tolower(*name++);
+      if (kk != nn) return 0;
+   }
+
+   if (*key || *name) return 0;
+
+   return 1;
+}
+
 long
 config_get_int(const char *name, const char *value)
 {

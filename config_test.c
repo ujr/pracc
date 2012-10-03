@@ -162,7 +162,16 @@ main(int argc, char **argv)
    fclose(cfp);
    assert(exitcode == 0);
 
-   printf("OK");
+   printf("** Test config_match_key():\n");
+   assert(8 == config_match_sect("foo.Bar.baz", "foo", "Bar"));
+   assert(8 == config_match_sect("foo.Bar.baz", "Foo", "Bar"));
+   assert(0 == config_match_sect("foo.Bar.baz", "foo", "bar"));
+   assert(4 == config_match_sect("foo.Bar", "foo", NULL));
+   assert(4 == config_match_sect("foo.Bar", "foo", ""));
+   assert(0 == config_match_sect("foo.Bar.baz", "foo", NULL));
+   assert(0 == config_match_sect("foo.Bar.baz", "foo", ""));
+
+   printf("OK\n");
 
    return 0;
 }
