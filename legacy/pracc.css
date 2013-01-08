@@ -1,7 +1,0 @@
-/* Style sheet for pracc tools */
-body { margin: 2pc; font-family: sans-serif }
-h1, h2, h3 { font-family: sans-serif }
-h3 { font-style: oblique }
-th { font-family: sans-serif; background-color: #aaaaaa }
-pre { border: 1px solid #888; background-color: #ccc; padding: 4px }
-.graybox { background-color: #ddd; padding: 8px; border: 1px dotted #888 }

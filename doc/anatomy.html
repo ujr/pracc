@@ -1,18 +1,22 @@
 <html><head><title>Anatomy of the Printing System</title>
-<link rel="stylesheet" type="text/css" href="pracc.css">
-<meta name="author" content="Urs-Jakob Ruetschi">
+<style type="text/css">
+ body { margin:2pc }
+ pre { margin:10px; padding:5px;
+       border:1px solid black; background-color:#ccc }
+ h1,h2,h3 { font-family:sans-serif }
+</style>
 </head><body><!-- hand-crafted html ;-) -->
 
 Urs-Jakob R&uuml;etschi<br>
 <a href="mailto:ujr@ict.pzm-luzern.ch">ujr@ict.pzm-luzern.ch</a>
 
-<h1>Anatomy of the Printing System</h1>
+<h1>Anatomy of the Printing System (outdated)</h1>
 
 <p>We need one special user:<br>
  <b>pracc</b> to own accounting-related files (do <em>not</em> use lp)</p>
 <p>We need two special groups:<br>
  <b>pracc</b> for accounting-related stuff (do <em>not</em> use lp)<br>
- <b>print</b> to own printing-related stuff (you can use <b>lp</b>)</p>
+ <b>print</b> to own printing-related stuff (you may use lp)</p>
 
 <p>All printing and accounting stuff is in <i>/var/print</i>
  with one exception: <i>/etc/printers</i> is the config file.
