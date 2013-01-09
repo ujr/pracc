@@ -35,7 +35,8 @@
 #define streq(s,t) (strcmp((s),(t)) == 0)
 
 int check(char *home, char *sub, char *fn,
-          int type, int uid, int gid, int mode, int opt);
+          int type, int uid, int gid, int mode, int opt, int sayok);
+void report(char *home, char *sub, char *fn, char *fmt, ...);
 void grumble(char *home, char *sub, char *fn, char *fmt, ...);
 char *strftype(int mode);
 char *strfperm(int mode);
@@ -45,7 +46,8 @@ void usage(const char *s);
 char *me;
 int grumbled = 0;
 
-int main(int argc, char **argv)
+int
+main(int argc, char **argv)
 {
    struct group *gr;
    gid_t praccgid;
@@ -88,7 +90,7 @@ int main(int argc, char **argv)
    
    if (*argv) usage("too many arguments");
 
-   putfmt(stdout, "Compile-time configuration:\n");
+   putfmt(stdout, "** Compile-time configuration:\n");
    putfmt(stdout, "PRACCOWNER = %s (owner for pracc files)\n", PRACCOWNER);
    putfmt(stdout, "PRACCGROUP = %s (group for pracc files)\n", PRACCGROUP);
    putfmt(stdout, "PRACCDEFLT = %s (default account)\n", PRACCDEFLT);
@@ -118,36 +120,36 @@ int main(int argc, char **argv)
    gr = getgrnam(PRACCPOKE);
    if (!pw) die(127, "getgrnam %s failed", PRACCPOKE);
 
-   putln(stdout, "\nChecking web interface...");
-   check(0, 0, PRACCDOC, S_IFDIR, -1, -1, 0755, 0);
-   check(0, 0, PRACCCGI, S_IFDIR, -1, -1, -1, 0);
-   check(PRACCCGI, 0, "pracc.cgi", S_IFREG, -1, -1, -1, 0);
+   putln(stdout, "\n** Checking web interface...");
+   check(0, 0, PRACCDOC, S_IFDIR, -1, -1, 0755, 0, 1);
+   check(0, 0, PRACCCGI, S_IFDIR, -1, -1, -1, 0, 0);
+   check(PRACCCGI, 0, "pracc.cgi", S_IFREG, -1, -1, -1, 0, 1);
 
-   putln(stdout, "\nChecking log files...");
-   check(0, 0, PRACCLOG, S_IFREG, praccuid, praccgid, 0660, 0);
-   check(0, 0, PRACCPCLOG, S_IFREG, praccuid, praccgid, 0660, 1);
+   putln(stdout, "\n** Checking log files...");
+   check(0, 0, PRACCLOG, S_IFREG, praccuid, praccgid, 0660, 0, 1);
+   check(0, 0, PRACCPCLOG, S_IFREG, praccuid, praccgid, 0660, 1, 1);
 
-   putln(stdout, "\nChecking pracc tools...");
-   check(0, 0, PRACCBIN, S_IFDIR, -1, -1, -1, 1);
-   check(PRACCBIN, 0, "pracc-init", S_IFREG, -1, -1, 0755, 0);
-   check(PRACCBIN, 0, "pracc-edit", S_IFREG, -1, -1, 0755, 0);
-   check(PRACCBIN, 0, "pracc-view", S_IFREG, -1, -1, 0755, 0);
-   check(PRACCBIN, 0, "pracc-kill", S_IFREG, -1, -1, 0755, 0);
-   check(PRACCBIN, 0, "pracc-sum", S_IFREG, -1, -1, 0755, 0);
+   putln(stdout, "\n** Checking pracc tools...");
+   check(0, 0, PRACCBIN, S_IFDIR, -1, -1, -1, 1, 0);
+   check(PRACCBIN, 0, "pracc-init", S_IFREG, -1, -1, 0755, 0, 1);
+   check(PRACCBIN, 0, "pracc-edit", S_IFREG, -1, -1, 0755, 0, 1);
+   check(PRACCBIN, 0, "pracc-view", S_IFREG, -1, -1, 0755, 0, 1);
+   check(PRACCBIN, 0, "pracc-kill", S_IFREG, -1, -1, 0755, 0, 1);
+   check(PRACCBIN, 0, "pracc-sum", S_IFREG, -1, -1, 0755, 0, 1);
 #if 0 /* pracc-credit is not yet implemented */
-   check(PRACCBIN, 0, "pracc-credit", S_IFREG, 0, praccgid, 02755, 1);
+   check(PRACCBIN, 0, "pracc-credit", S_IFREG, 0, praccgid, 02755, 1, 1);
 #endif
 #if 0 /* pracc-purge is not yet implemented */
-   check(PRACCBIN, 0, "pracc-purge", S_IFREG, -1, -1, 0755, 0);
+   check(PRACCBIN, 0, "pracc-purge", S_IFREG, -1, -1, 0755, 0, 1);
 #endif
-   check(PRACCBIN, 0, "pracc-check", S_IFREG, -1, -1, 0755, 0);
-   check(PRACCBIN, 0, "pracc-log", S_IFREG, -1, -1, 0755, 0);
-   check(PRACCBIN, 0, "pracc-ok", S_IFREG, -1, -1, 0755, 1); // legacy
+   check(PRACCBIN, 0, "pracc-check", S_IFREG, -1, -1, 0755, 0, 1);
+   check(PRACCBIN, 0, "pracc-log", S_IFREG, -1, -1, 0755, 0, 1);
+   check(PRACCBIN, 0, "pracc-pclog", S_IFREG, -1, -1, 0755, 1, 1);
    
-   putln(stdout, "\nChecking pracc files...");
-   check(0, 0, PRACCDIR, S_IFDIR, praccuid, praccgid, 02770, 0);
-   if (check(PRACCDIR, 0, PRACCDEFLT, S_IFREG, praccuid, praccgid, 0660, 0))
-      ++badcnt; else ++goodcnt;
+   putln(stdout, "\n** Checking pracc files...");
+   check(0, 0, PRACCDIR, S_IFDIR, praccuid, praccgid, 02770, 0, 1);
+   // default account must exist (permissions checked below):
+   check(PRACCDIR, 0, PRACCDEFLT, S_IFREG, -1, -1, -1, 0, 0);
    dir = opendir(PRACCDIR);
    if (!dir) die(127, "cannot opendir %s", PRACCDIR);
    while (d = readdir(dir)) {
@@ -159,22 +161,23 @@ int main(int argc, char **argv)
          ++badcnt;
          continue;
       }
-      if (check(PRACCDIR, 0, fn, S_IFREG, praccuid, praccgid, 0660, 0)) {
+      if (check(PRACCDIR, 0, fn, S_IFREG, praccuid, praccgid, 0660, 0, 0)) {
          ++badcnt;
          continue;
       }
       ++goodcnt; // if we made it to here, the file was good
    }
    closedir(dir);
-   putfmt(stdout, "There were %d+%d good+bad files in %s\n",
+   putfmt(stdout, "%d+%d good+bad files in %s\n",
           goodcnt, badcnt, PRACCDIR);
    
    return (badcnt) ? 1 : 0;
 }
 
-int check(home,sub,fn,type,uid,gid,mode,opt)
-char *home, *sub, *fn;
-int type, uid, gid, mode, opt;
+int
+check(home,sub,fn,type,uid,gid,mode,opt,sayok)
+   char *home, *sub, *fn;
+   int type, uid, gid, mode, opt, sayok;
 {
    struct stat st;
    struct passwd *pw;
@@ -191,11 +194,6 @@ int type, uid, gid, mode, opt;
       else die(127, "cannot chdir %s/%s", home, sub);
    }
 
-   if ((uid != -1) && !(pw = getpwuid(uid)))
-      die(127, "getpwuid %d failed", uid);
-   if ((gid != -1) && !(gr = getgrgid(gid)))
-      die(127, "getgrgid %d failed", gid);
-
    if (stat(fn, &st) < 0) {
       if (errno == ENOENT) {
          if (!opt) grumble(home,sub,fn,"does not exist");
@@ -204,6 +202,11 @@ int type, uid, gid, mode, opt;
       else die(127, "stat .../%s failed", fn);
       return 0; // bad
    }
+
+   if (!(pw = getpwuid(st.st_uid)))
+      die(127, "getpwuid %d failed", st.st_uid);
+   if (!(gr = getgrgid(st.st_gid)))
+      die(127, "getgrgid %d failed", st.st_gid);
 
    if ((uid != -1) && (uid != st.st_uid))
       grumble(home,sub,fn,"wrong owner (should be %s #%d)", pw->pw_name, uid);
@@ -214,16 +217,18 @@ int type, uid, gid, mode, opt;
    if (type != (st.st_mode & S_IFMT))
       grumble(home,sub,fn,"wrong type (should be %s)", strftype(type));
 
-   return grumbled ? -1 : 0; // bad or good
+   if (!grumbled && sayok)
+      report(home,sub,fn,"%s %s %s (ok)",
+             strfperm(st.st_mode), pw->pw_name, gr->gr_name);
+
+   return grumbled; // bad or good
 }
 
-void grumble(char *home, char *sub, char *fn, char *fmt, ...)
+void
+reportv(char *home, char *sub, char *fn, char *fmt, va_list ap)
 {
    char *p, *end;
    char buf[256];
-
-   va_list ap;
-   va_start(ap, fmt);
 
    p = buf;
    end = buf + sizeof(buf) - 9;
@@ -244,13 +249,32 @@ void grumble(char *home, char *sub, char *fn, char *fmt, ...)
    p += printc(p, '\n');
    
    putbuf(stdout, buf, p-buf);
-
-   va_end(ap);
-
-   grumbled = 1;
 }
 
-char *strftype(int mode)
+void
+report(char *home, char *sub, char *fn, char *fmt, ...)
+{
+   va_list ap;
+
+   va_start(ap, fmt);
+   reportv(home, sub, fn, fmt, ap);
+   va_end(ap);
+}
+
+void
+grumble(char *home, char *sub, char *fn, char *fmt, ...)
+{
+   va_list ap;
+
+   va_start(ap, fmt);
+   reportv(home, sub, fn, fmt, ap);
+   va_end(ap);
+
+   grumbled += 1;
+}
+
+char *
+strftype(int mode)
 {
    switch (mode & S_IFMT) {
    case S_IFREG: return "regular file";
@@ -261,7 +285,8 @@ char *strftype(int mode)
    }
 }
 
-char *strfperm(int mode)
+char *
+strfperm(int mode)
 {
    static char buf[8];
    register char *p;
@@ -283,14 +308,16 @@ char *strfperm(int mode)
  * Carefully check the specified pracc file.
  * Return 0 if valid, 111 on syntax errors.
  */
-int checkfile(const char *fn)
+int
+checkfile(const char *fn)
 {
    // TODO (see praccRead for inspiration)
    fprintf(stderr, "Not yet implemented, sorry.\n");
    return 127;
 }
 
-void usage(const char *err)
+void
+usage(const char *err)
 {
    FILE *fp = (err) ? stderr : stdout;
    if (err) putfmt(stderr, "%s: %s\n", me, err);
