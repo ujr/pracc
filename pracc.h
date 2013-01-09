@@ -69,8 +69,8 @@ int praccAssemble(char *buf, int type, long value, time_t tstamp,
 char *praccPath(const char *acctname);
 char *praccTypeString(char type);
 int praccCheckName(const char *acctname);
-int praccFormatName(char *buf, const char *name, int size);
-int praccFormatInfo(char *buf, const char *info, int size);
+int praccFormatName(const char *name, char *buf, int size);
+int praccFormatInfo(const char *info, char *buf, int size);
 
 /* The pracc.log file */
 

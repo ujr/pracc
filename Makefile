@@ -145,9 +145,9 @@ pracc-pclog.o: pracc-pclog.c common.h pclog.h pracc.h
 
 # Pracc Web GUI
 
-pracc.cgi.o: pracc.cgi.c pracc.h symtab.h cgi.h datetools.h \
+pracc.cgi.o: pracc.cgi.c pracc.h symtab.h cgi.h daterange.h \
         ui_acct.h ui_accts.h ui_pclog.h ui_pracclog.h ui_report.h
-pracc.cgi: pracc.cgi.o subst.o symtab.o cgi.o datetools.c common.a \
+pracc.cgi: pracc.cgi.o subst.o symtab.o cgi.o daterange.c common.a \
         ui_acct.o ui_accts.o ui_pclog.o ui_pracclog.o ui_report.o \
         pclog.o tailocal.o pracclib.a
 
@@ -160,7 +160,7 @@ ui_pclog.o: ui_pclog.c ui_pclog.h getln.h pracc.h symtab.h tai.h
 ui_pracclog.o: ui_pracclog.c ui_pracclog.h pracc.h tai.h
 ui_report.o: ui_report.c ui_report.h pracc.h symtab.h
 
-datetools.o: datetools.c datetools.h scan.h
+daterange.o: daterange.c daterange.h scan.h
 cgi.o: cgi.c cgi.h pracc.h
 pclog.o: pclog.c getln.h pclog.h pracc.h symtab.h tai.h
 subst.o: subst.c pracc.h scan.h symtab.h
@@ -170,7 +170,7 @@ symtab.o: symtab.c symtab.h
 
 pracclib: pracclib.a
 pracclib.a: praccAppend.o praccAssemble.o praccCheckName.o praccCreate.o \
-	praccFormatInfo.o praccFormatName.o praccGrant.o praccLogRead.o \
+	praccFormat.o praccGrant.o praccLogRead.o \
 	praccLogup.o praccIdentify.o \
 	praccPath.o praccPurge.o praccRead.o praccSum.o \
 	praccTypeString.o praccAccountInfo.o praccDelete.o \
@@ -187,8 +187,7 @@ praccCheckName.o: praccCheckName.c pracc.h
 praccCreate.o: praccCreate.c pracc.h print.h
 praccDelete.o: praccDelete.c pracc.h
 praccAssemble.o: praccAssemble.c pracc.h print.h tai.h
-praccFormatInfo.o: praccFormatInfo.c pracc.h
-praccFormatName.o: praccFormatName.c pracc.h
+praccFormat.o: praccFormat.c pracc.h
 praccGrant.o: praccGrant.c pracc.h hasgroup.h
 praccLogRead.o: praccLogRead.c pracc.h getln.h scan.h tai.h
 praccLogup.o: praccLogup.c pracc.h print.h

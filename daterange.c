@@ -4,33 +4,12 @@
 #include <string.h>
 #include <time.h>
 
-#include "datetools.h"
+#include "daterange.h"
 #include "scan.h"
 
 #define streq(s,t) (strcmp((s),(t)) == 0)
 
-/*
- * Parse date in yyyy-mm-dd format into a time_t.
- * Return number of characters scanned, 0 on error.
- */
-int parsedate(const char *s, time_t *tp)
-{
-   struct tm tm;
-   time_t t;
-   int n;
-
-   if (!s) return 0;
-   if (!(n = scandate(s, &tm))) return 0;
-
-   tm.tm_sec = tm.tm_min = tm.tm_hour = 0;
-   if ((t = mktime(&tm)) < 0) return 0;
-
-   if (tp) *tp = t;
-
-   return n; // #chars scanned
-}
-
-/*
+/**
  * Given a symbolic name of a time period, compute
  * and return its start and end Unix time stamp:
  * 
@@ -43,10 +22,9 @@ int parsedate(const char *s, time_t *tp)
  *   all        beginning of Unix time (Jan 1st, 1970) till now
  *   N          beginning of N days ago till now
  *
- * Return 0 if ok, -1 on error (probably with EINVAL
- * because of an unknown period name).
+ * All other period names have the same effect as 'all'.
  */
-int daterange(const char *period, time_t *tmin, time_t *tmax)
+void daterange(const char *period, time_t *tmin, time_t *tmax)
 {
    time_t now, t0, t1;
    struct tm tm, *tmp;
@@ -55,10 +33,13 @@ int daterange(const char *period, time_t *tmin, time_t *tmax)
 
    assert(period);
 
+   if (tmin) *tmin = -1;
+   if (tmax) *tmax = -1;
+
    now = time(0);
    tmp = localtime(&now);
    if (tmp) tm = *tmp;
-   else return -1;
+   else return;
    nowdst = tm.tm_isdst;
    tm.tm_isdst = -1; // unknown
 
@@ -108,13 +89,13 @@ int daterange(const char *period, time_t *tmin, time_t *tmax)
       t0 = mktime(&tm);
       t1 = now;
    }
-   else if (streq(period, "all")) {
-      t0 = 0;
-      t1 = now;
-   }
-   else { // everything else means "today"
+   else if (streq(period, "today")) {
       tm.tm_sec = tm.tm_min = tm.tm_hour = 0;
       t0 = mktime(&tm);
+      t1 = now;
+   }
+   else { // everything else means "all"
+      t0 = 0;
       t1 = now;
    }
 
@@ -122,7 +103,6 @@ int daterange(const char *period, time_t *tmin, time_t *tmax)
    if (tmax) *tmax = t1;
 //fprintf(stderr, "daterange(%s): min %s\n", period, ctime(&t0)); //DEBUG
 //fprintf(stderr, "daterange(%s): max %s\n", period, ctime(&t1)); //DEBUG
-   return ((t0 < 0) || (t1 < 0)) ? -1 : 0;
 }
 
 #if 0

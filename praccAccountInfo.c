@@ -12,7 +12,7 @@
 
 #define streq(s,t) (strcmp(s,t) == 0)
 
-/*
+/**
  * Get information about an account: its type and
  * the owner's full name (= user's gecos field).
  *
@@ -25,7 +25,8 @@
  * Return 0 if there is an error (errno has the details)
  * or if the named account does not exist.
  */
-char praccAccountInfo(const char *acctname, char *buf, int len)
+char
+praccAccountInfo(const char *acctname, char *buf, int len)
 {
    struct passwd *pw;
    struct group *gr;

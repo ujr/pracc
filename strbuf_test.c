@@ -55,7 +55,7 @@ main(int argc, char **argv)
    assert(TERMINATED(sp));
    fprintf(stderr, "sp->buf = [%s]\n", sp->buf);
 
-   printf("OK");
+   printf("SUCCESS testing strbuf\n");
 
    return 0;
 }

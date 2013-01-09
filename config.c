@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "config.h"
 #include "scan.h"
@@ -257,8 +258,10 @@ config_parse(struct configfile *cfp, config_cb_t cb, void *data)
    int comment = 0;
    int sectlen = 0;
 
-   if (skip_utf8_bom(cfp->fp) < 0)
-      die(127, "bad config file: partial UTF-8 BOM");
+   if (skip_utf8_bom(cfp->fp) < 0) {
+      config_error("bad config: partial UTF-8 BOM");
+      return -1;
+   }
 
    for (;;) {
       int c = input(cfp);
@@ -290,8 +293,9 @@ config_parse(struct configfile *cfp, config_cb_t cb, void *data)
          break;
    }
 
-   die(127, "bad config file: line %d in %s",
-       cfp->lineno, cfp->fn ? cfp->fn : "(stream)");
+   config_error("bad config: line %d in %s",
+                cfp->lineno, cfp->fn ? cfp->fn : "(stream)");
+   return -1;
 }
 
 int
@@ -303,6 +307,7 @@ config_parse_stream(FILE *fp, config_cb_t cb, void *data)
    assert(cb != NULL);
    // data may be NULL
 
+   cf.fp = fp;
    cf.fn = "";
    cf.eof = 0;
    cf.lineno = 1;
@@ -393,9 +398,11 @@ config_get_int(const char *name, const char *value)
 {
    long ret;
    //while (isspace(*value)) value++;
-   if (value[scani(value, &ret)])
-      die(127, "bad config value for %s: '%s'\n", name, value);
-   return ret;
+   if (value[scani(value, &ret)] == '\0')
+      return ret;
+
+   config_error("bad config value for %s: '%s'", name, value);
+   abort();
 }
 
 int
@@ -408,5 +415,7 @@ config_get_bool(const char *name, const char *value)
    if (streqi(value, "false") ||
        streqi(value, "no") ||
        streqi(value, "off")) return 0;
-   die(127, "bad config value for '%s': %s\n", name, value);
+
+   config_error("bad config value for %s: '%s'", name, value);
+   abort();
 }

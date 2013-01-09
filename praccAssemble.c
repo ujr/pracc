@@ -35,7 +35,7 @@ static int praccAssembleTAI(buf, type, value, taip, username, comment)
    switch (type) {
       case '-': // debit
       case '+': // credit
-         if (value < 0) abort(); // BUG
+         assert(value >= 0); // BUG
          p += printu(p, value);
          break;
       case '=': // reset
@@ -57,11 +57,11 @@ static int praccAssembleTAI(buf, type, value, taip, username, comment)
    p += taifmt(p, taip);
 
    p += printc(p, ' ');
-   p += praccFormatName(p, username, MAXNAME);
+   p += praccFormatName(username, p, MAXNAME);
 
 justinfo: if (comment) {
       p += printc(p, ' ');
-      p += praccFormatInfo(p, comment, endp-p);
+      p += praccFormatInfo(comment, p, endp-p);
    }
 
    p += printc(p, '\n');

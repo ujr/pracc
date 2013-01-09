@@ -3,7 +3,7 @@
 
 #include "cgi.h"
 #include "common.h"
-#include "datetools.h"
+#include "daterange.h"
 #include "pracc.h"
 #include "symtab.h"
 
@@ -78,7 +78,7 @@ long getfirst();
 long getcount();
 time_t getmintime();
 time_t getmaxtime();
-char *getperiod(time_t *tminp, time_t *tmaxp, const char *deflt);
+const char *getperiod(time_t *tminp, time_t *tmaxp, const char *deflt);
 
 static void printsym(struct symbol *sym, void *data)
 { if (sym && sym->sval) printf(" %s=%s$\n", sym->name, sym->sval); }
@@ -1164,22 +1164,23 @@ instint(const char *name, long value)
  * Parse date in yyyy-mm-dd format into a time_t.
  * Return number of characters scanned, 0 on error.
  */
-//int parsedate(const char *s, time_t *tp)
-//{
-//   struct tm tm;
-//   time_t t;
-//   int n;
-//
-//   if (!s) return 0;
-//   if (!(n = scandate(s, &tm))) return 0;
-//
-//   tm.tm_sec = tm.tm_min = tm.tm_hour = 0;
-//   if ((t = mktime(&tm)) < 0) return 0;
-//
-//   if (tp) *tp = t;
-//
-//   return n; // #chars scanned
-//}
+int
+parsedate(const char *s, time_t *tp)
+{
+   struct tm tm;
+   time_t t;
+   int n;
+
+   if (!s) return 0;
+   if (!(n = scandate(s, &tm))) return 0;
+
+   tm.tm_sec = tm.tm_min = tm.tm_hour = 0;
+   if ((t = mktime(&tm)) < 0) return 0;
+
+   if (tp) *tp = t;
+
+   return n; // #chars scanned
+}
 
 /*
  * Parse an amount, which is required to be one of these forms:
@@ -1343,7 +1344,7 @@ getmaxtime()
    return -1; // no time
 }
 
-char *
+const char *
 getperiod(time_t *tminp, time_t *tmaxp, const char *deflt)
 {
    time_t tmin, tmax;

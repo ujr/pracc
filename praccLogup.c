@@ -34,11 +34,11 @@ int praccLogup(const char *username, const char *acctname, const char *info)
 
    p += taifmt(p, &now);
    p += prints(p, " by ");
-   p += praccFormatName(p, username, MAXNAME);
+   p += praccFormatName(username, p, MAXNAME);
    p += prints(p, " acct ");
-   p += praccFormatName(p, acctname, MAXNAME);
+   p += praccFormatName(acctname, p, MAXNAME);
    p += prints(p, ": ");
-   p += praccFormatInfo(p, info, endp-p);
+   p += praccFormatInfo(info, p, endp-p);
    p += printc(p, '\n');
 
    len = p - buf;

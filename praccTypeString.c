@@ -1,13 +1,14 @@
 #include "pracc.h"
 
-/*
+/**
  * Translate a pracc record type to its name.
  * Also useful to test record types for validity.
  *
- * Return a one-word string description the type
+ * Return a one-word description of the type
  * or NULL if the given type is invalid.
  */
-char *praccTypeString(char type)
+char *
+praccTypeString(char type)
 {
    if (type == '-') return "debit";
    if (type == '+') return "credit";
@@ -18,4 +19,3 @@ char *praccTypeString(char type)
 
    return (char *) 0; // invalid type!
 }
-

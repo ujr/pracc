@@ -8,7 +8,7 @@
 #include "config.h"
 
 const char *me;
-int exitcode;
+int error;
 
 struct pair {
    const char *name;
@@ -44,9 +44,9 @@ struct pair value_table[] = {
 };
 
 void
-die(int code, const char *fmt, ...)
+config_error(const char *fmt, ...)
 {
-   extern int exitcode;
+   extern int error;
 
    va_list ap;
    va_start(ap, fmt);
@@ -56,7 +56,7 @@ die(int code, const char *fmt, ...)
 
    va_end(ap);
 
-   exitcode = code;
+   error = 1;
 }
 
 static int
@@ -98,25 +98,29 @@ main(int argc, char **argv)
    fprintf(cfp, "\xef\xbb\xbf");
    fprintf(cfp, "foo=bar");
    rewind(cfp);
+   error = 0;
    config_parse_stream(cfp, foobar_hander, NULL);
    fclose(cfp);
+   assert(error == 0);
 
    printf("** Test without the BOM:\n");
    cfp = tmpfile();
    fprintf(cfp, "foo=bar");
    rewind(cfp);
+   error = 0;
    config_parse_stream(cfp, foobar_hander, NULL);
    fclose(cfp);
+   assert(error == 0);
 
    printf("** Test with partial BOM (must FAIL):\n");
    cfp = tmpfile();
    fprintf(cfp, "\xef\xbb\xbe");
    fprintf(cfp, "foo=bar");
    rewind(cfp);
-   exitcode = 0;
+   error = 0;
    config_parse_stream(cfp, foobar_hander, NULL);
    fclose(cfp);
-   assert(exitcode != 0);
+   assert(error != 0);
 
    printf("** Test insignificant white space removal:\n");
    cfp = tmpfile();
@@ -127,11 +131,11 @@ main(int argc, char **argv)
    fprintf(cfp, "[foo \"Bar\"]very=tight\n");
    fprintf(cfp, "file = ends with incomplete line"); // no \n at eof
    rewind(cfp);
-   exitcode = 0;
+   error = 0;
    pp = white_space_table;
    config_parse_stream(cfp, table_handler, &pp);
    fclose(cfp);
-   assert(exitcode == 0);
+   assert(error == 0);
 
    printf("** Test comments:\n");
    cfp = tmpfile();
@@ -141,11 +145,11 @@ main(int argc, char **argv)
    fprintf(cfp, "baz # a flag (true)\n");
    fprintf(cfp, "final=test ; comment"); // no \n at eof
    rewind(cfp);
-   exitcode = 0;
+   error = 0;
    pp = comment_table;
    config_parse_stream(cfp, table_handler, &pp);
    fclose(cfp);
-   assert(exitcode == 0);
+   assert(error == 0);
 
    printf("** Test weird values:\n");
    cfp = tmpfile();
@@ -156,13 +160,13 @@ main(int argc, char **argv)
    fprintf(cfp, "e = \"#\\b\\\"\\n;\" # escapes in quotes\n");
    fprintf(cfp, "f # just a name is a flag (interpret as true)\n");
    rewind(cfp);
-   exitcode = 0;
+   error = 0;
    pp = value_table;
    config_parse_stream(cfp, table_handler, &pp);
    fclose(cfp);
-   assert(exitcode == 0);
+   assert(error == 0);
 
-   printf("** Test config_match_key():\n");
+   printf("** Test config_match_sect():\n");
    assert(8 == config_match_sect("foo.Bar.baz", "foo", "Bar"));
    assert(8 == config_match_sect("foo.Bar.baz", "Foo", "Bar"));
    assert(0 == config_match_sect("foo.Bar.baz", "foo", "bar"));
@@ -171,7 +175,7 @@ main(int argc, char **argv)
    assert(0 == config_match_sect("foo.Bar.baz", "foo", NULL));
    assert(0 == config_match_sect("foo.Bar.baz", "foo", ""));
 
-   printf("OK\n");
+   printf("SUCCESS testing config\n");
 
    return 0;
 }

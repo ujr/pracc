@@ -55,9 +55,9 @@ int praccCreate(const char *acctname, long balance, long limit,
 
    p = buf;
    p += prints(p, "#pracc v2 ");
-   p += praccFormatName(p, acctname, MAXNAME);
+   p += praccFormatName(acctname, p, MAXNAME);
    p += printc(p, ' ');
-   p += praccFormatInfo(p, comment, MAXLINE-MAXNAME-32);
+   p += praccFormatInfo(comment, p, MAXLINE-MAXNAME-32);
    p += printc(p, '\n');
 
    s = (limit == UNLIMITED) ? "unlimited" : "minimum balance";

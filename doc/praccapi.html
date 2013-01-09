@@ -177,8 +177,8 @@ int <b>praccAssemble</b>(char *<i>buf</i>, int <i>type</i>, long <i>value</i>, s
  written to the buffer.</p>
 
 <pre>
-int <b>praccFormatInfo</b>(char *<i>buf</i>, const char *<i>info</i>, int <i>size</i>);
-int <b>praccFormatName</b>(char *<i>buf</i>, const char *<i>name</i>, int <i>size</i>);
+int <b>praccFormatInfo</b>(const char *<i>info</i>, char *<i>buf</i>, int <i>size</i>);
+int <b>praccFormatName</b>(const char *<i>name</i>, char *<i>buf</i>, int <i>size</i>);
 </pre>
 <p>Copy the given <i>info</i> string or user <i>name</i> into the given
  buffer <i>buf</i>[<i>size</i>]. Only copy up to <i>size</i>-1 characters
