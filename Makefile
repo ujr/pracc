@@ -94,9 +94,9 @@ pracc.h: Makefile pracc.t
 
 # The CUPS backend:
 
-cupspracc: cupspracc.o pjl.o ps.o scans.o printsn.o pracclib.a
+cupspracc: cupspracc.o pjl.o ps.o printsn.o pracclib.a writen.o
 	gcc -lcups -o $@ $+
-cupspracc.o: cupspracc.c pracc.h pjl.h ps.h print.h tai.h
+cupspracc.o: cupspracc.c pracc.h pjl.h ps.h print.h tai.h writen.h
 
 pstest:	ps.o
 	gcc -D TESTING -o pstest ps.c scani.c scanu.c
@@ -108,9 +108,9 @@ pjl.o: pjl.c pjl.h
 
 # Pracc tools:
 
-pracc-print: pracc-print.o delay.o pjl.o ps.o scanip4op.c scani.c scanu.c \
-	praccIdentify.c
-pracc-print.o: pracc-print.c delay.h pjl.h ps.h scan.h
+pracc-print: pracc-print.o delay.o pjl.o ps.o scanip4op.c scani.o scanu.o \
+	praccIdentify.c writen.o
+pracc-print.o: pracc-print.c delay.h pjl.h ps.h scan.h writen.h
 
 pracc-scan: pracc-scan.o joblex.o pcl5.o pclxl.o papersize.o common.a \
 	praccIdentify.o config.o strbuf.o scani.o scanu.o
@@ -232,6 +232,7 @@ putbuf.o: putbuf.c
 
 delay.o: delay.c delay.h
 hasgroup.o: hasgroup.c hasgroup.h
+writen.o: writen.c writen.h
 
 pcl5.o: pcl5.c pcl5.h
 pclxl.o: pclxl.c pclxl.h
@@ -243,7 +244,6 @@ printi.o: printi.c print.h
 printsn.o: printsn.c print.h
 printstm.o: printstm.c print.h
 
-scans.o: scans.c scan.h
 scanu.o: scanu.c scan.h
 scani.o: scani.c scan.h
 scanpat.o: scanpat.c scan.h
