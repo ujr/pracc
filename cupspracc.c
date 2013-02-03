@@ -914,7 +914,9 @@ void acctstr(char *buf, int maxlen)
  *
  * The format of pagecount log records is
  *
- *   @timestamp pagecount printer [comment]
+ *   @timestamp pagecount printer [comment]        present
+ *   @timestamp pc1 pc2 pages printer [comment]    desired TODO
+ *              (write -1 if a number is unknown)
  *
  * Return 0 if ok, 1 if no pagecount log file,
  * and -1 on system errors (see errno).

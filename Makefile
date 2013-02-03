@@ -47,7 +47,7 @@ PRACCPEEK = pracc-watch
 CFLAGS = -s
 
 TOOLS = pracc-init pracc-edit pracc-view pracc-kill pracc-sum \
- pracc-purge pracc-check pracc-log pracc-pclog pracc-print pracc-scan
+ pracc-purge pracc-check pracc-log pracc-pclog pracc-scan netprint
 
 TESTS = config_test strbuf_test
 
@@ -67,8 +67,8 @@ install: cupspracc pracc.cgi tools
 	install -o root -g root -m 755 pracc-check $(PRACCBIN)
 	install -o root -g root -m 755 pracc-log $(PRACCBIN)
 	install -o root -g root -m 755 pracc-pclog $(PRACCBIN)
-	install -o root -g root -m 755 pracc-print $(PRACCBIN)
 	install -o root -g root -m 755 pracc-scan $(PRACCBIN)
+	install -o root -g root -m 755 netprint $(PRACCBIN)
 	install -o root -g $(PRACCGROUP) -m 700 cupspracc $(BACKDIR)/pracc
 	install -o root -g root -m 755 pracc.cgi $(PRACCCGI)/pracc.cgi
 	cp -a doc/* $(PRACCDOC)
@@ -108,9 +108,9 @@ pjl.o: pjl.c pjl.h
 
 # Pracc tools:
 
-pracc-print: pracc-print.o delay.o pjl.o ps.o scanip4op.c scani.o scanu.o \
+netprint: netprint.o delay.o pjl.o ps.o scanip4op.c scani.o scanu.o \
 	praccIdentify.c writen.o
-pracc-print.o: pracc-print.c delay.h pjl.h ps.h scan.h writen.h
+netprint.o: netprint.c delay.h pjl.h ps.h scan.h writen.h
 
 pracc-scan: pracc-scan.o joblex.o pcl5.o pclxl.o papersize.o common.a \
 	praccIdentify.o config.o strbuf.o scani.o scanu.o

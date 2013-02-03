@@ -1,6 +1,6 @@
-/* pracc-print - send a print job to a printer
+/* netprint - send a print job to a networked printer
  *
- * Copyright (c) 2010 by Urs-Jakob Ruetschi.
+ * Copyright (c) 2010-2013 by Urs-Jakob Ruetschi.
  * Use at your own exclusive risk and under the terms of the GNU
  * General Public License.  See AUTHORS, COPYRIGHT, and COPYING.
  */
@@ -10,6 +10,9 @@
 // 2010-12-22  2200-2300  coding
 // 2011-01-01  1500-..    testing mit dem brother HL-2150N
 // 2011-04-28  2330-2350  testing against netcat
+// 2013-01-03  1100-1400  -m mode, invert loglevel, CUPSy log prefixes.
+
+// TODO Add features from my original netprint: hexdump, transcript, pc only
 
 #include <assert.h>
 #include <errno.h>
@@ -25,20 +28,25 @@
 
 #include "ps.h"
 #include "pjl.h"
+#include "pracc.h" // only for praccIdentify()
 #include "writen.h"
 
 #define min(x,y) ((x) < (y) ? (x) : (y))
 #define max(x,y) ((x) > (y) ? (x) : (y))
 
-#define DEFLT_WAIT0_PS 20    /* pause before first pc probe */
-#define DEFLT_WAIT1_PS 10    /* pause between more pc probes */
-#define DEFLT_WAIT0_PJL 300  /* timeout for first PJL reply */
-#define DEFLT_WAIT1_PJL 120  /* timeout for subsequent replies */
+#define DEFLT_WAIT0_PS 20    // pause before first pc probe
+#define DEFLT_WAIT1_PS 10    // pause between more pc probes
+#define DEFLT_WAIT0_PJL 300  // timeout for first PJL reply
+#define DEFLT_WAIT1_PJL 120  // timeout for subsequent replies
+
+#define SUCCESS 0            // exit code if successful
 
 enum {                       // How to do page counting:
    PCMODE_OFF = 0,           // -not at all
-   PCMODE_POSTSCRIPT = 1,    // -using PostScript commands
-   PCMODE_PJL = 2            // -using PJL JOB/EOJ and PAGE
+   PCMODE_PS = 1,            // -using PostScript commands
+   PCMODE_PJL = 2,           // -using PJL JOB/EOJ and PAGE
+   PCMODE_SNMP = 3,          // -using SNMP printer MIB
+   PCMODE_UNKNOWN = -1       // -for internal use
 };
 
 enum {                       // States of a PJL job:
@@ -50,15 +58,15 @@ enum {                       // States of a PJL job:
    PJL_STATE_DONE            // -after 2nd pagecount arrived
 };
 
-enum { // TODO Reverse? FATAL=0 DEBUG=4, should make code simpler
-   DEBUG = 0,
-   INFO  = 1,
+enum {
+   FATAL = 0,
+   ERROR = 1,
    WARN  = 2,
-   ERROR = 3,
-   FATAL = 4
+   INFO  = 3,
+   DEBUG = 4
 };
 
-void help(), usage(const char *s);
+void help(), usage(const char *fmt, ...), report(FILE *fp);
 int tcpconnect(unsigned char ip[4], unsigned short port, int secs);
 int tcplocal(int sockfd, unsigned char ip[4], unsigned short *port);
 long sendjob(int jobfd, int devfd, int cookie);
@@ -67,6 +75,7 @@ int handleinput(int devfd, int cookie);
 void parseinput(const char *buf, unsigned len, int cookie);
 void psinput(const char *buf, unsigned len, int cookie);
 void pjlinput(const char *buf, unsigned len, int cookie);
+int getmode(const char *s);
 const char *getmodestr(int pcmode);
 const char *getpjlstatestr(int pjlstate);
 int writeall(int fd, const char *buf, unsigned len);
@@ -76,13 +85,9 @@ char *progname(char **argv);
 void logup(int level, const char *fmt, ...);
 void die(int code, const char *fmt, ...);
 
-extern int optind;
-extern char *optarg;
-extern int opterr;
-
 char *me;                    // hello, my name is...
 int loglevel = INFO;
-int pcmode = PCMODE_OFF;
+int pcmode = PCMODE_OFF;     // how to do page counting
 int wait0 = -1, wait1 = -1;  // delays waiting for page ejects
 long pages = -1;             // #pages printed, initially unknown
 long pc1 = -1, pc2 = -1;     // printer's pagecount, before and after
@@ -94,6 +99,9 @@ long devbytes = 0;           // #bytes read from printer
 int
 main(int argc, char *argv[], char *envp[])
 {
+   extern char *optarg;
+   extern int optind, optopt, opterr;
+
    unsigned char ip[4];
    unsigned short port = 9100;
    int c, secs = 10, value;
@@ -106,37 +114,39 @@ main(int argc, char *argv[], char *envp[])
    if (!me) return 127;
 
    opterr = 0; // prevent getopt output
-   while ((c = getopt(argc, argv, "hjpqr:s:vV")) > 0) switch (c)
+   while ((c = getopt(argc, argv, "hm:qr:s:vV")) > 0) switch (c)
    {
       case 'h':
          help();
-         return 0;
-      case 'j':
-         pcmode = PCMODE_PJL;
-         break;
-      case 'p':
-         pcmode = PCMODE_POSTSCRIPT;
+         return SUCCESS;
+      case 'm':
+         pcmode = getmode(optarg);
+         if (pcmode == PCMODE_UNKNOWN)
+           usage("unknown pagecount mode: -m '%s'", optarg);
+         if (pcmode == PCMODE_SNMP)
+           usage("-m SNMP is not yet implemented");
          break;
       case 'q':
-         loglevel = ERROR;
+         loglevel = FATAL;
          break;
       case 'v':
-         loglevel = max(loglevel - 1, DEBUG);
+         loglevel += 1;
          break;
       case 'r':
          if (*optarg && optarg[scani(optarg, &value)] == '\0')
             wait0 = value;
-         else usage("invalid argument to -r option");
+         else usage("invalid argument to -r option: '%s'", optarg);
          break;
       case 's':
          if (*optarg && optarg[scani(optarg, &value)] == '\0')
             wait1 = value;
-         else usage("invalid argument to -s option");
+         else usage("invalid argument to -s option: '%s'", optarg);
          break;
       case 'V':
-         return praccIdentify("pracc-print");
+         praccIdentify("netprint");
+         return SUCCESS;
       default:
-         usage("invalid option");
+         usage("invalid option: %c", optopt);
          return 127;
    }
 
@@ -172,7 +182,7 @@ main(int argc, char *argv[], char *envp[])
 
    /** Synchronise **/
 
-   if (pcmode == PCMODE_POSTSCRIPT)
+   if (pcmode == PCMODE_PS)
    {
       psinit();
       if (pscount(devfd, cookie))
@@ -185,8 +195,7 @@ main(int argc, char *argv[], char *envp[])
       logup(DEBUG, "Page counting using PostScript, wait0=%d, wait1=%d",
                    wait0, wait1);
    }
-
-   if (pcmode == PCMODE_PJL)
+   else if (pcmode == PCMODE_PJL)
    {
       pjlinit();
       if (pjluel(devfd))               // send a UEL
@@ -245,26 +254,46 @@ main(int argc, char *argv[], char *envp[])
 
    logup(DEBUG, "Read %d bytes feedback from printer", devbytes);
 
-   logup(INFO, "Done, mode=%s pages=%d pc1=%d pc2=%d",
+   logup(INFO,
+         "Done: pcmode=%s pages=%ld pc1=%ld pc2=%ld jobbytes=%ld inbytes=%ld",
          getmodestr(pcmode), pages, pc1, pc2);
 
-   // TODO - append pc.log record ?
-   //        Present format is:  @timestamp pagecount printer [comment]
-   //        Desired new format: @timestamp pc1 pc2 pages printer [comment]
-   //        If any of the figures is unknown, -1 is logged.
+   // This is the only line to stdout:
+   report(stdout);
+   
+   return SUCCESS;
+}
 
-   return 0; // ok
+void
+report(FILE *fp)
+{
+   fprintf(fp, "ok pcmode=%s", getmodestr(pcmode));
+   fprintf(fp, " pages=");
+   if (pages < 0) fprintf(fp, "?");
+   else fprintf(fp, "%ld", pages);
+   fprintf(fp, " pc1=");
+   if (pc1 < 0) fprintf(fp, "?");
+   else fprintf(fp, "%ld", pc1);
+   fprintf(fp, " pc2=");
+   if (pc2 < 0) fprintf(fp, "?");
+   else fprintf(fp, "%ld", pc2);
+   fprintf(fp, " jobbytes=%ld", jobbytes);
+   fprintf(fp, " inbytes=%ld", devbytes);
+   fprintf(fp, "\n");
+   fflush(fp);
 }
 
 void
 help()
 {
    printf("Send files to printer and count pages printed.\n\n");
-   printf("Usage: %s [options] ip:port [files...]\n\n", me);
+   printf("Usage: %s [options] host:port [files...]\n\n", me);
    printf("Options:\n");
    printf(" -h  print this help page\n");
-   printf(" -j  use PJL for page counting (default: don't count)\n");
-   printf(" -p  use PostScript for page counting (default: don't count)\n");
+   printf(" -m OFF   no page counting (default)\n");
+   printf(" -m PS    use PostScript for page counting\n");
+   printf(" -m PJL   use PJL for page counting\n");
+   printf(" -m SNMP  use SNMP for page counting\n");
    printf(" -q  quiet (set log level to ERROR and above)\n");
    printf(" -r secs  how long to 'relax' after sending print job\n"); // wait0
    printf(" -s secs  how long to 'sleep' between probes/timeouts\n"); // wait1
@@ -272,13 +301,24 @@ help()
    printf(" -V  print version and exit\n\n");
    printf("The printer must be addressed using an IPv4 address,\n");
    printf("optionally followed by a colon and the port number\n");
-   printf("(default is 9100). Example: 192.168.1.13:9101\n");
+   printf("(default is 9100). Example: 192.168.1.13:9101\n\n");
+   printf("If no files are specified, send standard input.\n");
 }
 
 void
-usage(const char *err)
+usage(const char *fmt, ...)
 {
-   if (err) fprintf(stderr, "%s: %s\n", me, err);
+   char msg[256];
+   va_list ap;
+
+   if (fmt)
+   {
+      va_start(ap, fmt);
+      vsnprintf(msg, sizeof(msg), fmt, ap);
+      va_end(ap);
+
+      fprintf(stderr, "%s: %s\n", me, msg);
+   }
 
    fprintf(stderr, "Usage: %s [options] ip:port [files...]\n", me);
    fprintf(stderr, "Try option -h for help and -V for identification\n");
@@ -451,7 +491,7 @@ getstatus(int devfd, int cookie)
    long lastpages, i;
    struct timeval timeout;
 
-   if (pcmode == PCMODE_POSTSCRIPT)
+   if (pcmode == PCMODE_PS)
    {
       for (i = wait0; i > 0; i = sleep(i));
       if (pscount(devfd, cookie) < 0)
@@ -466,6 +506,7 @@ getstatus(int devfd, int cookie)
          die(127, "pjleoj");
       timeout.tv_sec = wait0;
    }
+   //else if (pcmode == PCMODE_SNMP) TODO
 
    while (1)
    {
@@ -492,7 +533,7 @@ getstatus(int devfd, int cookie)
       // Read the printer; break on EOF or error:
       if (handleinput(devfd, cookie) <= 0) break;
 
-      if (pcmode == PCMODE_POSTSCRIPT)
+      if (pcmode == PCMODE_PS)
       {
          if (pcpending && (pages == lastpages)) break;
          if (pages > 0) logup(DEBUG, "Pages printed: %d", pages);
@@ -520,6 +561,7 @@ getstatus(int devfd, int cookie)
             break;
          }
       }
+      //else if (pcmode == PCMODE_SNMP) TODO
 
       // Reset the select timeout:
       timeout.tv_sec = wait1;
@@ -594,7 +636,7 @@ parseinput(const char *buf, unsigned len, int cookie)
 
    switch (pcmode)
    {
-      case PCMODE_POSTSCRIPT:
+      case PCMODE_PS:
          psinput(buf, len, cookie);
          break;
       case PCMODE_PJL:
@@ -605,12 +647,12 @@ parseinput(const char *buf, unsigned len, int cookie)
 }
 
 
-// globals: pc1, pc2, pages
 void
 psinput(const char *buf, unsigned len, int cookie)
 {
    register const char *p = buf;
    const char *end = buf + len;
+   // global: pc1, pc2, pages
 
    while (p < end) {
       int t = pschar(*p++);
@@ -770,14 +812,27 @@ writeall(int fd, const char *buf, unsigned len)
    return 0; // ok
 }
 
+int
+getmode(const char *s)
+{
+   assert(s != NULL);
+   if (strcasecmp(s, "OFF") == 0)  return PCMODE_OFF;
+   if (strcasecmp(s, "NONE") == 0) return PCMODE_OFF;
+   if (strcasecmp(s, "PS") == 0)   return PCMODE_PS;
+   if (strcasecmp(s, "PJL") == 0)  return PCMODE_PJL;
+   if (strcasecmp(s, "SNMP") == 0) return PCMODE_SNMP;
+   return PCMODE_UNKNOWN;
+}
+
 const char *
 getmodestr(int pcmode)
 {
    switch (pcmode)
    {
-      case PCMODE_OFF:        return "OFF";
-      case PCMODE_POSTSCRIPT: return "PS";
-      case PCMODE_PJL:        return "PJL";
+      case PCMODE_OFF:   return "OFF";
+      case PCMODE_PS:    return "PS";
+      case PCMODE_PJL:   return "PJL";
+      case PCMODE_SNMP:  return "SNMP";
    }
 
    return "UNKNOWN";
@@ -847,24 +902,32 @@ void
 logup(int level, const char *fmt, ...)
 {
    va_list ap;
-   char prefix;
+   const char *prefix;
+   static char *prefixes[] = {
+      "FATAL: ",
+      "ERROR: ",
+      "WARN:  ",
+      "INFO:  ",
+      "DEBUG: "
+   };
 
    va_start(ap, fmt);
 
-   if (level < loglevel) return;
+   if (level > loglevel) return;
 
    // Ugly, but better safe than sorry:
    // Be sure we don't get an array index out of bounds below!
 
-   assert(DEBUG == 0);
-   assert(FATAL == 4);
+   assert(FATAL == 0);
+   assert(DEBUG == 4);
 
-   if (level < DEBUG) level = DEBUG;
-   if (level > FATAL) level = FATAL;
+   if (level < FATAL) level = FATAL;
+   if (level > DEBUG) level = DEBUG;
 
-   prefix = "DIWEF"[level];
+   prefix = prefixes[level];
+   //prefix = "FEWID"[level];
 
-   fprintf(stderr, "%c: ", prefix);
+   fprintf(stderr, "%s", prefix);
    vfprintf(stderr, fmt, ap);
    fprintf(stderr, "\n");
 
