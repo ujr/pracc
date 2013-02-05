@@ -1,7 +1,7 @@
 #ifndef _PCLXL_H_
 #define _PCLXL_H_
 
-#include "joblex.h"
+#include "printer.h"
 
 extern const char *pclxl_tag_name(int tag);
 extern const char *pclxl_attr_name(int attrid);

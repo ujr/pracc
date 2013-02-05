@@ -112,9 +112,9 @@ netprint: netprint.o delay.o pjl.o ps.o scanip4op.c scani.o scanu.o \
 	praccIdentify.c writen.o
 netprint.o: netprint.c delay.h pjl.h ps.h scan.h writen.h
 
-pracc-scan: pracc-scan.o joblex.o pcl5.o pclxl.o papersize.o common.a \
-	praccIdentify.o config.o strbuf.o scani.o scanu.o
-pracc-scan.o: pracc-scan.c joblex.h pcl5.h pclxl.h papersize.h pracc.h common.h config.h
+pracc-scan: pracc-scan.o joblex.o pcl5.o pclxl.o printer.o papersize.o \
+	common.a praccIdentify.o config.o strbuf.o scani.o scanu.o
+pracc-scan.o: pracc-scan.c joblex.h pcl5.h pclxl.h printer.h papersize.h pracc.h common.h config.h
 
 pracc-init: pracc-init.o common.a pracclib.a
 pracc-init.o: pracc-init.c common.h pracc.h print.h scan.h
@@ -201,7 +201,7 @@ praccAccountInfo.o: praccAccountInfo.c pracc.h
 
 # joblex:
 
-joblex:	joblex.l pcl5.o pclxl.o papersize.o
+joblex:	joblex.l pcl5.o pclxl.o printer.o papersize.o
 	lex  -t joblex.l > joblex.c
 	cc   -c -o joblex.o joblex.c
 #	cc   joblex.o pcl5.o pclxl.o -lm -o joblex
@@ -234,8 +234,9 @@ delay.o: delay.c delay.h
 hasgroup.o: hasgroup.c hasgroup.h
 writen.o: writen.c writen.h
 
-pcl5.o: pcl5.c pcl5.h
-pclxl.o: pclxl.c pclxl.h
+pcl5.o: pcl5.c pcl5.h printer.h
+pclxl.o: pclxl.c pclxl.h printer.h
+printer.o: printer.c printer.h papersize.h
 papersize.o: papersize.c papersize.h
 
 prints.o: prints.c print.h

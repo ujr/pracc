@@ -55,7 +55,7 @@
 #include <stdio.h>
 
 #include "pcl5.h"
-#include "joblex.h"
+#include "printer.h"
 
 #define BUG_INVALID_STATE 0
 
@@ -96,7 +96,7 @@ pcl5_do_char(struct printer *prt, int c)
    switch (c) {
    case 0x0C: // Form Feed
       debug("Got PCL FF (Form Feed)");
-      joblex_printer_endpage(prt, -1, -1);
+      printer_page(prt, -1, -1);
       break;
    default: // ignore
       break;
@@ -109,7 +109,7 @@ pcl5_do_cmd1(struct printer *prt, int c)
    switch (c) {
    case 'E': // Printer Reset Command
       debug("Got PCL Ec E (Printer Reset)");
-      joblex_printer_reset(prt);
+      printer_reset(prt);
       break;
    default: // ignore
       break;
@@ -121,6 +121,7 @@ pcl5_do_cmd2(struct printer *prt, int first, int group, int param, double value)
 {
    char *name;
    long number = (long) value;
+   float width, height;
 
    switch (PCLPARM(first, group, param)) {
    case PCLPARM('&','b','W'): // i/o config data
@@ -142,12 +143,13 @@ pcl5_do_cmd2(struct printer *prt, int first, int group, int param, double value)
       break;
    case PCLPARM('&','l','A'):
       //debug("(2=Letter, 26=A4, 27=A3, 101=custom; see HP docs)");
-      if (papersize_lookup_pcl5(number, &name, 0, 0)){
+      if (papersize_lookup_pcl5(number, &name, &width, &height)){
          debug("Got PCL Ec &l%ldA (Paper Size), setting %s", number, name);
-         joblex_printer_set_paper(prt, name);
+         printer_set_pagesize(prt, width*height);
       }
       else {
          debug("Got PCL Ec &l%ldA (Paper Size), UNKNOWN, IGNORE", number);
+         printer_set_pagesize(prt, -1); // unknown media size
       }
       break;
    case PCLPARM('&','l','S'):
@@ -157,7 +159,7 @@ pcl5_do_cmd2(struct printer *prt, int first, int group, int param, double value)
       case 2: // duplex, short edge binding
          debug("Got PCL Ec &l%ldS (Simplex/Duplex), set duplex := %d",
                number, number);
-         joblex_printer_set_duplex(prt, number);
+         printer_set_duplex(prt, number);
          break;
       }
       break;
@@ -165,7 +167,7 @@ pcl5_do_cmd2(struct printer *prt, int first, int group, int param, double value)
       // Affects current and subsequent pages
       debug("Got PCL Ec &l%ldX (Number of Copies), set copies := %d",
             number, (int) number);
-      joblex_printer_set_copies(prt, (int) number);
+      printer_set_copies(prt, (int) number);
       break;
    default: // ignore
       break;

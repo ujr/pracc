@@ -70,20 +70,20 @@ PCLNUM  [-+]?([[:digit:]]{0,5}\.)?[[:digit:]]{1,5}
   */
 
 {UEL}                { BEGIN(INITIAL); //addlang('U');
-                       joblex_printer_set_lang(printer, 'U');
+                       printer_set_lang(printer, 'U');
                        debug("Got plain UEL, enter INITIAL"); }
 {UEL}/@PJL           { BEGIN(PJL); //addlang('U'); addlang('J');
-                       joblex_printer_set_lang(printer, 'U');
-                       joblex_printer_set_lang(printer, 'J');
+                       printer_set_lang(printer, 'U');
+                       printer_set_lang(printer, 'J');
                        debug("Got UEL@PJL, enter PJL"); }
 <INITIAL>^%!         { BEGIN(PS); //addlang('P');
-                       joblex_printer_set_lang(printer, 'P');
+                       printer_set_lang(printer, 'P');
                        debug("Got %!, enter PS"); }
 <INITIAL>^@PJL       { BEGIN(PJL); //addlang('J');
-                       joblex_printer_set_lang(printer, 'J');
+                       printer_set_lang(printer, 'J');
                        debug("Got ^@PJL, enter PJL"); }
 <INITIAL>{ESC}       { BEGIN(PCL); //addlang('5');
-                       joblex_printer_set_lang(printer, '5');
+                       printer_set_lang(printer, '5');
                        debug("Got plain ESC, enter PCL");
                        pcl5_parse(printer); BEGIN(INITIAL); }
                        /* TODO Ok? Will parse arbitrary binary files as PCL
@@ -123,21 +123,21 @@ PCLNUM  [-+]?([[:digit:]]{0,5}\.)?[[:digit:]]{1,5}
 
 <PJL>{ENTER}         { BEGIN(PJL_ENTER); }
 <PJL_ENTER>POSTSCRIPT{WS}*$  { BEGIN(PS); //addlang('P');
-                       joblex_printer_set_lang(printer, 'P');
+                       printer_set_lang(printer, 'P');
                        debug("Got PJL ENTER, enter PS"); }
 <PJL_ENTER>PCL{WS}*\r?$ { BEGIN(PCL); //addlang('5');
-                       joblex_printer_set_lang(printer, '5');
+                       printer_set_lang(printer, '5');
                        debug("Got PJL ENTER, enter PCL");
-                       pcl5_parse(printer, stderr, verbose);
+                       pcl5_parse(printer, stderr, verbose-2);
                        BEGIN(PJL); // back to PJL (pcl5_parse stops after UEL)
                      }
 <PJL_ENTER>PCLXL{WS}*\r?$  { BEGIN(PCLXL); //addlang('6');
-                       joblex_printer_set_lang(printer, '6');
+                       printer_set_lang(printer, '6');
                        debug("Got @PJL ENTER, enter PCLXL");
-                       pclxl_parse(printer, stderr, verbose);
+                       pclxl_parse(printer, stderr, MAX(0, verbose-2));
                      }
 <PJL_ENTER>.*        { BEGIN(INITIAL); //addlang('?');
-                       joblex_printer_set_lang(printer, '?');
+                       printer_set_lang(printer, '?');
                        debug("Got @PJL ENTER LANGUAGE = %s", yytext); }
 <PJL>{SET}           { BEGIN(PJL_SET); }
 <PJL_SET>.*\r?       { BEGIN(PJL); pjlvar(yytext); }
@@ -280,9 +280,11 @@ pjlvar(const char *text)
    // PAPER       A4|LETTER|CUSTOM|etc.  physical media size
    // PLANESINUSE 1|3      1=monochrome, 3=color
    // QTY         1..999   num of collated copies (entire job)
+   // Hint: BITSPERPIXEL is for PCL6 bitmaps, don't use here
 
    char *p;
    const char *name, *value;
+   float width, height;
    int namelen, valuelen;
 
    // Trim trailing white space from text (\r causes ugly debug output):
@@ -305,31 +307,37 @@ pjlvar(const char *text)
 
       if (strncasecmp(name, "PLANESINUSE", namelen) == 0) {
          int i = parse_int(value, valuelen);
-         joblex_printer_set_color(printer, i > 1);
-         debug("Got @PJL SET %s, set color := %d", text, printer->color);
+         printer_init_color(printer, i > 1);
+         debug("Got @PJL SET %s, set color := %d", text, i > 1);
       }
       else if (strncasecmp(name, "DUPLEX", namelen) == 0) {
          int duplex = parse_duplex(value, valuelen);
-         joblex_printer_init_duplex(printer, duplex);
+         printer_init_duplex(printer, duplex);
          debug("Got @PJL SET %s, init duplex := %d", text, printer->duplex);
       }
       else if (strncasecmp(name, "COPIES", namelen) == 0) {
          int copies = parse_int(value, valuelen);
-         joblex_printer_init_copies(printer, copies);
+         printer_init_copies(printer, copies);
          debug("Got @PJL SET %s, init copies := %d", text, printer->copies);
       }
       else if (strncasecmp(name, "QTY", namelen) == 0) {
          int copies = parse_int(value, valuelen);
-         joblex_printer_init_copies(printer, copies);
+         printer_init_copies(printer, copies);
          debug("Got @PJL SET %s, init copies := %d", text, printer->copies);
       }
       else if (strncasecmp(name, "PAPER", namelen) == 0) {
-         joblex_printer_init_paper(printer, strdup(value));
-         debug("Got @PJL SET %s, init paper := %s", text, printer->paper);
+         if (papersize_lookup_name(value, &width, &height)) {
+            //printer_init_paper(printer, strdup(value));
+            printer_init_pagesize(printer, width*height);
+            debug("Got @PJL SET %s, init paper := %s", text, value);
+         }
+         else {
+            debug("Got @PJL SET %s, ignoring unknown paper", text);
+         }
       }
       else if (strncasecmp(name, "LAYOUT", namelen) == 0) {
          // TODO set duplex and evtl paperSize
-         debug("Got @PJL SET %s, ignore for now", text, value);
+         debug("Got @PJL SET %s, ignore for now TODO", text, value);
       }
    }
    // else: not a valid assignment, ignore
@@ -379,118 +387,4 @@ pcl5_input()
    int c = input();
    if (c == '\n') ++lineno;
    return c;
-}
-
-void
-joblex_printer_init(struct printer *pp)
-{
-   pp->can_color = 0;
-   pp->can_duplex = 0;
-   pp->copies = pp->init_copies = 1;
-   pp->duplex = pp->init_duplex = 0;
-   pp->paper = pp->init_paper = 0;   // unknown
-   pp->pages = 0;
-   pp->sheets = 0;
-   pp->color = -1;    // unknown
-   pp->layout = "?";  // unknown
-   memset(pp->structure, '\0', sizeof(pp->structure));
-}
-
-void
-joblex_printer_can_color(struct printer *pp, int can_color)
-{
-   pp->can_color = can_color;
-   if (!can_color) {
-      pp->color = 0;
-   }
-}
-
-void
-joblex_printer_can_duplex(struct printer *pp, int can_duplex)
-{
-   pp->can_duplex = can_duplex;
-   if (!can_duplex) {
-      pp->duplex = pp->init_duplex = 0;
-   }
-}
-
-void
-joblex_printer_reset(struct printer *pp)
-{
-   pp->copies = pp->init_copies;
-   pp->duplex = pp->init_duplex;
-   pp->paper = pp->init_paper;
-}
-
-void
-joblex_printer_endpage(struct printer *pp, int duplex, int copies)
-{
-   // PCL XL: BeginPage/EndPage duplex&copies override PJL settings;
-   // here the duplex and copies parameters are negative if missing.
-   if (duplex < 0) duplex = pp->duplex;
-   if (copies < 0) copies = pp->copies;
-
-   pp->pages += copies;
-   pp->sheets += (duplex ? (float) copies/2 : copies);
-}
-
-void
-joblex_printer_set_color(struct printer *pp, int color)
-{
-   if (pp->can_color) {
-     pp->color = color;
-   }
-}
-
-void
-joblex_printer_init_duplex(struct printer *pp, int duplex)
-{
-   if (pp->can_duplex) {
-      pp->duplex = pp->init_duplex = duplex > 0;
-   }
-}
-
-void
-joblex_printer_set_duplex(struct printer *pp, int duplex)
-{
-   if (pp->can_duplex) {
-      pp->duplex = duplex > 0;
-   }
-}
-
-void
-joblex_printer_init_copies(struct printer *pp, int copies)
-{
-  pp->copies = pp->init_copies = MAX(0, copies);
-}
-
-void
-joblex_printer_set_copies(struct printer *pp, int copies)
-{
-   pp->copies = MAX(0, copies);
-}
-
-void
-joblex_printer_init_paper(struct printer *pp, const char *name)
-{
-   pp->paper = pp->init_paper = (char *) name;
-}
-
-void
-joblex_printer_set_paper(struct printer *pp, const char *name)
-{
-   pp->paper = (char *) name;
-   // TODO Want some extra logic if name != init_paper; if no init_paper, set it
-}
-
-void
-joblex_printer_set_lang(struct printer *pp, char lang)
-{
-   int len = strlen(pp->structure);
-   if (len+1 < sizeof(pp->structure)) {
-      pp->structure[len] = lang;
-   }
-   else {
-      pp->structure[sizeof(pp->structure)-1] = '!';
-   }
 }
