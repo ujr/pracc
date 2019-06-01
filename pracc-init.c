@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "common.h"
@@ -48,7 +50,7 @@ int main(int argc, char **argv)
    while ((c = getopt(argc, argv, "fFhV")) > 0) switch (c) {
       case 'f': overwrite = 1; break;
       case 'F': nevermind = 1; break;
-      case 'h': usage(0); // show help
+      case 'h': usage(0); break; // show help
       case 'V': return praccIdentify("pracc-init");
       default:  usage("invalid option");
    }

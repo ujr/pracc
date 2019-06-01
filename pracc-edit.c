@@ -43,7 +43,7 @@ int main(int argc, char **argv)
 
    opterr = 0; // prevent stupid getopt output
    while ((c = getopt(argc, argv, "hV")) > 0) switch (c) {
-      case 'h': usage(0); // show help
+      case 'h': usage(0); break; // show help
       case 'V': return praccIdentify("pracc-edit");
       default:  usage("invalid option");
    }

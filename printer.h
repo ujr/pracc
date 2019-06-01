@@ -64,4 +64,7 @@ extern void printer_can_color(struct printer *pp, int flag);
 
 extern void printer_set_lang(struct printer *pp, char lang);
 
+extern void printer_report(struct printer *pp,
+   int *pages, int *duplex, int *color, const char **paper);
+
 #endif // _printer_h_

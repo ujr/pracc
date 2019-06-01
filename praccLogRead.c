@@ -1,6 +1,7 @@
 #include "pracc.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -37,10 +38,10 @@ reread: p = line;
 
       p += scanpat(p, " "); // skip space
 
-      if (n = taiscan(p, &tai)) p += n;
+      if ((n = taiscan(p, &tai))) p += n;
       else goto reread; // skip bad line
 
-      if (n = scanpat(p, " by ")) p += n;
+      if ((n = scanpat(p, " by "))) p += n;
       else goto reread; // skip bad line
 
       userp = p;
@@ -48,7 +49,7 @@ reread: p = line;
       if (*p) *p++ = '\0';
       else goto reread; // skip bad line
 
-      if (n = scanpat(p, "  acct ")) p += n;
+      if ((n = scanpat(p, "  acct "))) p += n;
       else goto reread; // skip bad line
 
       acctp = p;

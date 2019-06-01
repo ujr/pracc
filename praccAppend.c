@@ -23,7 +23,6 @@ int praccAppend(const char *acctname, int type, long value,
    const char *fn;
    char buf[MAXLINE];
    int fd, len, saverr;
-   char *p;
 
    if (!username) {
       pw = getpwuid(getuid());
@@ -43,7 +42,7 @@ int praccAppend(const char *acctname, int type, long value,
 
 /*
  * Now append the line just constructed
- * in only one write, that is, atomically!
+ * in only one write, that is, atomically.
  */
 
    fn = praccPath(acctname);

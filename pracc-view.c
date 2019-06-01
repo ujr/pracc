@@ -13,6 +13,7 @@
 
 #include "common.h"
 #include "pracc.h"
+#include "print.h"
 #include "scan.h"
 
 #define OUT_OF_MEMORY (NULL)
@@ -46,7 +47,7 @@ main(int argc, char **argv)
       case 't': addtype(optarg); break;
       case 'f': setdate(optarg, &datemin); break;
       case 'u': setdate(optarg, &datemax); datemax += 86400; break;
-      case 'h': usage(0); // show help
+      case 'h': usage(0); break; // show help
       case 'V': return praccIdentify("pracc-view");
       default:  usage("invalid option");
    }

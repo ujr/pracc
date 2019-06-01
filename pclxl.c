@@ -16,6 +16,8 @@
 
 #include "pclxl.h"
 #include "printer.h"
+#include "papersize.h"
+#include "joblex.h"
 
 enum pclxl_endian {
    PCLXL_ENDIAN_UNKNOWN = 0,
@@ -152,7 +154,7 @@ pclxl_write_attr(FILE *fp, struct pclxl_attr *attr)
    switch (attr->type) {
 
    case PCLXL_TAG_UBYTE:
-      if (s = pclxl_enum_name(attr->attrid, value.number.ubyte))
+      if ((s = pclxl_enum_name(attr->attrid, value.number.ubyte)))
          fprintf(fp, " %s", s);
       else
          fprintf(fp, " %d", value.number.ubyte);
@@ -980,7 +982,7 @@ pclxl_get_media_size(struct pclxl_stack *sp, float *area)
 {
    float width, height;
    struct pclxl_attr *attr = pclxl_stack_find(sp, PCLXL_ATTR_MEDIA_SIZE);
-   char *name = NULL; // assume not specified
+   const char *name = NULL; // assume not specified
    if (area) *area = 0;
 
    if (attr != NULL)
@@ -991,7 +993,7 @@ pclxl_get_media_size(struct pclxl_stack *sp, float *area)
          key = attr->value.number.ubyte;
          papersize_lookup_pcl6(key, &name, &width, &height);
          break;
-      // TODO Support for "named" formats (UBTYE_ARRAY)
+      // TODO Support for "named" formats (UBYTE_ARRAY)
       }
    }
 
@@ -1026,7 +1028,6 @@ pclxl_parse(struct printer *prt, FILE *logfp, int verbose)
    struct pclxl_stack stack;
    enum pclxl_endian endian;
    int op, quit = 0, copies, duplex;
-   const char *papername = 0;
    float paperarea = 0;
 
    endian = PCLXL_ENDIAN_UNKNOWN;
@@ -1063,7 +1064,7 @@ pclxl_parse(struct printer *prt, FILE *logfp, int verbose)
       case PCLXL_TAG_BEGIN_PAGE:
          if (verbose == 1) pclxl_logop(logfp, op, &stack);
          duplex = pclxl_get_page_duplex(&stack);
-         papername = pclxl_get_media_size(&stack, &paperarea);
+         (void) pclxl_get_media_size(&stack, &paperarea);
          break;
       case PCLXL_TAG_END_PAGE:
          if (verbose == 1) pclxl_logop(logfp, op, &stack);

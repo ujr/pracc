@@ -52,7 +52,7 @@ int accts_init(long first, long count, const char *filter)
    dir = opendir(PRACCDIR);
    if (!dir) return FAIL;
 
-   while (d = readdir(dir)) {
+   while ((d = readdir(dir))) {
       if (strcmp(d->d_name, ".") == 0) continue;
       if (strcmp(d->d_name, "..") == 0) continue;
       if (praccCheckName(d->d_name) != 0) continue;

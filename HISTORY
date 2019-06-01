@@ -36,5 +36,3 @@ Pracc is now a backend for CUPS and supports group accounts
 (to implement billing codes). This version is in alpha state.
 
 ** Add to the top of this file **
-The first line must contain only the current
-version number and is used in the Makefile.

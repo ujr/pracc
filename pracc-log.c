@@ -7,9 +7,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "common.h"
 #include "pracc.h"
+#include "print.h"
 #include "scan.h"
 
 #define streq(s,t) (strcmp((s),(t)) == 0)
@@ -40,7 +42,7 @@ int main(int argc, char **argv)
    while ((c = getopt(argc, argv, "f:u:hV")) > 0) switch (c) {
       case 'f': setdate(optarg, &datemin); break;
       case 'u': setdate(optarg, &datemax); datemax += 86400; break;
-      case 'h': usage(0); // show help
+      case 'h': usage(0); break; // show help
       case 'V': return praccIdentify("pracc-log");
       default:  usage("invalid option");
    }
@@ -79,7 +81,6 @@ int main(int argc, char **argv)
 
 void setdate(const char *s, time_t *tp)
 {
-   register const char *p;
    struct tm tm;
    int n;
 

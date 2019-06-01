@@ -8,10 +8,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "common.h"
 #include "pclog.h"
 #include "pracc.h"
+#include "scan.h"
 
 char *me;
 
@@ -20,11 +22,10 @@ void usage(const char *s);
 
 int main(int argc, char **argv)
 {
-   struct pclog pc;
    time_t tmin = -1;
    time_t tmax = -1;
    char *filter = 0;
-   int c, i, r;
+   int c, r;
 
    extern int optind;
    extern char *optarg;
@@ -37,7 +38,7 @@ int main(int argc, char **argv)
    while ((c = getopt(argc, argv, "f:u:hV")) > 0) switch (c) {
       case 'f': setdate(optarg, &tmin); break;
       case 'u': setdate(optarg, &tmax); tmax += 86400; break;
-      case 'h': usage(0); // show help
+      case 'h': usage(0); break; // show help
       case 'V': return praccIdentify("pracc-log");
       default:  usage("invalid option");
    }
@@ -62,7 +63,6 @@ int main(int argc, char **argv)
 
 void setdate(const char *s, time_t *tp)
 {
-   register const char *p;
    struct tm tm;
    int n;
 

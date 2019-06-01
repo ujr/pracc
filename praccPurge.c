@@ -3,6 +3,8 @@
 #include <pwd.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "common.h"
@@ -33,7 +35,7 @@ int praccPurge(acctname, tx, keepresets, keeplimits, keepnotes, doit, fntmp)
    long limit, balance;
    int n, breakdone = 0;
 
-   assert(acctname && fptmp);
+   assert(acctname && fntmp);
 
    pw = getpwuid(getuid());
    if (pw == 0) return -1;
@@ -61,7 +63,7 @@ int praccPurge(acctname, tx, keepresets, keeplimits, keepnotes, doit, fntmp)
       else if (tr < tx) switch (pracc.type) {
          case '=': if (keepresets) putln(fptmp, mkline(&pracc)); break;
          case '$': if (keeplimits) putln(fptmp, mkline(&pracc)); break;
-         case '#': if (keeplimits) putln(fptmp, mkline(&pracc)); break;
+         case '#': if (keepnotes) putln(fptmp, mkline(&pracc)); break;
       }
 
 /*

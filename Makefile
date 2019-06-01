@@ -43,19 +43,20 @@ PRACCPEEK = pracc-watch
 
 # ** End Configuration: no changes after here! **
 
-# Remove symtab and reloc info (smaller binary)
-CFLAGS = -s
+# Remove symtab and reloc info (smaller binary); fussy warnings
+CFLAGS = -s -Wall
 
 TOOLS = pracc-init pracc-edit pracc-view pracc-kill pracc-sum \
  pracc-purge pracc-check pracc-log pracc-pclog pracc-scan netprint
 
 TESTS = config_test strbuf_test
 
-all: backend tools gui
+all: backend tools webgui
 backend: cupspracc
 tools: $(TOOLS)
+test: tests
 tests: $(TESTS)
-gui: pracc.cgi
+webgui: pracc.cgi
 
 install: cupspracc pracc.cgi tools
 	install -d $(PRACCBIN) $(PRACCDOC) $(PRACCCGI)
@@ -73,6 +74,7 @@ install: cupspracc pracc.cgi tools
 	install -o root -g root -m 755 pracc.cgi $(PRACCCGI)/pracc.cgi
 	cp -a doc/* $(PRACCDOC)
 	chown -R root:root $(PRACCDOC)
+
 
 # Generate the pracc.h header:
 
@@ -92,10 +94,11 @@ pracc.h: Makefile pracc.t
 	    -e 's:{PRACCPOKE}:$(PRACCPOKE):g' \
 	    pracc.t > pracc.h
 
+
 # The CUPS backend:
 
 cupspracc: cupspracc.o pjl.o ps.o printsn.o pracclib.a writen.o
-	gcc -lcups -o $@ $+
+	gcc -o $@ $+ -lcups
 cupspracc.o: cupspracc.c pracc.h pjl.h ps.h print.h tai.h writen.h
 
 pstest:	ps.o
@@ -105,6 +108,7 @@ ps.o: ps.c ps.h
 pjltest: pjl.o
 	gcc -D TESTING -o pjltest pjl.c scani.c scanu.c
 pjl.o: pjl.c pjl.h
+
 
 # Pracc tools:
 
@@ -143,6 +147,7 @@ pracc-log.o: pracc-log.c common.h pracc.h scan.h tai.h
 pracc-pclog: pracc-pclog.o pclog.o symtab.o common.a pracclib.a
 pracc-pclog.o: pracc-pclog.c common.h pclog.h pracc.h
 
+
 # Pracc Web GUI
 
 pracc.cgi.o: pracc.cgi.c pracc.h symtab.h cgi.h daterange.h \
@@ -165,6 +170,7 @@ cgi.o: cgi.c cgi.h pracc.h
 pclog.o: pclog.c getln.h pclog.h pracc.h symtab.h tai.h
 subst.o: subst.c pracc.h scan.h symtab.h
 symtab.o: symtab.c symtab.h
+
 
 # Pracc API:
 
@@ -199,12 +205,14 @@ praccSum.o: praccSum.c pracc.h
 praccTypeString.o: praccTypeString.c pracc.h
 praccAccountInfo.o: praccAccountInfo.c pracc.h
 
+
 # joblex:
 
 joblex:	joblex.l pcl5.o pclxl.o printer.o papersize.o
 	lex  -t joblex.l > joblex.c
 	cc   -c -o joblex.o joblex.c
 #	cc   joblex.o pcl5.o pclxl.o -lm -o joblex
+
 
 # Unit tests:
 
@@ -215,6 +223,7 @@ config_test: config_test.c config.c config.h strbuf.h scan.h
 strbuf_test: strbuf_test.c strbuf.h
 	cc -g -o strbuf_test strbuf_test.c strbuf.c
 	@./strbuf_test || echo "Unit test for strbuf FAILED"
+
 
 # Utilities:
 
@@ -257,6 +266,7 @@ tainow.o: tainow.c tai.h
 taiscan.o: taiscan.c tai.h
 taistore.o: taistore.c tai.h
 
+
 # Administration
 
 clean:
@@ -270,3 +280,5 @@ dist: clean
 	 --exclude .git --exclude RCS --exclude legacy --exclude test pracc)
 #	(V=`head -1 VERSION`; cd ..; tar chzvf pracc-v$$V.tgz \
 #	 --exclude RCS --exclude legacy --exclude test pracc)
+
+.PHONY: all backend tools webgui test tests install clean tgz dist

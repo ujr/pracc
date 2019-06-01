@@ -6,6 +6,7 @@
  */
 
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -22,8 +23,10 @@
 #include <cups/backend.h>
 
 #include "delay.h"
+#include "getln.h"
 #include "pracc.h"
 #include "print.h"
+#include "scan.h"
 #include "tai.h"
 #include "writen.h"
 
@@ -86,7 +89,7 @@ char username[256];            //  and as what user
 
 /* Prototypes */
 
-void parseURI(const char *deviceURI);
+int parseURI(const char *deviceURI);
 mode parseMode(const char *value, mode deflt);
 int parseOnOff(const char *value, int deflt);
 
@@ -94,7 +97,7 @@ void parseinput(const char *buf, unsigned len);
 void pjlinput(const char *buf, unsigned len);
 void psinput(const char *buf, unsigned len);
 
-int copyuser(char *dest, int size, const char *s);
+void copyuser(char *dest, int size, const char *s);
 int copytitle(char *dest, int size, const char *s);
 void checkaccess(const char *username, const char *acctname);
 long sendjob(int jobfd, int devfd);
@@ -139,13 +142,13 @@ int main(int argc, char *argv[], char *envp[])
 
    setbuf(stderr, NULL);
 
-   if (signal(SIGPIPE, SIG_IGN) < 0)
+   if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
       die(CUPS_BACKEND_FAILED, "signal");
-   if (signal(SIGINT, cancel) < 0)
+   if (signal(SIGINT, cancel) == SIG_ERR)
       die(CUPS_BACKEND_FAILED, "signal");
-   if (signal(SIGQUIT, cancel) < 0)
+   if (signal(SIGQUIT, cancel) == SIG_ERR)
       die(CUPS_BACKEND_FAILED, "signal");
-   if (signal(SIGTERM, cancel) < 0)
+   if (signal(SIGTERM, cancel) == SIG_ERR)
       die(CUPS_BACKEND_FAILED, "signal");
 
    /*
@@ -201,10 +204,14 @@ int main(int argc, char *argv[], char *envp[])
     */
 
    devuri = cupsBackendDeviceURI(argv);
-   if (devuri) parseURI(devuri);
-   else {
+   if (!devuri) {
       errno = 0;
       log_error("no device URI specified!");
+      return CUPS_BACKEND_STOP;
+   }
+   if (parseURI(devuri) != 0) {
+      errno = 0;
+      log_error("invalid device URI specified!");
       return CUPS_BACKEND_STOP;
    }
 
@@ -708,7 +715,7 @@ long runscan(int fd, const char *scanprog)
          line[n-1] = '\0'; // overwrite \n
          log_debug("Job scanner said: %s$", p);
          while (isspace(*p)) ++p;
-         scanu(p, &num);
+         scani(p, &num);
       }
    }
    while (n > 0);
@@ -902,7 +909,7 @@ void acctstr(char *buf, int maxlen)
    p += printi(p, jobpages); // -1 if unknown
    p += printc(p, ' ');
    p += printi(p, pages); // -1 if unknown
-   if (jobtitle && jobtitle[0]) {
+   if (jobtitle[0]) {
       p += printc(p, ' ');
       p += printsn(p, jobtitle, 30);
    }
@@ -957,7 +964,7 @@ int logpc(long pc, const char *printer)
  * Parse the device URI into its constituents and
  * store them in global variables for easy access.
  */
-void parseURI(const char *deviceURI)
+int parseURI(const char *deviceURI)
 {
    char method[256];
    char resource[2048];
@@ -971,6 +978,7 @@ void parseURI(const char *deviceURI)
       method, sizeof(method), username, sizeof(username),
       hostname, sizeof(hostname), &portnum,
       resource, sizeof(resource));
+   if (result != HTTP_URI_STATUS_OK) return -1;
 
    if (portnum == 0) portnum = 9100; // default: JetDirect
    portname[printu(portname, portnum)] = '\0';
@@ -1009,11 +1017,11 @@ void parseURI(const char *deviceURI)
             pagecost = atoi(value);
          }
          else if (!strcasecmp(name, "wait0")) {
-            if (scanu(value, &number))
+            if (scani(value, &number))
                wait0 = (int) number;
          }
          else if (!strcasecmp(name, "wait1")) {
-            if (scanu(value, &number))
+            if (scani(value, &number))
                wait1 = (int) number;
          }
          else if (!strcasecmp(name, "jobscan")) {
@@ -1021,6 +1029,7 @@ void parseURI(const char *deviceURI)
          }
       }
    }
+   return 0;
 }
 
 /*
@@ -1052,7 +1061,7 @@ int parseOnOff(const char *value, int deflt)
    return deflt;
 }
 
-int copyuser(char *dest, int size, const char *s)
+void copyuser(char *dest, int size, const char *s)
 {
    int i = 0;
 
@@ -1146,8 +1155,6 @@ void checkaccess(const char *username, const char *acctname)
  */
 int writeall(int fd, const char *buf, unsigned len)
 {
-   int ret;
-
    if (fdblocking(fd) < 0) return -1; // see errno
 
    if (writen(fd, buf, len) < 0) return -1; // see errno
@@ -1177,7 +1184,7 @@ int fdnonblock(int fd)
 
 /*
  * Try getting the job-billing IPP/CUPS job attribute.
- * Return an malloc'ed string of NULL on failure.
+ * Return an malloc'ed string or NULL on failure.
  *
  * The Get-Job-Attributes operation request attributes:
  *  attributes-charset
@@ -1217,10 +1224,24 @@ char *cupsGetJobBilling(const char *printer, long jobid)
 
    jobBillingString = (char *) 0; // assume failure
    response = cupsDoRequest(http, request, "/"); // XXX /jobs ?
+   // TODO Use accessor functions, the ipp_t is opaque in recent CUPS
+   // TODO See http://localhost:631/help/api-httpipp.html
+#if 0
    if (response && response->request.status.status_code == IPP_OK)
       for (attr = response->attrs; attr; attr = attr-> next)
          if (strcmp(attr->name, "job-billing") == 0)
             jobBillingString = strdup(attr->values[0].string.text);
+#endif
+   // See the CPUS Programming Manual
+   // at https://www.cups.org/doc/cupspm.html
+   // (non-null response implies success, formerly IPP_OK)
+   // TODO UNTESTED
+   if (response) {
+      attr = ippFindAttribute(response, "job-billing", IPP_TAG_TEXT);
+      if (attr) {
+         jobBillingString = strdup(ippGetString(attr, 0, NULL));
+      }
+   }
 
    ippDelete(response); // request is deleted by cupsDoRequest()
    httpClose(http);
@@ -1236,7 +1257,9 @@ static void private_log(const char *fmt, ...)
 
    if (first) {
       int logfd;
+#if 0
       struct stat stbuf;
+#endif
 
       first = 0;
 

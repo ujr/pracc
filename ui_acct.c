@@ -100,7 +100,7 @@ int
 acct_dump(FILE *out, const char *acctname,
           time_t tmin, time_t tmax, const char *types)
 {
-   int r, n, i;
+   int r;
    time_t tstamp;
    char type;
    long value;

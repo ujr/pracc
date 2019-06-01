@@ -1,6 +1,7 @@
 /* Analyze the pracc pagecount log file (pc.log) */
 
 #include <assert.h>
+#include <ctype.h>
 #include <fnmatch.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +10,7 @@
 #include "getln.h"
 #include "pclog.h"
 #include "pracc.h"
+#include "scan.h"
 #include "symtab.h"
 #include "tai.h"
 
@@ -45,7 +47,7 @@ pclog_load(struct pclog *pc, time_t tmin, time_t tmax, const char *filter)
    FILE *logfp;
    char line[MAXLINE];
    struct symtab hash;
-   int i, n, skipped;
+   int n, skipped;
 
    // Empty filter means no filter, ie, match all:
    if (filter && (filter[0] == '\0')) filter = 0;
@@ -65,13 +67,13 @@ pclog_load(struct pclog *pc, time_t tmin, time_t tmax, const char *filter)
 
       // Parse one line: @taistamp pc printer
 
-      if (n = taiscan(p, &tai)) p += n;
+      if ((n = taiscan(p, &tai))) p += n;
       else continue; // skip bad line
       tstamp = taiunix(&tai);
 
       while (isspace(*p)) ++p;
 
-      if (n = scani(p, &pcount)) p += n;
+      if ((n = scani(p, &pcount))) p += n;
       else continue; // skip bad line
 
       while (isspace(*p)) ++p;

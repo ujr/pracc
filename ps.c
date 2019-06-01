@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "ps.h"
+#include "scan.h"
 
 extern int writeall(int fd, const char *buf, unsigned len);
 
@@ -31,12 +32,12 @@ static enum {
 static struct {
    char *ptr, *end;
    char buf[1024];
-} msg = { msg.buf, msg.buf+1024 };
+} msg = { msg.buf, msg.buf+1024, "" };
 
 static void msgchar(char c)
 {  /* Append char to message buffer */
    if (msg.ptr < msg.end) *msg.ptr++ = c;
-   else /* buffer full, char silently lost */ ;
+   else { /* buffer full, char silently lost */ }
 }
 
 static const char *msgterm(void)
@@ -164,7 +165,7 @@ int psparse(const char *msg)
     * Handle %%[ pagecount: <number>; cookie: <number> ]%% messages
     */
    if (strncmp(key, "pagecount", klen) == 0) {
-      int n = scanu(val, &ps_pagecount);
+      int n = scani(val, &ps_pagecount);
       if (n == 0) return PS_MSG_OTHER;
 
       if (*p) {

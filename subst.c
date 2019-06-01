@@ -52,7 +52,6 @@ void subst(FILE *in, FILE *out, char term, int num, int level)
    char *s;
    const char *end;
    long first, limit;
-   long prev, next;
    long inpos;
    int c, n;
    int r = 0;

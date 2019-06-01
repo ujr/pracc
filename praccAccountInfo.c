@@ -54,13 +54,13 @@ praccAccountInfo(const char *acctname, char *buf, int len)
    }
 
    /* Is it a personal account? */
-   if (pw = getpwnam(acctname)) {
+   if ((pw = getpwnam(acctname))) {
       if (buf) snprintf(buf, len, "%s", pw->pw_gecos);
       return 'P'; // personal account
    }
 
    /* Is it a group account? */
-   if (gr = getgrnam(acctname))
+   if ((gr = getgrnam(acctname)))
       return 'G'; // group account
 
    return 'z'; // zombie account

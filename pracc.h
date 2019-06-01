@@ -61,6 +61,7 @@ int praccOpen(const char *acctname, struct praccbuf *pracc);
 int praccRead(struct praccbuf *pracc);
 int praccClose(struct praccbuf *pracc);
 
+int praccIdentify(const char *toolname);
 int praccLogup(const char *username, const char *acctname, const char *info);
 
 char praccAccountInfo(const char *acctname, char *gecos, int len);

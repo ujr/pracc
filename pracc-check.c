@@ -63,15 +63,12 @@ main(int argc, char **argv)
 
    int c;
 
-   extern int optind;
-   extern int otperr;
-
    me = progname(argv);
    if (!me) return 127;
 
    opterr = 0; // prevent stupid getopt output
    while ((c = getopt(argc, argv, "hV")) > 0) switch (c) {
-      case 'h': usage(0); // show help
+      case 'h': usage(0); break; // show help
       case 'V': return praccIdentify("pracc-check");
       default:  usage("invalid option");
    }
@@ -152,7 +149,7 @@ main(int argc, char **argv)
    check(PRACCDIR, 0, PRACCDEFLT, S_IFREG, -1, -1, -1, 0, 0);
    dir = opendir(PRACCDIR);
    if (!dir) die(127, "cannot opendir %s", PRACCDIR);
-   while (d = readdir(dir)) {
+   while ((d = readdir(dir))) {
       char *fn = d->d_name;
       if (streq(fn, ".")) continue;
       if (streq(fn, "..")) continue;

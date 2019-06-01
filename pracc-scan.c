@@ -8,6 +8,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "common.h"
 #include "config.h"
@@ -18,6 +19,9 @@
 
 #define OK (0)
 #define OUT_OF_MEMORY (NULL)
+
+// Work in progress...
+#pragma GCC diagnostic ignored "-Wunused-function"
 
 static void usage(const char *err);
 static int ceiling(float f);
@@ -170,7 +174,7 @@ static int
 ceiling(float f)
 {
    // Not exactly the math ceil(), but what
-   // we need to compute the sheets printed.
+   // we need to compute is the sheets printed.
    if (f <= 0) return 0;
    int i = (int) f;
    if (i < f) i += 1;

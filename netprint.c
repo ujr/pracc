@@ -15,6 +15,7 @@
 // TODO Add features from my original netprint: hexdump, transcript, pc only
 
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -26,9 +27,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "delay.h"
 #include "ps.h"
 #include "pjl.h"
 #include "pracc.h" // only for praccIdentify()
+#include "scan.h"
 #include "writen.h"
 
 #define min(x,y) ((x) < (y) ? (x) : (y))
@@ -40,6 +43,8 @@
 #define DEFLT_WAIT1_PJL 120  // timeout for subsequent replies
 
 #define SUCCESS 0            // exit code if successful
+#define FAILSOFT 111         // exit code for temporary failure
+#define FAILHARD 127         // exit code for permanent failure
 
 enum {                       // How to do page counting:
    PCMODE_OFF = 0,           // -not at all
@@ -97,14 +102,15 @@ long jobbytes = 0;           // #bytes of job data sent to printer
 long devbytes = 0;           // #bytes read from printer
 
 int
-main(int argc, char *argv[], char *envp[])
+main(int argc, char *argv[])
 {
    extern char *optarg;
    extern int optind, optopt, opterr;
 
    unsigned char ip[4];
    unsigned short port = 9100;
-   int c, secs = 10, value;
+   int c, secs = 10;
+   long number;
 
    int devfd;          // the network connection
    int cookie;         // for message authentication
@@ -133,13 +139,13 @@ main(int argc, char *argv[], char *envp[])
          loglevel += 1;
          break;
       case 'r':
-         if (*optarg && optarg[scani(optarg, &value)] == '\0')
-            wait0 = value;
+         if (*optarg && optarg[scani(optarg, &number)] == '\0')
+            wait0 = number;
          else usage("invalid argument to -r option: '%s'", optarg);
          break;
       case 's':
-         if (*optarg && optarg[scani(optarg, &value)] == '\0')
-            wait1 = value;
+         if (*optarg && optarg[scani(optarg, &number)] == '\0')
+            wait1 = number;
          else usage("invalid argument to -s option: '%s'", optarg);
          break;
       case 'V':
@@ -156,7 +162,7 @@ main(int argc, char *argv[], char *envp[])
    if (*argv) printer = *argv++;
    else usage("printer not specified");
 
-   if (scanip4op(printer, &ip, &port) <= 0)
+   if (scanip4op(printer, ip, &port) <= 0)
    {
       usage("Invalid ip and/or port for printer");
    }
@@ -511,7 +517,6 @@ getstatus(int devfd, int cookie)
    while (1)
    {
       fd_set rfds;
-      char buf[1024];
       int r;
 
       // Revert to non-blocking printer i/o:
@@ -803,8 +808,6 @@ pjlinput(const char *buf, unsigned len, int cookie)
 int
 writeall(int fd, const char *buf, unsigned len)
 {
-   int ret;
-
    if (fdblocking(fd) < 0) return -1; // see errno
 
    if (writen(fd, buf, len) < 0) return -1; // see errno

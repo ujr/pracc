@@ -2,6 +2,7 @@
  // TODO Pass lineno to debug() statements
 %{
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -10,15 +11,15 @@
 #include <unistd.h>
 
 #include "joblex.h"
+#include "papersize.h"
+#include "pcl5.h"
+#include "pclxl.h"
 
 #define MAX(a,b) ((a)>(b)?(a):(b))
 
 static long lineno = 1;
 static int verbose = 0;
 static struct printer *printer;
-
-static char lang[32], *langptr = lang;
-static const char *langend = lang + sizeof(lang) - 1;
 
 static int atend = 0;  // set to 1 on %%Pages: (atend)
 static int gotit = 0;  // set to 1 if pages determined
@@ -69,23 +70,24 @@ PCLNUM  [-+]?([[:digit:]]{0,5}\.)?[[:digit:]]{1,5}
   * Switching between languages: PJL, PS, PCL, and PCLXL.
   */
 
-{UEL}                { BEGIN(INITIAL); //addlang('U');
+{UEL}                { BEGIN(INITIAL);
                        printer_set_lang(printer, 'U');
                        debug("Got plain UEL, enter INITIAL"); }
-{UEL}/@PJL           { BEGIN(PJL); //addlang('U'); addlang('J');
+{UEL}/@PJL           { BEGIN(PJL);
                        printer_set_lang(printer, 'U');
                        printer_set_lang(printer, 'J');
                        debug("Got UEL@PJL, enter PJL"); }
-<INITIAL>^%!         { BEGIN(PS); //addlang('P');
+<INITIAL>^%!         { BEGIN(PS);
                        printer_set_lang(printer, 'P');
                        debug("Got %!, enter PS"); }
-<INITIAL>^@PJL       { BEGIN(PJL); //addlang('J');
+<INITIAL>^@PJL       { BEGIN(PJL);
                        printer_set_lang(printer, 'J');
                        debug("Got ^@PJL, enter PJL"); }
-<INITIAL>{ESC}       { BEGIN(PCL); //addlang('5');
+<INITIAL>{ESC}       { BEGIN(PCL);
                        printer_set_lang(printer, '5');
                        debug("Got plain ESC, enter PCL");
-                       pcl5_parse(printer); BEGIN(INITIAL); }
+                       pcl5_parse(printer, stderr, verbose-2);
+                       BEGIN(INITIAL); }
                        /* TODO Ok? Will parse arbitrary binary files as PCL
                                and give immensely wrong values... */
 
@@ -122,21 +124,21 @@ PCLNUM  [-+]?([[:digit:]]{0,5}\.)?[[:digit:]]{1,5}
   */
 
 <PJL>{ENTER}         { BEGIN(PJL_ENTER); }
-<PJL_ENTER>POSTSCRIPT{WS}*$  { BEGIN(PS); //addlang('P');
+<PJL_ENTER>POSTSCRIPT{WS}*$  { BEGIN(PS);
                        printer_set_lang(printer, 'P');
                        debug("Got PJL ENTER, enter PS"); }
-<PJL_ENTER>PCL{WS}*\r?$ { BEGIN(PCL); //addlang('5');
+<PJL_ENTER>PCL{WS}*\r?$ { BEGIN(PCL);
                        printer_set_lang(printer, '5');
                        debug("Got PJL ENTER, enter PCL");
                        pcl5_parse(printer, stderr, verbose-2);
                        BEGIN(PJL); // back to PJL (pcl5_parse stops after UEL)
                      }
-<PJL_ENTER>PCLXL{WS}*\r?$  { BEGIN(PCLXL); //addlang('6');
+<PJL_ENTER>PCLXL{WS}*\r?$  { BEGIN(PCLXL);
                        printer_set_lang(printer, '6');
                        debug("Got @PJL ENTER, enter PCLXL");
                        pclxl_parse(printer, stderr, MAX(0, verbose-2));
                      }
-<PJL_ENTER>.*        { BEGIN(INITIAL); //addlang('?');
+<PJL_ENTER>.*        { BEGIN(INITIAL);
                        printer_set_lang(printer, '?');
                        debug("Got @PJL ENTER LANGUAGE = %s", yytext); }
 <PJL>{SET}           { BEGIN(PJL_SET); }
@@ -212,7 +214,8 @@ yywrap(void)
 
 #define PCLCODE(x,y,z) (65536*(x&255) + 256*(y&255) + (z&255))
 
-void dopcl(int first, int group, long value, int param)
+static void
+dopcl(int first, int group, long value, int param)
 {
 //   if (verbose) debug("{ESC %c %c %ld %c}", first, group, value, param);
 
@@ -256,7 +259,7 @@ void dopcl(int first, int group, long value, int param)
    }
 }
 
-void
+static void
 skip(long nbytes)
 {
 #if 1
@@ -270,7 +273,7 @@ skip(long nbytes)
 #endif
 }
 
-void
+static void
 pjlvar(const char *text)
 {
    // Format of text: "name{WS}*={WS}*value{WS*}\r?"
@@ -291,7 +294,7 @@ pjlvar(const char *text)
    p = (char *) text + strlen(text) - 1;
    while (p > text && isspace(*p)) *p-- = '\0';
 
-   if (p = strchr(text, '='))
+   if ((p = strchr(text, '=')))
    {
       value = p+1; // skip the "="
       name = text;

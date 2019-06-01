@@ -37,7 +37,7 @@ input(struct configfile *cfp)
       c = fgetc(cfp->fp);
       if (c != '\n') {
         ungetc(c, cfp->fp);
-        //c = '\r';
+        c = '\n'; // CR to LF
       }
    }
    if (c == '\n') {
@@ -45,7 +45,7 @@ input(struct configfile *cfp)
    }
    if (c == EOF) {
       cfp->eof = 1;
-      c = '\n';
+      c = '\n'; // pretend trailing LF
    }
    return c;
 }
@@ -61,13 +61,13 @@ static int
 skip_utf8_bom(FILE *fp)
 {
    // Skip the optional UTF-8 Byte Order Mark (BOM):
-   static const unsigned char *utf8bom = "\xef\xbb\xbf";
-   const unsigned char *bomptr;
+   static const char *utf8bom = "\xef\xbb\xbf";
+   const char *bomptr;
    int c;
 
    for (bomptr = utf8bom; *bomptr; bomptr++) {
       c = fgetc(fp);
-      if ((unsigned char) c != *bomptr) break;
+      if ((char) c != *bomptr) break;
    }
 
    if (bomptr == utf8bom) {
@@ -87,41 +87,7 @@ iskeychar(int c)
    return isalnum(c); // allow '_' and/or '-' and/or '.'?
 }
 
-static int // Parse: SubSection"\s*]
-config_parse_subsection(struct configfile *cfp)
-{
-   int c;
-//   int c = input(cfp);
-   struct strbuf *sp = &cfp->name;
-
-   // Skip leading white space:
-//   while (isspace(c) && c != '\n') c = input(cfp);
-
-   // Require the opening quote:
-//   if (c != '"') return -1;
-
-   for (;;) {
-      c = input(cfp);
-      if (c == '\n') return -1; // incomplete line
-      if (c == '"') break; // closing quote
-      if (c == '\\') {
-         c = input(cfp);
-         if (c == '\n') return -1; // incomplete line
-      }
-      strbuf_addc(sp, c); // don't lowercase
-   }
-   c = input(cfp);
-
-   // Skip trailing white space:
-   while (isspace(c) && c != '\n') c = input(cfp);
-
-   // Require the closing bracket:
-   if (c != ']') return -1;
-
-   return 0;
-}
-
-static int // Parse: [foo
+static int // Parse: [section "sub"]
 config_parse_section(struct configfile *cfp)
 {
    struct strbuf *sp = &cfp->name;
@@ -158,11 +124,6 @@ config_parse_section(struct configfile *cfp)
 
       // Skip trailing white space:
       while (isspace(c) && c != '\n') c = input(cfp);
-
-//   // Require the closing bracket:
-//   if (c != ']') return -1;
-
-//      return config_parse_subsection(cfp);
    }
 
    return (c == ']') ? 0 : -1;
@@ -265,6 +226,7 @@ config_parse(struct configfile *cfp, config_cb_t cb, void *data)
 
    for (;;) {
       int c = input(cfp);
+
       if (c == '\n') {
          if (cfp->eof) return 0;
          comment = 0;
@@ -294,7 +256,7 @@ config_parse(struct configfile *cfp, config_cb_t cb, void *data)
    }
 
    config_error("bad config: line %d in %s",
-                cfp->lineno, cfp->fn ? cfp->fn : "(stream)");
+                cfp->lineno, cfp->fn && cfp->fn[0] ? cfp->fn : "(stream)");
    return -1;
 }
 

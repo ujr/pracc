@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "common.h"
 #include "pracc.h"
@@ -45,7 +46,7 @@ int main(int argc, char **argv)
       case 'r': rflag = 1; break;
       case 'n': nflag = 1; break;
       case 'D': simul = 1; break;
-      case 'h': usage(0); // show help
+      case 'h': usage(0); break; // show help
       case 'V': return praccIdentify("pracc-purge");
       default:  usage("invalid option");
    }

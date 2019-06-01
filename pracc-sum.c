@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "common.h"
 #include "pracc.h"
@@ -29,7 +30,7 @@ int main(int argc, char **argv)
    time_t lastused;
    char limitstr[16];
    char laststr[32];
-   int c, n, status;
+   int c, status;
 
    extern int optind;
    extern char *optarg;
@@ -45,7 +46,7 @@ int main(int argc, char **argv)
       case 'u': setdate(optarg, &tmax);
                 tmax += 86399; // 23:59:59
                 break;
-      case 'h': usage(0); // show help
+      case 'h': usage(0); break; // show help
       case 'V': return praccIdentify("pracc-sum");
       default:  usage("invalid option");
    }

@@ -56,6 +56,8 @@
 
 #include "pcl5.h"
 #include "printer.h"
+#include "papersize.h"
+#include "joblex.h"
 
 #define BUG_INVALID_STATE 0
 
@@ -91,8 +93,6 @@ pcl5_skip_bytes(int nbytes)
 static void
 pcl5_do_char(struct printer *prt, int c)
 {
-   int copies, duplex;
-
    switch (c) {
    case 0x0C: // Form Feed
       debug("Got PCL FF (Form Feed)");
@@ -119,7 +119,7 @@ pcl5_do_cmd1(struct printer *prt, int c)
 static void
 pcl5_do_cmd2(struct printer *prt, int first, int group, int param, double value)
 {
-   char *name;
+   const char *name;
    long number = (long) value;
    float width, height;
 

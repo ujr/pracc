@@ -80,7 +80,6 @@ int report_init(long first, long count, time_t tmin, time_t tmax,
    struct group *gr;
    char **pp;
    struct symtab hash;
-   struct symbol *sym;
    long i, size;
 
    firstindex = MAX(first,1);

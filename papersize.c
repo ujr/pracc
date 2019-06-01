@@ -11,29 +11,29 @@ static struct papersize_t {
    float width;   // in millimeters
    float height;  // in millimeters
 } papersizetab[] = {                    //   mm^2  PCL XL
-   "LETTER",     2,  0,  215.9, 279.4,  //  60322  eLetterPaper   8.5x11 in
-   "LEGAL",      3,  1,  215.9, 355.6,  //  76774  eLegalPaper    8.5x14 in
-   "LEDGER",     6,  4,  432.0, 279.0,  // 120528  eLedgerPaper   11x17 in
-   "A6",        -1, 17,  105,   148,    //  15540  eA6Paper
-   "A5",        -1, 16,  148,   210,    //  31080  eA5Paper
-   "A4",        26,  2,  210,   297,    //  62370  eA4Paper
-   "A3",        27,  5,  297,   420,    // 124740  eA3Paper
-   "EXECUTIVE",  1,  3,  184,   267,    //  49128  eExecPaper     7.25x10.5 in
-   "JISB4",     -1, 10,  257,   364,    //  93548  eJB4Paper
-   "JISB5",     -1, 11,  182,   257,    //  46774  eJB5Paper
-   "JISB6",     -1, 18,  128,   182,    //  23296  eJB6Paper
+   {"LETTER",    2,  0,  215.9, 279.4}, //  60322  eLetterPaper   8.5x11 in
+   {"LEGAL",     3,  1,  215.9, 355.6}, //  76774  eLegalPaper    8.5x14 in
+   {"LEDGER",    6,  4,  432.0, 279.0}, // 120528  eLedgerPaper   11x17 in
+   {"A6",       -1, 17,  105,   148  }, //  15540  eA6Paper
+   {"A5",       -1, 16,  148,   210  }, //  31080  eA5Paper
+   {"A4",       26,  2,  210,   297  }, //  62370  eA4Paper
+   {"A3",       27,  5,  297,   420  }, // 124740  eA3Paper
+   {"EXECUTIVE", 1,  3,  184,   267  }, //  49128  eExecPaper     7.25x10.5 in
+   {"JISB4",    -1, 10,  257,   364  }, //  93548  eJB4Paper
+   {"JISB5",    -1, 11,  182,   257  }, //  46774  eJB5Paper
+   {"JISB6",    -1, 18,  128,   182  }, //  23296  eJB6Paper
 
-   "COM10",     81,  6,  105,   241,    //  25305  eCOM10Envelope  4.125x9.5 in
-   "C5",        91,  8,  162,   229,    //  37098  eC5Envelope
-   "DL",        90,  9,  110,   220,    //  24200  eDLEnvelope
-   "MONARCH",   80,  7,   98.4, 190.5,  //  18745  eMonarchEnvelope 3.875x7.5 in
-   "B5",       100, 12,  176,   250,    //  44000  eB5Envelope
+   {"COM10",    81,  6,  105,   241  }, //  25305  eCOM10Envelope  4.125x9.5 in
+   {"C5",       91,  8,  162,   229  }, //  37098  eC5Envelope
+   {"DL",       90,  9,  110,   220  }, //  24200  eDLEnvelope
+   {"MONARCH",  80,  7,   98.4, 190.5}, //  18745  eMonarchEnvelope 3.875x7.5 in
+   {"B5",      100, 12,  176,   250  }, //  44000  eB5Envelope
 
-   "JPOST",     -1, 14,  100,   148,    //  14800  eJPostcard
-   "JPOSTD",    -1, 15,  200,   148,    //  29600  eJDoublePostcard
+   {"JPOST",    -1, 14,  100,   148  }, //  14800  eJPostcard
+   {"JPOSTD",   -1, 15,  200,   148  }, //  29600  eJDoublePostcard
 
-   "?",         -1, -1,    0,     0,    // (no pages => no area => ?paper)
-   0,            0,  0,    0.0,   0.0
+   {"?",        -1, -1,    0,     0  }, // (no pages => no area => ?paper)
+   {0,           0,  0,    0.0,   0.0}
 };
 
 int

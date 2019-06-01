@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include "pjl.h"
+#include "scan.h"
 
 #define UEL "\033%-12345X"  // Universal Exit Language
 
@@ -32,12 +33,12 @@ static enum {
 static struct {
    char *ptr, *end;
    char buf[1024];
-} msg = { msg.buf, msg.buf+1024 };
+} msg = { msg.buf, msg.buf+1024, "" };
 
 static void msgchar(char c)
 {  /* Append char to message buffer */
    if (msg.ptr < msg.end) *msg.ptr++ = c;
-   else /* buffer full, char silently lost */ ;
+   else { /* buffer full, char silently lost */ }
 }
 
 static const char *msgterm(void)
@@ -253,6 +254,7 @@ int pjlparse(const char *msg)
    const char *tok;
    unsigned long n;
    unsigned long number;
+   long cookie;
    const char *p = msg;
 
    //fprintf(stderr, "{pjlparse:%s}\n", msg); //DEBUG
@@ -262,10 +264,10 @@ int pjlparse(const char *msg)
    if (n == 0) return PJL_MSG_OTHER;
 
    if (strncmp(tok, "ECHO", n) == 0) {
-      p += (n = scani(p, &number));
+      p += (n = scani(p, &cookie));
       while (isspace(*p)) ++p;
       if (n && (*p == '\0')) {
-         pjl_cookie = number;
+         pjl_cookie = cookie;
          return PJL_MSG_COOKIE;
       }
       return PJL_MSG_OTHER;

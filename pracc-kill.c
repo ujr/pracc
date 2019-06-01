@@ -38,7 +38,7 @@ int main(int argc, char **argv)
    opterr = 0; // prevent stupid getopt output
    while ((c = getopt(argc, argv, "fhV")) > 0) switch (c) {
       case 'f': serious = 1; break;
-      case 'h': usage(0); // show help
+      case 'h': usage(0); break; // show help
       case 'V': return praccIdentify("pracc-kill");
       default:  usage("invalid option");
    }

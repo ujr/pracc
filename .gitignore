@@ -1,2 +1,21 @@
 # Ignore objects and archives, anywhere in the tree:
 *.[oa]
+test/jobs
+trials
+
+# Generated/derived files:
+cupspracc
+netprint
+pracc-check
+pracc-edit
+pracc-init
+pracc-kill
+pracc-log
+pracc-pclog
+pracc-purge
+pracc-scan
+pracc-sum
+pracc-view
+pracc.cgi
+config_test
+strbuf_test

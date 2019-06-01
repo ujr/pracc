@@ -7,6 +7,9 @@
 
 extern void joblex(FILE *fp, struct printer *printer, int verbosity);
 
+extern int pcl5_input();
+extern int pclxl_input();
+
 extern void debug(const char *fmt, ...);
 extern void fatal(const char *fmt, ...);
 // TODO pass in a line number or byte offset (for better error reporting)

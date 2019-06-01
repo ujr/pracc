@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "common.h"
+
 /*
  * Terminate program execution with the given status
  * code, after printing an error message to stderr.

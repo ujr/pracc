@@ -7,6 +7,7 @@
 #include <stdlib.h>
 
 #include "getln.h"
+#include "scan.h"
 #include "tai.h"
 
 #define min(x,y) (((x) < (y)) ? (x) : (y))
@@ -73,12 +74,12 @@ next: p = line;
             if (*p == '-') goto next; // skip bad line
             // FALLTHRU
          case '=': // reset
-            if (n = scani(p, &num)) p += n;
+            if ((n = scani(p, &num))) p += n;
             else goto next; // skip bad line
             pracc->value = num;
             break;
          case '$': // limit
-            if (n = scani(p, &num)) p += n;
+            if ((n = scani(p, &num))) p += n;
             else if (*p++ == '*') num = UNLIMITED;
             else goto next; // skip bad line
             pracc->value = num;
@@ -92,7 +93,7 @@ next: p = line;
       }
 
       p += scanpat(p, " ");
-      if (n = taiscan(p, &tai)) p += n;
+      if ((n = taiscan(p, &tai))) p += n;
       else
 //#if OLDSTAMP
 //         if (n = oldscan(p, &tai)) p += n;

@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <errno.h>
 #include <locale.h>
 #include <pwd.h>
@@ -12,6 +13,11 @@
 
 #include "cgi.h"
 
+/* borrowed from subst.c */
+extern void install(const char *name, const char *value);
+extern char *lookup(const char *name, const char *deflt);
+extern void subst(FILE *in, FILE *out, char term, int num, int level);
+
 /*
  * The CGI code here references these templates:
  *
@@ -22,9 +28,6 @@
  * Templates are assumed to be in PRACCDOC/tmpl,
  * where PRACCDOC is defined in the pracc.h header.
  */
-
-extern void install(const char *name, const char *value);
-extern char *lookup(const char *name, const char *deflt);
 
 static void parse_query_string(const char *qs);
 static char *urldecode(char *s);
@@ -95,7 +98,7 @@ int cgiInit(const char *cgiDataDir)
 
    /* Date/time and hostname */
 
-   if (tp = localtime(&now)) {
+   if ((tp = localtime(&now))) {
       snprintf(buf, sizeof(buf), "%d", 1900+tp->tm_year);
       install("YEAR", buf);
       snprintf(buf, sizeof(buf), "%d", tp->tm_mon + 1);
@@ -112,7 +115,7 @@ int cgiInit(const char *cgiDataDir)
 
    /* Store Accept-Language info, if any, in LANG */
 
-   if (lang = getenv("HTTP_ACCEPT_LANGUAGE")) {
+   if ((lang = getenv("HTTP_ACCEPT_LANGUAGE"))) {
       lang = strdup(lang); // our own copy
       ptr = lang;
       while (isalpha(*ptr) || *ptr == '-') ++ptr;
@@ -141,7 +144,7 @@ int cgiInit(const char *cgiDataDir)
    if (strcasecmp(method, "POST") == 0) {
       int len, n, m;
       char *str;
-      char *ct = getenv("CONTENT_TYPE");
+      //char *ct = getenv("CONTENT_TYPE");
       char *cl = getenv("CONTENT_LENGTH");
 
       // Check multipart: TODO
@@ -231,8 +234,8 @@ void cgiCopyTemplateLang(const char *tmplname, const char *lang)
 
    if (lang) {
       snprintf(locale, sizeof(locale), "%s", lang);
-      if (p = strchr(locale, '.')) *p = '\0';
-      if (p = strchr(locale, '/')) *p = '\0';
+      if ((p = strchr(locale, '.'))) *p = '\0';
+      if ((p = strchr(locale, '/'))) *p = '\0';
 
       snprintf(fn, sizeof(fn), "%s/%s/%s", tmpldir, locale, tmplname);
       fp = fopen(fn, "r");
@@ -320,8 +323,6 @@ void cgiError(const char *fmt, ...)
 
 char *cgiPathPrefix(const char *path, const char *prefix)
 {
-   const char *s;
-
    if (path && prefix) {
       int n = strlen(prefix);
       if (strncasecmp(path, prefix, n) == 0)
@@ -463,7 +464,7 @@ static char *urldecode(char *s)
    char c, x1, x2;
 
    p = q = s;
-   if (q) while (c = *q++) {
+   if (q) while ((c = *q++)) {
       if (c == '+') *p++ = ' ';
       else if (c == '%') {
          if (isxdigit(x1 = *q++)) {

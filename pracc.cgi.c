@@ -5,6 +5,7 @@
 #include "common.h"
 #include "daterange.h"
 #include "pracc.h"
+#include "scan.h"
 #include "symtab.h"
 
 #include "ui_acct.h"
@@ -82,8 +83,6 @@ const char *getperiod(time_t *tminp, time_t *tmaxp, const char *deflt);
 
 static void printsym(struct symbol *sym, void *data)
 { if (sym && sym->sval) printf(" %s=%s$\n", sym->name, sym->sval); }
-static void dumpsym(struct symbol *sym)
-{ if (sym && sym->sval) fprintf(stderr, " %s=%s$\n", sym->name, sym->sval); }
 
 struct symtab syms; // global symbol store
 const char *myname; // basename of this program
@@ -109,22 +108,22 @@ main(int argc, char **argv)
 
    /* Branch depending on section */
 
-   if (s = cgiPathPrefix(path, "/user"))
+   if ((s = cgiPathPrefix(path, "/user")))
       return doUser(s);
 
-   if (s = cgiPathPrefix(path, "/admin"))
+   if ((s = cgiPathPrefix(path, "/admin")))
       return doAdmin(s);
 
-   if (s = cgiPathPrefix(path, "/accounts"))
+   if ((s = cgiPathPrefix(path, "/accounts")))
       return doAccounts(s);
 
-   if (s = cgiPathPrefix(path, "/reports"))
+   if ((s = cgiPathPrefix(path, "/reports")))
       return doReports(s);
 
-   if (s = cgiPathPrefix(path, "/logs"))
+   if ((s = cgiPathPrefix(path, "/logs")))
       return doLogs(s);
 
-   if (s = cgiPathPrefix(path, "/vars"))
+   if ((s = cgiPathPrefix(path, "/vars")))
       return doVars(s);
 
    if (streq(path, "/")) {
@@ -232,7 +231,7 @@ doUser(const char *suffix)
 
    install("SECTION", "user");
 
-   assert(acctname = lookup("REMOTE_USER", 0));
+   assert((acctname = lookup("REMOTE_USER", 0)));
    class = getacctinfo(acctname, 0, 0);
 
    initdates("thismonth");
@@ -441,6 +440,8 @@ doVars(const char *suffix)
    cgiStartHTML(TITLE);
    cgiCopyTemplate("vars.tmpl");
    cgiEndHTML();
+
+   return 0; // OK
 }
 
 int
@@ -651,7 +652,6 @@ doCredits(void)
    install("confirm", (valid && !confirmed) ? "" : 0);
 
    if (valid && confirmed) {
-      long balance;
       char *who = lookup("REMOTE_USER", lookup("USER", "?"));
       char *comment = lookup("comment", 0);
 
@@ -690,9 +690,6 @@ doCredits(void)
 int
 doAccountViewer(const char *acctname)
 {
-   time_t tmin, tmax;
-   const char *period;
-
    assert(acctname);
 
    initdates("thisyear");
@@ -740,7 +737,7 @@ install(const char *name, const char *value)
          if (value) value = strdup(value);
          sym->sval = value;
       }
-      else /* see notes above */ ;
+      else { /* see notes above */ }
    }
    else cgiError("Symbol install failed");
 }
@@ -1097,7 +1094,6 @@ getacctinfo(const char *acctname, long *bp, long *lp)
    if (praccSum(acctname, &balance, &limit, 0, 0, &lastused))
       install("error", strerror(errno));
    else {
-      struct tm *tmp;
       snprintf(buf, sizeof(buf), "%ld", balance);
       install("balance", buf);
       if (limit == UNLIMITED) {
@@ -1192,13 +1188,14 @@ int
 parseamount(const char *s, long *value)
 {
    const char *p = s;
-   long N = 0, M = 0;
+   unsigned long N = 0;
+   unsigned long M = 0;
    int n, sign = 1;
 
    if (*p == '-') { sign = -1; ++p; }
    else if (*p == '+') ++p; // skip
 
-   if (n = scanu(p, &N)) p += n;
+   if ((n = scanu(p, &N))) p += n;
    else return 0;
 
    if (*p == '.') {
