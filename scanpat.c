@@ -1,1 +1,0 @@
-../myclib/scanpat.c

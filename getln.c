@@ -1,1 +1,0 @@
-../myclib/getln.c

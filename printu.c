@@ -1,1 +1,0 @@
-../myclib/printu.c
