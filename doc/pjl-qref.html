@@ -1,0 +1,245 @@
+<html><head><title>PJL Quick Reference</title>
+<link rel="stylesheet" type="text/css" href="style.css">
+</head><body><!-- hand-crafted html ;-) -->
+
+<p>Urs-Jakob R&uuml;etschi<br>
+<a href="mailto:uruetsch@geo.unizh.ch">uruetsch@geo.unizh.ch</a></p>
+<h1>PJL Quick Reference</h1>
+
+<p>PJL is the <b>Printer Job Language</b>, developed by HP.
+ Some non-HP printers also understand some PJL.
+ Other than page description languages like PostScript and
+ PCL, PJL does not produce any marks on the paper. Instead,
+ it can be used to configure the printer and print jobs.</p>
+<p>Topics in this Quick Reference:<br>
+ <a href="#syntax">Command syntax</a><br>
+ <a href="#uel">Universal Exit Language</a><br>
+ <a href="#job">Structure of print jobs</a><br>
+ <a href="#env">Environment</a><br>
+ <a href="#info">Information requests</a><br>
+ <a href="#ustatus">Unsolicited status</a><br>
+ <a href="#echo">Echo and comments</a><br>
+ <a href="#sample">Print job example</a><br>
+ <a href="#acct">A note about page counting</a></p>
+<p>The original documentation by HP, the
+ <i>Printer Job Language Technical Reference Manual</i>,
+ is <a href="http://h200008.www2.hp.com/bc/docs/support/SupportManual/bpl13208/bpl13208.pdf">available online</a> (PDF).</p>
+
+<a name="syntax"></a>
+<h3>Command syntax</h3>
+<p>All PJL commands start with @PJL, followed by the command
+ name, followed by optional arguments to the command, followed
+ by an optional carriage return (ASCII CR, decimal 13), followed
+ by a line feed (ASCII LF, decimal 10):</p>
+<pre><b>@PJL <i>COMMAND</i> [<i>arguments</i>] [&lt;CR&gt;] &lt;LF&gt;</b></pre>
+<p>An exception to this format is the <a href="#uel">UEL command</a>.</p>
+<p>Another exception is just a plain <b>@PJL</b> followed by a newline.
+ This can be useful to add structure to large PJL jobs, but has no
+ effect. Blank lines are not allowed.</p>
+<p><b>Conventions:</b> we write &lt;ESC&gt; for the ASCII
+ code ESC (decimal 27, octal 33) and &lt;FF&gt; for an
+ ASCII form feed code (decimal 12);
+ the optional &lt;CR&gt; and mandatory &lt;LF&gt; that end lines
+ of PJL are not indicated in the remainder of this text.</p>
+<p><b>Case sensitivity:</b> the prefix @PJL must be uppercase,
+ the rest of a command is case-insensitive.</p>
+
+<a name="uel"></a>
+<h3>Universal Exit Language</h3>
+<p>A series of PJL commands to the printer must always
+ start with the Universal Exit Language or UEL sequence.
+ It tells the PJL-aware printer that what follows is PJL
+ code and no longer whatever language was currently being
+ sent to the printer. The UEL sequence is</p>
+<pre><b>&lt;ESC&gt;%-12345X</b></pre>
+<p>(remember: &lt;ESC&gt; = ASCII ESC = 27 dec = 33 oct).</p>
+<p>Typically, a print job starts with the UEL, followed
+ by a couple of PJL statements to adjust printer settings
+ like duplex printing, followed by the actual print job,
+ followed by another UEL to give control back to PJL.</p>
+<p>In most examples that follow, the initial UEL is omitted.</p>
+
+<a name="job"></a>
+<h3>Structure of print jobs</h3>
+<p>A "well-formed" PJL print job starts with a UEL that is
+ <em>immediately</em> (no white space!) followed by @PJL, which
+ may be the prefix of an actual command or just ends the line.
+ Then comes a series of PJL commands to prepare the printer
+ for the following job (in PCL or PostScript or any other
+ language supported by the printer). Finally, there is another
+ UEL followed by nothing, not even a newline.</p>
+<p>The actual print job that eventually produces marks on the
+ paper should be sandwiched between a JOB and an EOJ (end of job)
+ command. The JOB command takes optional agrguments like a job
+ name or a password (see the PJL spec).</p>
+<pre><b>@PJL JOB [NAME = "name"] [PASSWORD = number] [DISPLAY = "text"]
+@PJL EOJ [NAME = "name"]</b></pre>
+<p>The optional job name is interesting for it is reported by
+ USTATUS JOB messages!</p>
+<p>Here's an example of a complete print job:</p>
+<pre><b>&lt;ESC&gt;%-12345X@PJL
+@PJL JOB NAME = "My Job"
+&lt;ESC&gt;%-12345X@PJL
+@PJL ENTER LANGUAGE = POSTSCRIPT
+%!PS
+100 100 moveto
+/Times findfont 12 scalefont setfont
+(Hello, world!) show
+showpage
+&lt;ESC&gt;%-12345X@PJL EOJ
+&lt;ESC&gt;%-12345X</b></pre>
+<p>If a UEL appears between a JOB/EOJ pair, then it is treated
+ as a printer language reset, not as a PJL job boundary.
+ This means, in particular, that the job page counter will
+ not be reset by such a nested UEL.</p>
+
+<p>In principle, there can be more than one print job in
+ a PJL job, each embedded between JOB and UEL EOJ commands.
+ Note that there are three UEL commands: the first starts
+ the job, the second returns control back to PJL, and the
+ last one ends the PJL job.</p>
+
+<a name="lang"></a>
+<h3>Setting the job language</h3>
+<p>Many printers understand more than one page
+ description language. PostScript is probably the
+ most widely used and understood on most high-end
+ printers, PCL (printer control language) is the one
+ developed by HP but also understood by many printers.
+ Other languages exist, but are not as widespread.</p>
+<pre><b>@PJL ENTER LANGUAGE = <i>language</i></b></pre>
+<p>Here <i>language</i> is typically one of <b>PCL</b>,
+<b>POSTSCRIPT</b>, or <b>AUTO</b> (auto detection of
+ the language based on some heuristics).</p>
+<p>Note that HP refers to the <i>language</i> as the
+ <em>personality</em>.</p>
+
+<a name="env"></a>
+<h3>The printing environment</h3>
+<p>Some aspects of the printer can be controlled by setting
+variables in the PJL "environment". These variables can also
+be read back or collectively reset to default values.
+Values get lost when the printer is turned off.
+Default values survive power cycling the printer.</p>
+<pre>@PJL SET <i>var</i> = <i>value</i> <i># set a variable</i>
+@PJL DEFAULT <i>var</i> = <i>value</i> <i># set default value</i>
+@PJL INQUIRE <i>var</i> <i># inquire the value of a variable</i>
+@PJL DINQUIRE <i>var</i> <i># inquire a default value</i>
+@PJL RESET <i># restore default values</i>
+@PJL INITIALIZE <i># restore factory default values</i>
+</pre>
+<p>Useful variables include: <b>PAPER</b> (paper format, e.g.,
+A4 or LETTER), <b>COPIES</b> (how many copies to print),
+<b>ECONOMODE</b> (ON or OFF), <b>PERSONALITY</b> (the page
+description language to expect, same values as in the ENTER
+LANGUAGE command), <b>TIMEOUT</b> (in seconds), <b>LANG</b>
+(language), etc.</p>
+
+<a name="duplex"></a>
+<h3>Duplex printing</h3>
+<p>If the printer has a duplexer, it may be activated
+using PJL as follows:</p>
+<p>long binding (like a book):</p>
+<pre>
+@PJL SET DUPLEX = ON
+@PJL SET BINDING = LONGEDGE
+</pre>
+<p>short binding (like a calendar):</p>
+<pre>
+@PJL SET DUPLEX = ON
+@PJL SET BINDING = SHORTEDGE
+</pre>
+
+<a name="info"></a>
+<h3>Information about the printer</h3>
+<p>We may also ask the printer to give us some information
+ that is not part of the (modifyable) environment:</p>
+<pre>@PJL INFO <i>category</i></pre>
+<p>Here <i>category</i> can be
+ <b>ID</b> (printer model name),
+ <b>CONFIG</b>,
+ <b>MEMORY</b>,
+ <b>PAGECOUNT</b>,
+ <b>STATUS</b>,
+ <b>USTATUS</b> (available ustatus categories),
+ <b>VARIABLES</b> (available environment variables),
+ and some other key words. Example:</p>
+<pre><b>@PJL INFO PAGECOUNT</b>
+@PJL INFO PAGECOUNT
+PAGECOUNT=12345
+&lt;FF&gt;</pre>
+<p>Note that some printers omit the "PAGECOUNT=" string.</p>
+
+<a name="ustatus"></a>
+<h3>Unsolicited status</h3>
+<p>We may ask the printer to send us "unsolicited" status
+ messages about what the printer is doing ("asynchronous"
+ would have been the better term, but never mind). These
+ can be turned on
+<pre><b>@PJL USTATUS <i>category</i> = ON</b></pre>
+ and off
+<pre><b>@PJL USTATUS <i>category</i> = OFF</b></pre>
+ for these categories: <b>DEVICE</b>, <b>JOB</b>,
+ and <b>PAGE</b>. Say
+<pre><b>@PJL USTATUSOFF</b></pre>
+ to turn all unsolicited status messages off.</p>
+<p>If the category <b>DEVICE</b> is set to VERBOSE (instead
+ of ON), the printer reports errors in PJL commands.</p>
+<p>Unsolicited status messages sent by the printer have
+the following format:</p>
+<pre>@PJL USTATUS <i>category</i>
+<i>status message, one or more lines</i>
+&lt;FF&gt;</pre>
+
+<a name="echo"></a>
+<a name="comment"></a>
+<h3>Echo and Comment</h3>
+<p>There is a command that just echoes itself back and there
+ is also a way of embedding comments in PJL statements:</p>
+<pre>@PJL ECHO <i>stuff to echo back</i>
+@PJL COMMENT <i>your comments</i></pre>
+<p>PJL ECHO commands are mainly useful to synchronise
+ status information that the printer may sends!</p>
+<p>Note that all output produced by PJL is preceded
+ by the PJL command that generated the output.
+ For example, the command <b>@PJL ECHO Hello</b>
+ produces</p>
+<pre>@PJL ECHO Hello</pre>
+
+<a name="sample"></a>
+<h3>Print job example</h3>
+<pre>&lt;ESC&gt;%-12345X@PJL
+@PJL ECHO 2005-04-28 08:07:06
+@PJL USTATUS JOB = ON
+@PJL USTATUS PAGE = ON
+@PJL JOB NAME = "My Print Job"
+&lt;ESC&gt;%-12345X@PJL
+@PJL ENTER LANGUAGE = POSTSCRIPT
+%!PS
+/Courier findfont 18 scalefont setfont
+100 100 moveto (Hello, world!) show
+showpage
+&lt;ESC&gt;%-12345X@PJL
+@PJL EOJ NAME = "End of Example Job"
+@PJL USTATUS JOB = OFF
+@PJL USTATUS PAGE = OFF
+&lt;ESC&gt;%-12345X
+</pre>
+
+<a name="acct"></a>
+<h3>A note about page counting</h3>
+<p>PJL can be used for page-based accounting by exploiting the
+ fact that the number of pages printed for a job is reported
+ in the USTATUS JOB response to <tt>@PJL EOJ</tt>. For example,
+ the <a href="#sample">print job above</a> will react to the
+ <tt>@PJL EOJ NAME = "End of Example Job"</tt> as follows:</p>
+<pre>@PJL USTATUS JOB
+END
+NAME="End of Example Job"
+PAGES=<i>n</i>
+&lt;FF&gt;
+</pre>
+
+<p><i>ujr/2005-04-23</i></p>
+</body>
+</html>

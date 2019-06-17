@@ -1,0 +1,43 @@
+
+Found these (very old?) notes:
+
+/user      SECTION=user, user.tmpl or cgiError("No accounting for %s?")
+/admin     SECTION=admin, admin.tmpl, op=create/edit/etc.
+/accounts  SECTION=accounts, ...
+/reports   SECTION=reports, csv or reports.tmpl
+/logs      SECTION=logs, specific or logs.tmpl
+/vars      SECTION=vars, vars.tmpl
+/          SECTION=main, main.tmpl
+/foo       sendfile(/foo)
+
++----
+install(foo,bar);
+cgiStartHTML(TITLE);
+cgiCopyTemplate("file.tmpl");
+cgiEndHTML();
++----
+
+Resource         Params   Description                 Template
+--------         ------   -----------                 --------
+GET /                                                 main.tmpl
+GET /user        f=html|csv period types              user.tmpl
+GET /admin                                            admin.tmpl
+G/P /admin       op=create acct balance limit comment
+G/P /admin       op=credit acct balance comment
+G/P /admin       op=edit acct type value comment
+G/P /admin       op=purge acct
+G/P /admin       op=delete acct comment
+GET /accounts    f=html|csv query                     accounts.tmpl
+GET /account/foo f=html|csv types period from until   account.tmpl
+GET /report      f=html|csv accts period from until   report.tmpl
+GET /logs                                             logs.tmpl
+GET /logs/pracc  f=html|csv accts types period from until logs-pracc.tmpl
+GET /logs/pracc.log -- raw download
+GET /logs/pclog  f=html|csv printer period from until     logs-pclog.tmpl
+GET /logs/pclog.log -- raw download
+GET /*           get resource from file system /var/print/www
+
+base/tmpl/foo.tmpl
+base/images/pracclogo.png
+base/doc/praccapi.html etc.
+

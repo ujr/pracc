@@ -19,3 +19,4 @@ pracc-view
 pracc.cgi
 config_test
 strbuf_test
+joblex.c

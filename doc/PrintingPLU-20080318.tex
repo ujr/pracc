@@ -1,0 +1,277 @@
+% Handout for the SWITCH Printing Workshop
+% ujr/2008-02-21
+% ujr/2008-03-04 last update
+
+\magnification \magstep1
+\font\titlefont=cmbx12 at 16pt
+\font\sectionfont=cmbx12
+\parindent=18pt
+\newskip\secskip \secskip=24pt plus6pt minus 6pt
+\def\section#1\par{\par\ifdim\lastskip<\secskip
+  \removelastskip\penalty-200\vskip\secskip\fi
+  \leftline{\sectionfont #1}%
+  \nobreak\medskip\noindent}
+\def\\{\hfil\break}
+\def\IPP{IP\kern-.2ex P}
+
+\newcount\footno \footno=0
+\font\smallrm=cmr9 \font\smallit=cmti9 \font\smalltt=cmtt9
+\def\fn#1{\unskip % guard against: ...blabla <newline> \fn{...}
+  \global\advance\footno by 1% see TeXbook, p.396
+  $^{\the\footno}$%
+  \insert\footins{\raggedright %\parindent=1pc
+  \let\rm=\smallrm \let\it=\smallit \let\tt=\smalltt \rm
+  \leftskip=0pt \pretolerance=10000
+  \hyphenpenalty=10000 \exhyphenpenalty=10000
+  \interlinepenalty=\interfootnotelinepenalty
+  \floatingpenalty=20000
+  \splittopskip=\ht\strutbox \splitmaxdepth=\dp\strutbox
+  \item{$^{\the\footno}$}\strut#1\strut \par\allowbreak}}
+
+\topskip5pc
+\centerline{Urs-\kern-.2ex Jakob R\"uetschi, PHZ Luzern}
+\bigskip
+\centerline{\titlefont Printing und Accounting}
+\smallskip
+\centerline{\bf an der PHZ Luzern}
+\vskip2pc
+
+\noindent
+Die Informatik der PHZ Luzern betreibt rund 100 Drucker,
+welche verteilt auf 9 Geb\"aude im Netzwerk 1500 Benutzern
+zur Verf\"ugung stehen.
+Die meisten Benutzer sind Studierende mit privaten Notebooks,
+die mehrheitlich unter Windows laufen, grunds\"atzlich aber jedes
+beliebige Betriebssystem mitbringen k\"onnen.
+Alle Druckjobs von Studierenden werden nach dem Debit-Prinzip,
+jene von Mitarbeitenden nach dem Credit-Prinzip verrechnet.
+
+
+\section Die Institution
+
+Die P\"adagogische Hochschule Zentralschweiz (PHZ) ist zust\"andig
+f\"ur die Lehrerausbildung in der Zentralschweiz. Der operative
+Betrieb wurde im Herbst 2003 in Luzern aufgenommen.
+Die PHZ ist an den drei Standorten Luzern, Schwyz und Zug mit
+unabh\"angigen Informatik-Abteilungen und -Infrastrukturen pr\"asent.
+
+Die Informatik der PHZ Luzern ging aus der Informatik des vormaligen
+Lehrerseminars (P\"adagogisches Ausbildungszentrum Musegg, kurz PZM,
+heute Kurzzeitgymnasium Musegg, kurz KSM) hervor.
+Das hier vorgestellte Druck- und Abrechnungssystem wurde schon
+am PZM entwickelt und sp\"ater an der PHZ Luzern weiter gepflegt
+und verbessert.
+
+
+\section Ausgangslage und Grunds\"atze
+
+Ein Drucksystem besteht aus f\"unf Komponenten: Clients, Server,
+Drucker, dazwischen das Netzwerk und schliesslich die Jobaufbereitung
+durch Druckertreiber.
+
+Die meisten unserer Clients sind Windows Notebooks, die nicht
+der Schule sondern den Studierenden und Dozierenden geh\"oren.
+Daneben sind auch andere Betriebssysteme im Einsatz.
+Serverseitig arbeiten wir fast ausschliesslich mit Linux-Systemen
+und verwalten die User in einem LDAP Verzeichnis.
+Um einer masslosen Druckwut vorzubeugen, beauftragte uns die Schulleitung,
+alle Druckjobs auf Seitenbasis den Studierenden zum Zeitpunkt des Drucks
+zu belasten.
+Sp\"ater wurden wir auch beauftragt, die Grundlage f\"ur die nachtr\"agliche
+Verrechnung von Druckjobs der Mitarbeitenden zu schaffen.
+%
+Aus dieser Situation ergeben sich die folgenden {\bf Grunds\"atze}
+f\"ur unser Drucksystem:
+\smallskip
+\item{1.} Keine zus\"atzliche Software auf den Clients.
+\item{2.} Alle Druckjobs unterliegen dem Accounting.
+\item{3.} Die bestehende Benutzerverwaltung verwenden.
+%\item{4.} Nur authentifizierter Zugriff auf Drucker.
+
+
+\section Printer Accounting
+
+Unter Printer Accounting versteht man die Erfassung wer (wann
+und wo) wieviel gedruckt hat. Auf dieser Basis k\"onnen Druckkosten
+verrechnet und Statistiken erstellt werden.
+
+Printer Accounting am PZM war zun\"achst als eine erzieherische
+Massnahme gedacht, um dem verschwenderischen Umgang mit Papier
+vorzubeugen.
+Seit dem \"Ubergang vom PZM zur PHZ Luzern geht es zunehmend auch
+um die interne \"Uberw\"alzung von Kosten zwischen Abteilungen.
+Eine Forderung nach Kostenstellen f\"ur Druckjobs wird bald auf
+uns zukommen.
+Ob sich ein Hin- und Herschieben von Steuergeldern zwischen den
+(kleinen) Abteilung ein und der selben Bildungsinstitution lohnt,
+sei mal dahingestellt.
+
+Wenn es um die Verrechnung von Druckkosten geht, dann k\"onnen
+zwei Prinzipien zur Anwendung kommen, welche wir als das ``Credit''
+und das ``Debit'' Prinzip bezeichnen:
+\smallskip
+\item{1.} {\bf Credit:} Drucken ist immer erlaubt; die Druckkosten
+ werden im Nachhinein, etwa Ende Jahr oder Ende Semester, in Rechnung
+ gestellt.
+\item{2.} {\bf Debit:} Drucken ist nur m\"oglich, solange gen\"ugend
+ ``Druckguthaben'' vorhanden ist; von diesem wird jeder Druckjob
+ unmittelbar abgebucht.
+\smallskip\noindent
+Das Credit-Prinzip ist f\"ur Dozierende und Lehrpersonen geeignet,
+das Debit-Prinzip dagegen f\"ur Studierende.
+
+
+\section Das Drucksystem
+
+Ein Drucksystem ohne Accounting ist mit freien oder kommerziellen
+L\"osungen relativ einfach zu realisieren. Urspr\"unglich verwendeten
+wir LPRng,\fn{LPRng: \tt www.lprng.com} eine freie Weiterentwicklung
+des traditionellen BSD Print Spoolers. Vor einiger Zeit haben wir
+LPRng durch CUPS\fn{CUPS: \tt www.cups.org} abgel\"ost, ein Print
+Spooler welcher die freie Softwareszene im Sturm erobert.
+%Implementation des \IPP,\fn{Internet Printing Protocol: \tt www.pwg.org/ipp}
+%welche die freie Softwareszene im Sturm erobert.
+
+Die Clients kommunizieren mit dem Printserver per SMB (CIFS), auch
+jene, die nicht Windows als Betriebssystem verwenden. Auf dem
+Printserver authentifiziert Samba\fn{Samba: \tt www.samba.org}
+die Urheber von Druckjobs gegen\"uber unserem LDAP-Verzeichnis
+(Grundsatz~3), nimmt Printjobs entgegen und leitet sie an den
+Print Spooler (CUPS, fr\"uher LPRng) weiter.
+
+Moderne Betriebssysteme implementieren alle das Internet Printing
+Protocol (\IPP),\fn{\IPP: \tt www.pwg.org/ipp} ebenso CUPS.
+Warum nicht \IPP\ verwenden? Weil Samba f\"ur uns die
+Authentifizierung vornimmt. CUPS kann das zwar auch (mittels PAM an
+unserem LDAP-Verzeichnis), aber die Authentifizierung zwischen Windows
+und CUPS klappt per \IPP\ klappt leider nicht.\fn{Im Test mit Windows
+2000 hat CUPS \"uber unbekannte \IPP\ Pakete geklagt.\\ Der Test sollte
+mit aktuellen Windows-Versionen wiederholt werden.}
+
+Alle Drucker befinden sich in einem separaten Netzwerksegment,
+welches f\"ur die Clients nicht direkt erreichbar ist. Gateway
+zu diesem Netzsegment ist der Printserver, der dadurch volle
+Kontrolle \"uber alle Druckjobs erh\"alt (Grundsatz~2).
+
+Druckjobs werden auf den Clients erzeugt und vom Printserver
+unver\"andert zu den Druckern gesandt. Die Clients verwenden
+dazu die ``normalen'' Treiber vom Hersteller, welche wir auf
+dem Printserver zum Download anbieten.
+Auf Windows-Clients wird der Treiber automatisch installiert
+(ein Windows-Feature, von Samba unterst\"utzt).
+
+Benutzer von Linux und Mac~OS~X brauchen eine sogenannte PPD-Datei
+(PostScript Printer Description), welche einem generischen Treiber
+Auskunft dar\"uber erteilt, wie der Druckjob f\"ur einen
+spezifischen Drucker aufzubereiten ist.\fn{An dieser Stelle sei
+noch bemerkt, dass Mac~OS~X hinter den Kulissen CUPS verwendet
+und dass Apple k\"urzlich CUPS gekauft hat.}
+PPD-Dateien werden vom Drucker-Hersteller zur Verf\"ugung gestellt
+und k\"onnen im Internet gefunden werden.
+
+Wir erachten die Installation von Standard-Druckertreibern auf
+den Clients mit den vom Betriebssystem vorgesehenen Methoden
+nicht als ``extra Software'' und somit ist auch Grundsatz~1 befolgt.
+
+
+\section Accounting mit Pracc
+
+Als wir Accounting einf\"uhrten, haben alle kommerziellen L\"osungen
+die Anzahl Seiten im Druckjob gez\"ahlt, was nicht immer der Anzahl
+tats\"achlich gedruckter Seiten entspricht.\fn{Papiermangel und -stau
+sind die h\"aufigsten Ursachen. Gegen eine Z\"ahlung der Seiten im
+Druckjob sprechen aber auch die inher\"ante Unzuverl\"assigkeit und
+Sicherheits\"uberlegungen.}
+% - Wer kennt schon die Formate aller Drucker/treiber?
+% - Speziell pr\"aparierte Druckjobs k\"onnen:
+%    -- die Z\"ahlung \"uberlisten (Zuverl\"assigkeit)
+%    -- den Druckserver angreifen (Sicherheit)
+%
+Das war f\"ur uns inakzeptabel und bewog uns zu einer Eigenentwicklung
+unter dem Namen ``Pracc.'' Zun\"achst war das ein ``Filter'' f\"ur LPRng,
+sp\"ater ein ``Backend'' f\"ur CUPS.
+
+CUPS verwendet Backends zur Kommunikation mit Druckern. Backends
+kennen die spezifischen Details des Kommunikationskanals (Seriell, SMB,
+JetDirect, etc). Pracc ist ein Backend f\"ur Drucker, die JetDirect
+(auch bekannt als ``Port 9100'') sprechen -- das sind fast alle
+Netzwerkdrucker.
+
+Pracc pr\"uft zun\"achst, ob ein Benutzer gen\"ugend Guthaben
+hat und bricht den Druckvorgang ab, falls nicht. Pracc sendet vor
+und nach dem Druckjob spezielle Codes, die den Drucker veranlassen,
+die Anzahl der gedruckten Seiten \"uber das Netzwerk zur\"uck an
+Pracc zu melden. Das funktioniert mit unseren HP und Xerox Druckern
+\"ausserst zuverl\"assig.
+
+Problematisch sind die Kopierer, welche auch als Drucker angesprochen
+werden, weil die Kommunikation unidirektional ist, also nie etwas vom
+Kopierer zur\"uck kommt. F\"ur solche Ger\"ate ermitteln wir mit einer
+heuristischen Methode die Anzahl Seiten im Druckjob -- mit den weiter
+oben erw\"ahnten Problemen. Es ist daher wichtig, dass die Informatik-%
+Abteilung bei der Beschaffung von ``Multifunktionsger\"aten'' ein
+Mitspracherecht hat und ihre Empfehlungen Geh\"or finden.\fn{An der
+PHZ Luzern ist die Verwaltung f\"ur die Kopierer zust\"andig.}
+
+
+\section Betrieb
+
+Die Schulleitung hat den Preis pro Seite schwarz/weiss auf 10~Rp.~und
+jener f\"ur eine Seite auf einem farbigen Drucker auf 50~Rp. festgelegt.
+Jedem User wird bei der ersten erfolgreichen Authentifizierung am
+Printserver automatisch ein Druckkonto erstellt:
+\smallskip
+\item{--} Dozierende PHZ und KSM: Credit-Konto, kein initiales Guthaben
+\item{--} Studierende der PHZ: Debit-Konto, Startguthaben Fr.~10
+\item{--} Sch\"uler der KSM: Debit-Konto, Startguthaben Fr.~5
+\smallskip\noindent
+Die Startguthaben entstammen einer von den Studierenden bzw.~Sch\"ulern
+bei Semesterbeginn zu entrichtenden ``Kopierpauschale.''
+
+\"Uber eine Webseite haben alle User Einblick in ihr eigenes
+(aber kein fremdes) Druckkonto mit Angaben zu Kontostand und
+einer Liste aller Ausdrucke.
+%
+Auf der Kanzlei k\"onnen Studierende und Sch\"uler f\"ur Fr.~5
+oder Fr.~10 neue Druckcredits erwerben.
+Das Personal der Kanzlei nimmt einmal pro Tag die Gutschriften auf
+die Druckkonti vor und f\"uhrt Buch \"uber die get\"atigten
+Gutschriften (erg\"anzend zur automatischen Logf\"uhrung auf
+dem Printserver).
+
+
+\section Erfahrungen und Zukunft
+
+Pracc ist seit \"uber vier Jahren in verschiedenen Versionen im
+produktiven Einsatz und hat sich in dieser Zeit sehr gut bew\"ahrt.
+Vor allem hat es uns erm\"oglicht, die drei Grunds\"atze f\"ur das
+Drucksystem an der PHZ Luzern aufrecht zu halten.
+
+Mit dem Wechsel von LPRng zu CUPS wurde Pracc neu geschrieben und
+dabei die Z\"ahlgenauigkeit weiter verbessert. F\"ur die nahe
+Zukunft sind noch die folgenden drei Erweiterungen geplant:
+
+1.~Aufwertung: Studierende nehmen das Aufladen ihres Durckkontos selbst
+vor, indem sie auf der Kanzlei einen Voucher f\"ur Fr.~5 oder Fr.~10
+kaufen und den darauf vermerkten krypto\-graphi\-schen Code auf einer
+Webseite eintippen (Entlastung der Kanzlei).
+
+2.~Administration: Pracc soll vollst\"andig \"uber ein Web-Interface
+administrierbar sein. Zu den administrativen Aufgaben geh\"oren: die
+erw\"ahnte Aufwertung der Druckkonti Studierender, Statistiken und
+Reports (f\"ur die Buchhaltung), das Stornieren von Kontobelastungen
+(f\"ur administratives Personal), etc.
+
+3.~Kostenstellen: Mitarbeitende k\"onnen nicht nur auf ihr eigenes ``Konto''
+drucken, sondern auch auf Kostenstellen, f\"ur welche sie berechtigt sind.
+Studierende drucken immer auf ihre privates ``Konto.''
+Serverseitig ist f\"ur die Kostenstellen schon alles vorbereitet,
+noch unklar ist, wie der User die Kostenstelle ausw\"ahlen kann,
+ohne dass wir vom Prinzip ``keine extra Software auf den Clients''
+abr\"ucken m\"ussen.
+
+
+\vskip 1pc plus 1filll\nopagenumbers
+\centerline{\smallrm
+ Copyright 2008 by Urs-\kern-.2ex Jakob R\"uetschi and PHZ Luzern}
+\bye

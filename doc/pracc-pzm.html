@@ -1,0 +1,187 @@
+<html><head><title>Printer Accounting</title>
+<link rel="stylesheet" type="text/css" href="style.css">
+<meta name="author" content="Urs-Jakob Rueetschi">
+</head><body><!-- hand crafted html ;-) -->
+
+Urs-Jakob R&uuml;etschi<br>
+<a href="mailto:ujr@ict.pzm-luzern.ch">ujr@ict.pzm-luzern.ch</a>
+
+<h1>Printer Accounting</h1>
+
+<p>Unter <i>Printer Accounting</i> versteht man die Erfassung wer
+ wann wo wieviel gedruckt hat. Auf dieser Basis k&ouml;nnen die
+ Druckkosten im Nachhinein verrechnet werden.</p>
+<p>F&uuml;r den Schulbetrieb ideal ist ein <b>Kreditsystem</b>, bei
+ welchem f&uuml;r jeden Ausdruck von einem vorg&auml;ngig einbezahlten
+ Betrag abgebucht wird. Sobald der Betrag aufgebraucht ist, wird das
+ Drucken gesperrt (&auml;hnlich wie bei Fotokopierern).</p>
+<p>Das ist technisch nur realisierbar durch teure (und in der Praxis
+ oft unbefriedigende) Hardwarel&ouml;sungen (&agrave; la Kopierkarte
+ und Leseger&auml;t) oder den Erwerb eines kompletten Drucksystems,
+ was ebenfalls teuer ist und, schwerwiegender, eine Bindung an einen
+ spezifischen Hersteller (z.B. Canon; wir arbeiten momentan v.a. mit
+ Druckern von HP) und ihre Wartungsvertr&auml;ge mit sich bringt.</p>
+<p>Unsere Eigenentwicklung arbeitet ausschliesslich mit offenen
+ Standards und ist daher ein <b>Versuch, das Unm&ouml;gliche
+ m&ouml;glich zu machen.</b></p>
+
+<h3>1. Limitationen</h3>
+<p>Eine seitengenaue <i>und</i> zuverl&auml;ssige Z&auml;hlung ist
+ <i>nicht</i> m&ouml;glich. [<a href="#1">1</a>]</p>
+<p>Die Anzahl gedruckter Seiten steht erst <i>nach</i> dem
+ vollendeten Ausdruck zuverl&auml;ssig zur Verf&uuml;gung.
+ [<a href="#2">2</a>]</p>
+<p>Man munkelt, Studenten seien geschickt, wenn es darum geht,
+ Druckkosten zu umgehen [<a href="#3">3</a>]. Es braucht also
+ flankierende Massnahmen im technischen (und organisatorischen)
+ Bereich. Diese werden bei uns implementiert (technisch: getrenntes
+ Druckernetz).</p>
+<p>Der Schulbetrieb darf nicht gest&ouml;rt werden, d.h., wenn etwa
+ im Rahmen einer Pr&uuml;fung im Informatikzimmer A17 ausgedruckt
+ werden muss, dann darf das Gelingen nicht von Krediteinheiten
+ abh&auml;ngen. [<a href="#4">4</a>]</p>
+<p>Wir setzen auf den PostScript-Standard, welcher von (fast) allen
+ Ger&auml;ten ab einer gewissen Preisklasse unterst&uuml;tzt wird.
+ [<a href="#5">5</a>]</p>
+
+<h3>2. Zweck</h3>
+<p>Es soll mit der Einf&uuml;hrung des Printer Accounting darum
+ gehen, einen <b>&ouml;kologischen Unsinn einzud&auml;mmen,</b>
+ [<a href="#6">6</a>] indem eine grobe Zuordnung von Materialaufwand
+ zu den Verursachern gemacht wird. Aus obigen Limitationen geht aber
+ hervor, dass diese Zuordnung nicht ganz pr&auml;zise sein kann.</p>
+<p>Die so eingenommenen Gelder werden sinnvollerweise f&uuml;r
+ Verbrauchsmaterial wie Papier und Toner und die Wartung der Drucker
+ eingesetzt. Es ist auch m&ouml;glich, die verh&auml;ltnism&auml;ssigen
+ Anteile von PZM und PHZ zu ermitteln.</p>
+
+<h3>3. Betrieb</h3>
+<p>Die Studenten und Sch&uuml;ler k&ouml;nnen auf dem Sekretariat
+ neue Druckcredits f&uuml;r einen Betrag von CHF 5.- oder CHF 10.-
+ erwerben. [<a href="#7">7</a>] &Uuml;ber die einbezahlten
+ Betr&auml;ge wird Buch gef&uuml;hrt (wer, wann, wieviel), dies
+ zus&auml;tzlich zur automatischen Buchf&uuml;hrung im System.
+ [<a href="#8">8</a>]</p>
+<p>Um eine Konkurrenz zwischen Drucker und Kopierer zu verhindern,
+ sollten die Druckkosten den Kopierkosten entsprechen. Die Praxis hat
+ aber gezeigt, dass diese Konkurrenz nie existierte. Die Preise wurden
+ deshalb leicht unter den Kopierpreisen wie folgt festgelegt:</p>
+<ul>
+  <li>10 Rappen pro Seite A4, schwarz/weiss</li>
+  <li>Weitere Formate und/oder farbige Ausdrucke sind momentan
+   f&uuml;r Studenten nicht zug&auml;nglich. Entsprechende Preise
+   m&uuml;ssten noch vereinbart werden.</li>
+</ul>
+<p>Das System ist so konzipiert, dass es im Zweifelsfalle f&uuml;r
+ den Studenten rechnet, also lieber zuwenig als zuviel abbucht (siehe
+ Abschnitt "Limitationen" weiter oben).</p>
+<p>&Uuml;ber eine spezielle Seite im Intranet (also nur innerhalb
+ von PZM und PHZ Luzern zug&auml;nglich) kann man Einblick in
+ die pers&ouml;nlichen Druck-Credits erlangen. Alle personenbezogenen
+ Daten sind mit dem pers&ouml;nlichen Passwort gesch&uuml;tzt.</p>
+<p>Im Sekretariat k&ouml;nnen &uuml;ber eine einfache Software
+ Druck-Credits gutgeschrieben werden.</p>
+<p>Probleme bitte umgehend dem ICT-Team melden; wir sind an der
+ Perfektionierung des Systems sehr interessiert.</p>
+
+<h3>4. Einf&uuml;hrung</h3>
+<p>Bei der Einf&uuml;hrung komplexer Systeme ist man gut beraten,
+ davon auszugehen, dass nicht alles auf Anhieb perfekt klappen wird.
+ Das gilt umso mehr, wenn das System neben der t&auml;glichen
+ Routinearbeit entwickelt wurde und, wie gesagt, das Unm&ouml;gliche
+ m&ouml;glich machen soll...</p>
+<p>Mit der Einf&uuml;hrung werden die Daten der Testphase
+ gel&ouml;scht (einige statistische Kennziffern dazu finden sich im
+ n&auml;chsten Abschnitt).</p>
+<p>Es wird ein Freibetrag von z.B. CHF 5.- (entspricht 50 Seiten)
+ gew&auml;hrt; dies aus zwei Gr&uuml;nden:</p>
+<ol>
+  <li>um einer St&uuml;rmung des Sekretariats in der ersten Woche
+   vorzubeugen und</li>
+  <li>um allf&auml;lligen Ungenauigkeiten des Systems
+   entgegenzuwirken.</li>
+</ol>
+<p>Die Studierenden werden &uuml;ber das Wochenbulletin und &uuml;ber
+ die Klassenlehrperson informiert.</p>
+
+<h3>5. Einige Zahlen</h3>
+
+<p>Erste Versuche zur Ermittlung der Anzahl ausgedruckter Seiten
+ wurden schon Ende 2002 gemacht, seit Januar 2003 wurde auf
+ &ouml;ffentlichen Ger&auml;ten grunds&auml;tzlich gez&auml;hlt.
+ Im folgenden einige Zahlen &uuml;ber diesen Datensatz
+ [<a href="#9">9</a>].</p>
+
+<p>Papierverbrauch (in Seiten) nach Drucker in der Zeitspanne von
+ Januar bis Juli 2003:</p>
+
+<pre> A16     21826
+ A17      1540
+ A22      2997
+ FL119    4659</pre>
+
+<p>Die Summe &uuml;ber die Zahlen in der zweiten Kolonne entsprechen
+62 Pack Papier (&agrave; 500 Seiten), was aufeinandergestapelt einen
+Turm von gut 3 Metern H&ouml;he entspricht! Der Drucker im A16 hat
+seit Inbetriebsetzung im Januar 2001 schon fast 80000 Seiten
+bedruckt, also ein etwa 8 Meter hoher Papierstapel.</p>
+
+<p>Die Verteilung der Ausdrucke pro Benutzer ist ziemlich breit und
+ schief:</p>
+<p>16 Benutzer haben nur eine Seite gedruckt, ein Benutzer 1846 (=Maximum).
+ Die H&auml;lfte der Benutzer hat weniger als 25 Seiten gedruckt und gute
+ 80% weniger als 100. Knapp ein Drittel des Papierverbrauchs geht auf
+ weniger als 20% der Benutzer zur&uuml;ck.</p>
+<pre> Summe       31421
+ Minimum         1
+ Maximum      1846
+ Mittel         61
+ Median         25
+ Std.abw.      131</pre>
+<p>(Alle Angaben f&uuml;r die Zeitspanne Januar 2003 bis Juli 2003.)</p>
+
+<h3>Fussnoten mit Detailinfos</h3>
+<p><i><a name="1"></a></i><b>1.</b> Falls ein Softwarehersteller
+ etwas anderes behauptet, arbeitet er entweder mit propriet&auml;ren
+ Protokollen und bindet sich somit an spezifische Hersteller, oder
+ aber ist ein guter Werbeschwatzer.</p>
+<p><a name="2"></a><b>2.</b> Das liegt daran, dass Druckjobs
+ typischerweise in einer Art "Programmiersprache" abgefasst sind, die
+ vom Drucker interpretiert wird, was dann zu bedrucktem Papier
+ f&uuml;hrt. Wieviele Seiten ein Druckjob erzeugt, ist ohne diese
+ Interpretation <em>nicht</em> voraussagbar. Dagegen ist einzuwenden,
+ dass diese Interpretation vorg&auml;ngig im Computer durchgef&uuml;hrt
+ werden k&ouml;nnte, was korrekt ist. Dabei werden allf&auml;lliger
+ Papierstau, Papiermangel und &auml;hnliche Probleme nicht
+ ber&uuml;cksichtigt und somit unter Umst&auml;nden <em>zuviele</em>
+ Seiten verrechnet. Im Zweifelsfalle f&uuml;r den Studenten. Wir wollen
+ ja keine Meuterei...</p>
+<p><a name="3"></a><b>3.</b> Pointierte Formulierungen dieses
+ Sachverhalts finden sich in den Dokumentationen zum LPRng
+ Drucksystem, welches auch bei uns (vorl&auml;ufig noch) zur Anwendung
+ kommt.</p>
+<p><a name="4"></a><b>4.</b> Wir werden das so l&ouml;sen, dass nur
+ &ouml;ffentliche Arbeitsr&auml;ume ins Accounting eingebunden werden;
+ das Ausdrucken in Unterrichtsr&auml;umen (wie dem A17) unterliegt der
+ Kontrolle der anwesenden Lehrperson. Es darf nicht m&ouml;glich sein,
+ von ausserhalb der Unterrichtszimmer auf diese Drucker zu drucken.</p>
+<p><a name="5"></a><b>5.</b> Das ist bei zuk&uuml;nftigen
+ Anschaffungen zu ber&uuml;cksichtigen, stellt aber kaum eine
+ Einschr&auml;nkung dar, weil f&uuml;r den Schulbetrieb ohnehin nur
+ Drucker in dieser Preisklasse in Frage kommen.</p>
+<p><a name="6"></a><b>6.</b> Dabei sei an unseren immensen
+ Papierverbrauch im Zimmer A16 erinnert. Die meisten Ausdrucke
+ wanderten ungelesen in die Altpapierkiste. Oder neben den Drucker,
+ unter die Pulte, auf den Boden, hinter den Schrank...</p>
+<p><a name="7"></a><b>7.</b> Wir wollen damit, insbesondere in der
+ Anfangsphase, verhindern, dass zu grosse Betr&auml;ge im Spiel sind.</p>
+<p><a name="8"></a><b>8.</b> Security first. Schliesslich geht es um
+ Geld. Und wie gesagt: eine Abrechnung im Nachhinein ist viel
+ zuverl&auml;ssiger m&ouml;glich als die vorg&auml;ngige Bezahlung.
+ Wir haben so selbst im Falle eines Systemversagens die
+ M&ouml;glichkeit, nachtr&auml;glich abzurechnen.</p>
+<p><a name="9"></a><b>9.</b> Diese Zahlen sind nat&uuml;rlich im
+ Rahmen der erw&auml;hnten limitierten Genauigkeit zu verstehen.</p>
+
+<div align="right"><i>ujr/2003-10-23</i></div>
+</body></html><!-- started August 2003 -->
