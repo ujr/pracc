@@ -26,10 +26,9 @@ tool to check if the installation is (still) fine.
 History
 -------
 
-Pracc was created in 2003 at PZM Luzern (a teacher's college)
-in response to the school's director's urge to reduce paper waste
-around the public printing stations (some [notes](doc/pracc-pzm.html)
-from that time).
+Pracc was created in 2003 at PZM Luzern (a former teacher's college)
+in response to the headmaster's urge to reduce paper waste
+around the public printing stations.
 The system evolved continually and was in heavy use for years
 at PZM and later at the PHZ Luzern (which is now [PH Luzern][phlu]),
 and reportedly also at [HSLU][hslu] (the Lucerne University
@@ -50,9 +49,6 @@ querying the printer device remained unfinished.
 Development of Pracc ended in 2008 when I left PHZ Luzern.
 It remained in use for some unknown time.
 
-Technical information can be found in the accompanying documentation
-(English), along with some presentations and a leaflet in German.
-
 [samba]: https://www.samba.org/
 [cups]: https://www.cups.org/
 [phlu]: https://www.phlu.ch/
@@ -72,6 +68,13 @@ in these documents:
   *  [cupspracc.html](doc/cupspracc.html)
   *  [counting.html](doc/counting.html)
 
-There is also a [leaflet](doc/PrintingPLU-20080318.pdf) in German
-and some [slides](doc/PrintingLecture20080325.pdf) from a presentation.
+Some background can be found in [notes](doc/pracc-pzm.html) from the time
+Pracc was first created and a [leaflet](doc/PrintingPLU-20080318.pdf)
+in German, as well as in the slides from a [SWITCH][switch] organised
+[printing workshop](PrintingWorkshopPLU-20080318.pdf) and a longer
+[presentation](doc/PrintingLecture20080325.pdf).
+
+![Pracc Logo](/doc/images/pracclogos.png)
+
+[switch]: https://www.switch.ch/
 

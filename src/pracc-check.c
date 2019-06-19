@@ -200,23 +200,29 @@ check(home,sub,fn,type,uid,gid,mode,opt,sayok)
       return 0; // bad
    }
 
-   if (!(pw = getpwuid(st.st_uid)))
-      die(127, "getpwuid %d failed", st.st_uid);
-   if (!(gr = getgrgid(st.st_gid)))
-      die(127, "getgrgid %d failed", st.st_gid);
-
-   if ((uid != -1) && (uid != st.st_uid))
-      grumble(home,sub,fn,"wrong owner (should be %s #%d)", pw->pw_name, uid);
-   if ((gid != -1) && (gid != st.st_gid))
-      grumble(home,sub,fn,"wrong group (should be %s #%d)", gr->gr_name, gid);
-   if ((mode != -1) && (mode != (st.st_mode & 07777)))
+   if ((uid != -1) && (uid != st.st_uid)) {
+      const char *usrname = (pw=getpwuid(uid))?pw->pw_name:"";
+      grumble(home,sub,fn,"wrong owner (should be %s #%d)", usrname, uid);
+   }
+   if ((gid != -1) && (gid != st.st_gid)) {
+      const char *grpname = (gr=getgrgid(gid))?gr->gr_name:"";
+      grumble(home,sub,fn,"wrong group (should be %s #%d)", grpname, gid);
+   }
+   if ((mode != -1) && (mode != (st.st_mode & 07777))) {
       grumble(home,sub,fn,"wrong permissions (should be %s)", strfperm(mode));
-   if (type != (st.st_mode & S_IFMT))
+   }
+   if (type != (st.st_mode & S_IFMT)) {
       grumble(home,sub,fn,"wrong type (should be %s)", strftype(type));
+   }
 
-   if (!grumbled && sayok)
+   if (!grumbled && sayok) {
+      if (!(pw = getpwuid(st.st_uid)))
+         die(127, "getpwuid %d failed", st.st_uid);
+      if (!(gr = getgrgid(st.st_gid)))
+         die(127, "getgrgid %d failed", st.st_gid);
       report(home,sub,fn,"%s %s %s (ok)",
              strfperm(st.st_mode), pw->pw_name, gr->gr_name);
+   }
 
    return grumbled; // bad or good
 }

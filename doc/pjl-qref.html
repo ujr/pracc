@@ -239,6 +239,12 @@ NAME="End of Example Job"
 PAGES=<i>n</i>
 &lt;FF&gt;
 </pre>
+<p>Because unsolicited messages arrive asynchronously, we have
+ to make sure that we associate them with the proper print job.
+ To this end, we could set the job name to a "cookie" value and
+ check for it on arrival of USTATUS JOB messages.</p>
+<p>(Addendum, early 2011: we've seen a Windows printer driver that produces
+ PJL with unbalanced JOB/EOJ commands. This breaks proper page-conting!)</p>
 
 <p><i>ujr/2005-04-23</i></p>
 </body>

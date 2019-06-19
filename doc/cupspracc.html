@@ -52,7 +52,9 @@ default).</p>
 The filename of a backend must correspond with the URI scheme
 used in device discovery, otherwise CUPS will not use the backend.
 The pracc for CUPS backend uses its own file name when advertising
-its services and can therefore be named arbitrarily.</p>
+its services and can therefore be named arbitrarily.
+It is recommended to name it <i>pracc</i>, yielding device URIs
+of the form pracc://...</p>
 
 <h4>Normal Operation</h4>
 
@@ -326,14 +328,40 @@ used for all users that do not have an account.</p>
 <a name="misc"></a>
 <h2>Miscellaneous</h2>
 
-<p><i>Why doesn't the backend create missing pracc files?</i></p>
+<h4>Why doesn't the backend create missing pracc files?</h4>
 <p>Because the backend does not have easy access to the required
  information, namely, the initial balance and the initial limit
  of the account to be created.</p>
 
-<p><i>What is the default account useful for?</i></p>
+<h4>What is the default account useful for?</h4>
 <p>Use it to determine if printing shall be allowed or denied
 by default.</p>
+
+<h4>What are the rules to access pracc files?</h4>
+<p>Tools that run with real or effective uid <i>PRACCOWNER</i> or
+ real or effective gid <i>PRACCGROUP</i> must enforce these rules:<p>
+<ol>
+<li>each user can access only his/her own personal account</li>
+<li>each user can access group account x only if he/she belongs to group x</li>
+<li>users must not be able to tamper with their pracc files</li>
+</ol>
+<p>The pracc backend implements these rules in the checkaccess()
+ function that invokes the praccGrant() function in the pracc API.
+ It relies on the CUPS scheduler to properly authenticate the
+ <i>user</i> parameter that is passed to backends as <i>argv</i>[2].</p>
+
+<h4>What are the backend's exit codes?</h4>
+<p>The CUPS scheduler interprets backend exit codes as follows:</p>
+<table>
+<tr><td>0</td><td>CUPS_BACKEND_OK</td><td>print job successfully transmitted</td></tr>
+<tr><td>1</td><td>CUPS_BACKEND_FAILED</td><td>scheduler reacts according to error-policy</td></tr>
+<tr><td>2</td><td>CUPS_BACKEND_AUTH_REQUIRED</td><td>no or invalid authentication</td></tr>
+<tr><td>3</td><td>CUPS_BACKEND_HOLD</td><td>scheduler will hold the job</td></tr>
+<tr><td>4</td><td>CUPS_BACKEND_STOP</td><td>scheduler will stop the queue</td></tr>
+<tr><td>5</td><td>CUPS_BACKENd_CANCEL</td><td>scheduler will cancel the job</td></tr>
+</table>
+<p>The pracc backend makes use of most of these codes.</p>
+
 
 <a name="author"></a>
 <h2>Author</h2>

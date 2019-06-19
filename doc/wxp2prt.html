@@ -1,0 +1,107 @@
+<html><head><title>Printing and the Windows Firewall</title>
+<link rel="stylesheet" type="text/css" href="/home/ujr/doc/plain.css">
+</head><body><!-- hand-crafted html ;-) -->
+
+20050527, 20051111<br>
+Urs-Jakob R&uuml;etschi<br>
+PZM und PHZ Luzern
+
+<h1>Printing and the Windows Firewall</h1>
+
+<p>Windows XP, Service Pack 2 (SP2) comes with a personal firewall
+ that caused us a lot of headache in conjunction with printing:
+ the firewall's default settings are such that printing no longer
+ works, at least with Samba as a print server!</p>
+
+<h3>Problem Analysis</h3>
+<p>Samba, implementing the Windows NT/2K <i>printer change notify</i>
+ feature, tries to open a connection to the TCP ports 139/445 on the
+ <i>client</i>. This additional connection is used to push asynchronous
+ notifications about changes in the printer queue. Here is a typical
+ picture on a print server (at IP 172.16.1.20) with a client printing
+ from IP 172.16.5.46 (the first line is the connection back to the
+ client):</p>
+<pre># netstat -n -t -p | grep 172.16.5.46
+tcp  0  0  172.16.1.20:35113  172.16.5.46:445   ESTABLISHED  26436/smbd
+tcp  0  0  172.16.1.20:139    172.16.5.46:1229  ESTABLISHED  26436/smbd
+</pre>
+<p>If the Windows Firewall is active in its default configuration,
+ then the connection from the server to the client is blocked.</p>
+<p>My observation is, that Samba waits for some timeout to occur until
+ it gives up on these impossible connections. Unfortunately, this timeout
+ cannot be influenced in the config file (other than setting
+ <tt>disable spoolss = yes</tt>, which also disables driver downloading).</p>
+<p>Unfortunately, once this timeout expires, printing usually still
+ does not work, but reasons are unknown. In our setup, an empty file
+ appears in the Samba spooling area on the print server and on the
+ client side, these jobs remain in the queue until Samba is restarted.
+ Probably something goes astray with the TDB files.</p>
+<p>Some more information on the implementation of the notification feature
+ can be found in the <i>Samba Developer's Guide</i>, chapter 18:
+ <a href="http://www.samba.org/samba/docs/man/Samba-Developers-Guide/devprinting.html">Samba Printing Internals</a>.</p>
+
+<h3>Solution #1: Reconfigure the Firewall</h3>
+<p>Idea (obvious): configure the firewall such that it allows
+ connections from everywhere, from some subnet, or even only
+ from the print server. The following Windows Batch Script
+ configures the firewall to allow connections from the local
+ subnet and the print server (IP 10.82.1.20):</p>
+<pre>rem netsh firewall set opmode ENABLE
+netsh firewall set portopening TCP 445 Microsoft-ds ENABLE custom 10.82.1.20,LocalSubnet
+netsh firewall set portopening TCP 139 NetBIOS-ssn ENABLE custom 10.82.1.20,LocalSubnet
+</pre>
+<p>These lines open ports <b>tcp/445</b> (Microsoft-DS) and <b>tcp/139</b>
+ (NetBIOS session) for inbound connections from IP address 10.82.1.20 (our
+ print server) and the local subnet. You can do the same using the GUI,
+ if you so desire.</p>
+<p>Unfortunately, these settings do not seem to work in practice!
+ A bug in the firewall? In fact, we only managed to solve the
+ firewall/printing problem by opening these two ports to connections
+ from everywhere:</p>
+<pre>rem netsh firewall set opmode ENABLE
+netsh firewall set portopening TCP 445 Microsoft-ds ENABLE all
+netsh firewall set portopening TCP 139 NetBIOS-ssn ENABLE all
+</pre>
+<p>Note that both batch scripts affect only the <i>current profile</i>
+ of the firewall. The latter script can be downloaded as
+ <a href="wxp2prt.bat">wxp2prt.bat</a>.</p>
+
+<h3>Solution #2: Disable the Firewall</h3>
+<p>This may leave you with an uneasy feeling... so prefer the
+ first solution.</p> 
+<p>After disabling the Windows Firewall, go to the &quot;Security
+ Center&quot; and make sure that it does no longer monitor firewall
+ settings! Otherwise re-enabling it isn't any farther away than an
+ angry click on a nasty bubble in the lower right part of your screen.</p>
+
+<h3>What about the network?</h3>
+<p>Make sure that connections from the print server to
+ ports <b>tcp/445</b> and <b>tcp/139</b> on the clients
+ are allowed (check your routers and firewalls).</p>
+
+<h3>What about other firewalls?</h3>
+<p>Other personal firewalls for Windows (Symantec, Zone Alarm, etc)
+ seem to also block the critical ports by default.
+ Configure them appropriately.</p>
+
+<h3>About the Windows XP SP2 Firewall</h3>
+<p>Besides the GUI configuration dialog box, there is also a command
+ line tool that comes with Windows XP and can be used to fiddle about
+ with the firewall: <b>netsh</b>. It can also do some other network
+ stuff. Try <b>netsh help</b> at a command prompt.</p>
+<p>Windows Firewall supports two different profiles: <b>StandardProfile</b>
+ and <b>DomainProfile</b>. Using <b>netsh</b>, settings can be made
+ for either profile or for both.</p>
+<p>Windows Firewall appears to store its settings in the <b>registry</b>
+ under the key <b>HKLM\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy</b>.
+ There is a sub-key for each profile.
+ Note that the SP1 firewall used a different location in the registry!</p>
+<p>Windows Firewall can be configured to log dropped packets
+ as well as established connections to a file. This is quite
+ useful for analysis! (However, I didn't get the logging of
+ dropped packets to work.)
+ Use a tool like <a href="http://ophilipp.free.fr/op_tail.htm">mtail</a>
+ to get a life view on the log as it grows.</p>
+
+</body>
+</html>
