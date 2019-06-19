@@ -71,7 +71,7 @@ in these documents:
 Some background can be found in [notes](doc/pracc-pzm.html) from the time
 Pracc was first created and a [leaflet](doc/PrintingPLU-20080318.pdf)
 in German, as well as in the slides from a [SWITCH][switch] organised
-[printing workshop](PrintingWorkshopPLU-20080318.pdf) and a longer
+[printing workshop](doc/PrintingWorkshopPLU-20080318.pdf) and a longer
 [presentation](doc/PrintingLecture20080325.pdf).
 
 ![Pracc Logo](/doc/images/pracclogos.png)
