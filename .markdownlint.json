@@ -1,0 +1,8 @@
+{
+    "header-style": { "style": "setext_with_atx" },
+    "ul-start-left": false,
+    "ul-indent": false,
+    "no-multiple-blanks": false,
+    "list-marker-space": false,
+    "code-block-style": false
+}

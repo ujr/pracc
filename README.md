@@ -6,6 +6,8 @@ Pracc complements CUPS to do printing with accounting.
 The pracc package consists of a backend for CUPS and
 a few tools to manage user's printer accounts.
 
+![Pracc Logo](/doc/images/pracclogos.png)
+
 Be sure to read all documentation that comes with pracc.
 Pracc is not plug-and-play but easy once you understand
 how it works.
@@ -72,20 +74,18 @@ in these documents:
 
 Some background can be found in [notes](doc/pracc-pzm.html) from the time
 Pracc was first created and in a [leaflet](doc/PrintingPLU-20080318.pdf),
-as well as in the slides from a [SWITCH][switch]-organised
+as well as in the slides from a [SWITCH](https://www.switch.ch)-organised
 [printing workshop](doc/PrintingWorkshopPLU-20080318.pdf) and a longer
-[presentation](doc/PrintingLecture20080325.pdf) (all in German).
-
-![Pracc Logo](/doc/images/pracclogos.png)
-
-[switch]: https://www.switch.ch/
+[presentation](doc/PrintingLecture20080325.pdf) (all in German). Also
+available are some technical notes on [PostScript](doc/PostScript.md)
+and [network printing](doc/Network.md).
 
 
 References
 ----------
 
 Essential sources of information for the development of Pracc's
-CUPS backend (and its predecessor called <i>netprint</i>) were:
+CUPS backend (and its predecessor called *netprint*) were:
 
  * About communicating with a PostScript printer: there's a chapter
    devoted to that in *Advanced Programming in the UNIX Environment*
