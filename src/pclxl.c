@@ -219,7 +219,7 @@ pclxl_logop(FILE *fp, int op, struct pclxl_stack *sp)
          struct pclxl_attr *attr = &sp->slots[i];
          pclxl_write_attr(fp, attr);
       }
- 
+
       fprintf(fp, "%s\n", pclxl_tag_name(op));
    }
 }
@@ -577,7 +577,7 @@ pclxl_enum_name(int attrid, int value)
       }
       break;
    case PCLXL_ATTR_DUPLEX_PAGE_SIDE:
-      switch (value) { 
+      switch (value) {
       case 0: return "eFrontMediaSide"; // 1.1
       case 1: return "eBackMediaSide"; // 1.1
       }

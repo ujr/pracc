@@ -385,7 +385,7 @@ int main(int argc, char *argv[], char *envp[])
 
    srand(time(0) ^ getpid());
    cookie = 10000 + (rand() & 65535);
-  
+
    if (acctmode == POSTSCRIPT) {
       psinit();
       if (pscount(devfd, cookie))
@@ -569,7 +569,7 @@ long sendjob(int jobfd, int devfd)
       FD_ZERO(&wfds);
       if (bytes > 0)
          FD_SET(devfd, &wfds);
-      
+
       if (select(nfds, &rfds, &wfds, NULL, NULL) < 0) {
          log_debug("sendjob: select failed: errno=%d", errno);
          /* XXX unsure - taken from backend/runloop.c */

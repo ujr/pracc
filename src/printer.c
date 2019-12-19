@@ -14,7 +14,7 @@
 //  - Number of Copies:  default  initial
 //  - Duplex / Simplex:  default  initial
 //  - Paper Size:        (tray)   initial
-// 
+//
 // Printer Reset (PCL EcE): restores User Default Environment.
 // Cold Reset (power cycle): restores Factory Default Environment.
 

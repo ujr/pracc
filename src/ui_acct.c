@@ -127,7 +127,7 @@ acct_dump(FILE *out, const char *acctname,
       }
 
       char datestr[32], timestr[32], *typestr;
-      struct tm *tmp = localtime(&tstamp); 
+      struct tm *tmp = localtime(&tstamp);
 
       if (tmp) {
          strftime(datestr, sizeof(datestr), "%Y-%m-%d", tmp);

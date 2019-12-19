@@ -163,7 +163,7 @@ int cgiInit(const char *cgiDataDir)
       parse_query_string(str);
       return 1; // OK
    }
-      
+
    return 0; // unknown method
 }
 

@@ -27,7 +27,7 @@ char *me;
 char *acctname;
 time_t datemin = 0;
 time_t datemax = 0;
-char *linetypes = 0; 
+char *linetypes = 0;
 int
 main(int argc, char **argv)
 {

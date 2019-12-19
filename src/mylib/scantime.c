@@ -2,7 +2,7 @@
 #include <time.h>
 
 /**
- * Scan the string s for a time in ISO 8601 format, eg, 12:34:56. 
+ * Scan the string s for a time in ISO 8601 format, eg, 12:34:56.
  * Only the tm_hour, tm_min, tm_sec fields of the struct tm are updated;
  * all other fields are left alone.
  *

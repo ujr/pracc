@@ -20,13 +20,13 @@ main(int argc, char **argv)
    assert(0 == sp->len);
    assert(SIZEGTLEN(sp));
    assert(TERMINATED(sp));
-   
+
    strbuf_addb(sp, "gagax", 4);
    assert(strcmp(sp->buf, "gaga") == 0);
    assert('a' == strbuf_last(sp));
    assert(SIZEGTLEN(sp));
    assert(TERMINATED(sp));
-   
+
    strbuf_addf(sp, "+%d-%d=%s", 3, 4, "konfus");
    assert(strcmp(sp->buf, "gaga+3-4=konfus") == 0);
    assert(SIZEGTLEN(sp));

@@ -84,7 +84,7 @@ main(int argc, char **argv)
          die(111, "praccPath failed");
       return checkfile(fn);
    }
-   
+
    if (*argv) usage("too many arguments");
 
    putfmt(stdout, "** Compile-time configuration:\n");
@@ -142,7 +142,7 @@ main(int argc, char **argv)
    check(PRACCBIN, 0, "pracc-check", S_IFREG, -1, -1, 0755, 0, 1);
    check(PRACCBIN, 0, "pracc-log", S_IFREG, -1, -1, 0755, 0, 1);
    check(PRACCBIN, 0, "pracc-pclog", S_IFREG, -1, -1, 0755, 1, 1);
-   
+
    putln(stdout, "\n** Checking pracc files...");
    check(0, 0, PRACCDIR, S_IFDIR, praccuid, praccgid, 02770, 0, 1);
    // default account must exist (permissions checked below):
@@ -167,7 +167,7 @@ main(int argc, char **argv)
    closedir(dir);
    putfmt(stdout, "%d+%d good+bad files in %s\n",
           goodcnt, badcnt, PRACCDIR);
-   
+
    return (badcnt) ? 1 : 0;
 }
 
@@ -250,7 +250,7 @@ reportv(char *home, char *sub, char *fn, char *fmt, va_list ap)
    }
    p += vsnprintf(p, end-p, fmt, ap);
    p += printc(p, '\n');
-   
+
    putbuf(stdout, buf, p-buf);
 }
 
@@ -295,7 +295,7 @@ strfperm(int mode)
    register char *p;
 
    mode &= 07777;
-   
+
    p = buf + sizeof(buf);
    *--p = '\0';
    do {

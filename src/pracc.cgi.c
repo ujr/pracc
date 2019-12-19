@@ -232,7 +232,7 @@ doUser(const char *suffix)
 
    if (lookup("types", 0) == 0)
       install("types", ""); // all types
-   
+
    if (isCsvRequested()) {
       time_t tmin = getmintime();
       time_t tmax = getmaxtime();
@@ -357,7 +357,7 @@ doReports(const char *suffix)
 
 int
 doLogs(const char *suffix)
-{ 
+{
    install("SECTION", "logs");
 
    if (streq(suffix, "/pracc.log"))
@@ -494,7 +494,7 @@ doCreateAccount(void)
    cgiStartHTML(TITLE);
    cgiCopyTemplate("create.tmpl");
    cgiEndHTML();
-   
+
    return 0; // OK
 }
 
@@ -805,7 +805,7 @@ array_init_accts()
    long first = getfirst();
    long count = getcount();
    char *filter = lookup("filter", "");
-   
+
    if (accts_init(first, count, filter) < 0)
       install("error", strerror(errno));
    else {
@@ -1198,7 +1198,7 @@ parseamount(const char *s, long *value)
    }
 
    if (*p) return 0;
-  
+
    if (value) *value = sign * (100*N + M);
 
    return p - s; // #chars parsed

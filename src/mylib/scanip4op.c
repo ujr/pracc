@@ -10,22 +10,22 @@ int scanip4op(const char *s, unsigned char ip[4], unsigned short *port)
 
   if ((i = scanu(s, &u)) == 0 || (u > 255)) return 0;
   ip[0] = (unsigned char) u;  s += i;  len += i;
-  
+
   if (*s != '.') return 0;
   s++, len++;
-  
+
   if ((i = scanu(s, &u)) == 0 || (u > 255)) return 0;
   ip[1] = (unsigned char) u;  s += i;  len += i;
-  
+
   if (*s != '.') return 0;
   s++, len++;
-  
+
   if ((i = scanu(s, &u)) == 0 || (u > 255)) return 0;
   ip[2] = (unsigned char) u;  s += i;  len += i;
-  
+
   if (*s != '.') return 0;
   s++, len++;
-  
+
   if ((i = scanu(s, &u)) == 0 || (u > 255)) return 0;
   ip[3] = (unsigned char) u;  s += i; len += i;
 

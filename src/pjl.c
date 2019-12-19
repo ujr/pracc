@@ -132,7 +132,7 @@ int pjlcount(int fd)
  *         @PJL ENTER LANGUAGE = "personality" [or just a UEL]
  *
  * Expect: Wait for a USTATUS JOB message, which
- *         indicates that the job is now printing; 
+ *         indicates that the job is now printing;
  *
  * Return 0 if ok and -1/errno on failure.
  */

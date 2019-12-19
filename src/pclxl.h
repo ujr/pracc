@@ -261,5 +261,5 @@ extern int pclxl_parse(struct printer *prt, FILE *logop, int verbose);
 #define PCLXL_ATTR_X_SPACING_DATA         175
 #define PCLXL_ATTR_Y_SPACING_DATA         176
 #define PCLXL_ATTR_CHAR_BOLD_VALUE        177
- 
+
 #endif // _PCLXL_H_

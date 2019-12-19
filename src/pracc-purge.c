@@ -95,7 +95,7 @@ int main(int argc, char **argv)
 
    return 0; // SUCCESS
 }
-   
+
 int printdate(char *s, time_t *tp)
 {
    struct tm *tm;

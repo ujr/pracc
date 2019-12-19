@@ -12,7 +12,7 @@
 /**
  * Given a symbolic name of a time period, compute
  * and return its start and end Unix time stamp:
- * 
+ *
  *   toady      beginning of today till now
  *   thisweek   beginning of this week (Monday) till now
  *   thismonth  beginning of this month till now

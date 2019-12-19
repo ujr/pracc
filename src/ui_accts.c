@@ -95,7 +95,7 @@ int accts_get(int index, char **acctname)
 
    if (index < firstindex) return 1;
    if (index > lastindex) return 1;
-   
+
    if (acctname) *acctname = accts_array[index-1];
 
    return OK;

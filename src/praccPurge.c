@@ -53,7 +53,7 @@ int praccPurge(acctname, tx, keepresets, keeplimits, keepnotes, doit, fntmp)
  * file pointer. Now iterate the pracc file and decide if
  * a record shall be copied to the temporary file...
  */
-   
+
    balance = limit = 0;
 
    while ((n = praccRead(&pracc)) > 0) {

@@ -205,7 +205,7 @@ pcl5_read_number(int c, double *number)
          denom *= 10;
          c = PCL5_INPUT();
       }
-      
+
       value += numer / denom;
    }
 

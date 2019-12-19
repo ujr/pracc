@@ -264,7 +264,7 @@ main(int argc, char *argv[])
 
    // This is the only line to stdout:
    report(stdout);
-   
+
    return SUCCESS;
 }
 
@@ -948,7 +948,7 @@ die(int code, const char *fmt, ...)
 
    if (saverr == 0) logup(FATAL, "%s", msg);
    else logup(FATAL, "%s: %s", msg, strerror(errno));
-   
+
    va_end(ap);
 
    exit(code);

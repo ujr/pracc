@@ -46,7 +46,7 @@ struct symbol *symget(struct symtab *st, const char *name)
    if (st->bucks && name) {
       unsigned long h = hash(name) % st->size;
       struct symbol *s = st->bucks[h];
-   
+
       while (s) { // bucket list
          if (strcmp(s->name, name))
             s = s->next;

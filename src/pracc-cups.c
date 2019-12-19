@@ -122,7 +122,7 @@ main(int argc, char *argv[], char *envp[])
       log_error("no device URI specified");
       return CUPS_BACKEND_STOP;
    }
- 
+
    parseURI(devuri, .......);
 
    printer = getenv("PRINTER");

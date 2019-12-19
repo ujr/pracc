@@ -89,7 +89,7 @@ void subst(FILE *in, FILE *out, char term, int num, int level)
                char *curfn = lookup("FILENAME", ".");
                char *fn = qualify(name+1, curfn);
                FILE *fp = fopen(fn, "r");
-               
+
                if (fp) {
                      char *savefn = lookup("FILENAME", 0);
                      install("FILENAME", fn);
