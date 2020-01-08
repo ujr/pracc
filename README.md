@@ -78,7 +78,8 @@ as well as in the slides from a [SWITCH](https://www.switch.ch)-organised
 [printing workshop](doc/PrintingWorkshopPLU-20080318.pdf) and a longer
 [presentation](doc/PrintingLecture20080325.pdf) (all in German). Also
 available are some technical notes on [PostScript](doc/PostScript.md)
-and [network printing](doc/Network.md).
+and [network printing](doc/Network.md), and the structure of a typical
+[print job](doc/PrintJob.md).
 
 
 References
