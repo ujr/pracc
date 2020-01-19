@@ -96,9 +96,12 @@ CUPS backend (and its predecessor called *netprint*) were:
    information about HP's *JetDirect* protocol, also known as the
    *Socket API*, which was the *de facto* standard for communicating
    with network printers.
- * [CUPS documentation](https://www.cups.org/documentation.html)
- * PJL: [pjl-qref.html](doc/pjl-qref.html) is a local summary of
+ * The [CUPS documentation](https://www.cups.org/documentation.html)
+ * About PJL: [pjl-qref.html](doc/pjl-qref.html) is a local summary of
    HP's [Printer Job Language Technical Reference Manual](https://developers.hp.com/system/files/PJL_Technical_Reference_Manual.pdf)
+ * The notes on *Student Printing Quotas* by Anthony Thyssen
+   of Griffith University had some influence on my decisions
+   (see a [local copy](doc/StudentQuotas.md)).
 
 The unfinished *pracc-scan* tool was supposed to count pages in
 print jobs prior to printing, which required an understanding of
@@ -107,3 +110,20 @@ the print job and therefore typically PostScript, PCL5 and PCL XL
 time PCL XL was hard to find (nowadays search the Internet for
 HP's *PCL XL Feature Reference* to find the specification).
 
+
+Screenshots
+-----------
+
+Views of the Web-based reporting and administration tool (pracc.cgi):
+
+![user view](/doc/images/userview.png)  
+Screenshot: User's view (without admin rights)
+
+![main view](/doc/images/mainview.png)  
+Screenshot: Main view (needs admin rights)
+
+![account list](/doc/images/accountlist.png)  
+Screenshot: Find and list accounts (needs admin rights)
+
+![account view](/doc/images/accountview.png)  
+Screenshot: Account view (needs admin rights)

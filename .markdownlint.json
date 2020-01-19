@@ -4,5 +4,6 @@
     "ul-indent": false,
     "no-multiple-blanks": false,
     "list-marker-space": false,
+    "first-line-heading": false,
     "code-block-style": false
 }
