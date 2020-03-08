@@ -1,0 +1,33 @@
+%!PS
+% Playing with the image and filter operators.
+
+% Image operator expects 5 values on the stack:
+% width, height, bits-per-pixel, image matrix, data.
+% The image matrix sould map the image into a unit square.
+% The data source in this example is a PostScript hex string.
+gsave
+100 100 scale
+0.0 2 translate
+8 12 1 [8 0 0 12 0 0]
+<c1 80 0c 1e 1e 1e 1e 1e 1e 1e 1e 1e> image
+grestore
+
+% Hier das selbige Bildchen auf dem Kopf (vgl image matrix).
+gsave
+100 100 scale
+1.1 2 translate
+8 12 1 [8 0 0 -12 0 12]
+<c1 80 0c 1e 1e 1e 1e 1e 1e 1e 1e 1e> image
+grestore
+
+% Read the data from currentfile; the ">" is
+% an end marker for the ASCIIHexDecode filter.
+gsave
+100 100 scale
+2.2 2 translate
+8 12 1 [8 0 0 12 0 0] currentfile /ASCIIHexDecode filter image
+c1 80 0c 1e 1e 1e 1e 1e 1e 1e 1e 1e >
+grestore
+showpage
+
+

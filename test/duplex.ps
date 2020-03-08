@@ -1,0 +1,6 @@
+%!PS
+% prepend to PostScript job for duplex mode on most printers
+statusdict begin
+ statusdict /setduplexmode known
+ { true setduplexmode } if
+end
